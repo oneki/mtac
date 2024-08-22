@@ -1,0 +1,20 @@
+INSERT INTO "resource" (
+  label,
+  public_id,
+  pub,
+  tenant_id,
+  schema_id,
+  created_by,
+  updated_by,
+  content
+)
+VALUES(
+  :label,
+  :publicId,
+  :pub,
+  :tenantId,
+  :schemaId,
+  :createdBy,
+  :updatedBy,
+  to_json(:content::JSON)
+);

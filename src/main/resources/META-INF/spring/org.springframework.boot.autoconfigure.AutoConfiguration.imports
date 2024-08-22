@@ -1,0 +1,3 @@
+net.oneki.mtac.config.MtacConfig
+net.oneki.mtac.config.IssuerConfig
+net.oneki.mtac.config.OpenIdConfig

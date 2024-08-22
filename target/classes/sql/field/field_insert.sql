@@ -1,0 +1,28 @@
+INSERT INTO "field" (
+  label,
+  "type",
+  "owner",
+  peer_id,
+  multiple,
+  "required",
+  validators,
+  default_value,
+  priv,
+  "description",
+  editable,
+  example
+)
+VALUES(
+  :label,
+  :type,
+  :owner,
+  :peerId,
+  :multiple,
+  :required,
+  to_json(:validators::JSON),
+  to_json(:defaultValue::JSON),
+  :priv,
+  :description,
+  :editable,
+  to_json(:example::JSON)
+);
