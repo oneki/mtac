@@ -37,7 +37,7 @@ public class ResourceReflector {
                 .build();
     }
 
- 
+
 
     public static List<Field> getAllFields(List<Field> fields, Class<?> type) {
         fields.addAll(Arrays.asList(type.getDeclaredFields()));
@@ -65,7 +65,7 @@ public class ResourceReflector {
         } else if (classType.isAssignableFrom(List.class) || classType.isAssignableFrom(Set.class)) {
             isMultiple = true;
             classType = getGenericType(field.getGenericType());
-        } 
+        }
 
         var type = getType(classType);
         var peer = field.isAnnotationPresent(Peer.class) ? field.getAnnotation(Peer.class).value() : null;

@@ -1,20 +1,17 @@
 package net.oneki.mtac.model.entity;
 
-import net.oneki.mtac.model.entity.Ancestor;
-import net.oneki.mtac.model.entity.HasId;
-import net.oneki.mtac.model.entity.HasLabel;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
+@Builder
 public class Ancestor implements HasLabel, HasId {
 	protected Integer id;
 	protected String label;
 	protected Integer depth;
 
-	@Builder(builderMethodName = "ancestorBuilder")
 	public Ancestor(Integer id, String label, Integer depth) {
 		this.label = label;
 		this.depth = depth;

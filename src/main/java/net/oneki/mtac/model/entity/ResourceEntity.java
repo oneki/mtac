@@ -22,27 +22,85 @@ import net.oneki.mtac.util.introspect.annotation.Entity;
 @SuperBuilder
 @Entity
 public abstract class ResourceEntity implements HasLabel, HasId, HasSchema {
+	/*
+	 * Internal id of the resource. Auto generated during the first insertion in the DB
+	 * This id should never be exposed to the outside and is only used internally
+	 */
 	protected Integer id;
 
+	/*
+	 * A urn is used as a public id and uniquely identifies a resource
+	 * The format is <tenant>:<schema>:<label>
+	 *
+	 * A tenant or a schema can't contain a colon
+	 *
+	 * Example: oneki:iam.identity.user:olivier.franki@gmail.com
+	 */
 	@JsonAlias("@urn")
 	protected String urn;
 
+	/*
+	 * A public resource is visible by any sub-tenant
+	 */
 	@JsonAlias("@pub")
 	protected boolean pub;
+
+	/*
+	 * Indicates that the resource is actually a link to another resource
+	 */
 	protected boolean link;
 
+	/*
+	 * The datetime at which the resource was created
+	 */
 	@JsonAlias("@createdAt")
 	protected Instant createdAt;
+
+	/*
+	 * The datetime at which the resource was last updated
+	 */
 	@JsonAlias("@updatedAt")
 	protected Instant updatedAt;
+
+	/*
+	 * The email of the creator of the resource
+	 */
 	@JsonAlias("@createdBy")
 	protected String createdBy;
+
+	/*
+	 * The email of the last updater of the resource
+	 */
 	@JsonAlias("@updatedBy")
 	protected String updatedBy;
+
+	/*
+	 * The ACL (access control list) of the resource
+	 * An ACL is a list of ACE (access control entries)
+	 * An ACE is a combinaison of a idenity (user or group) and a role
+	 */
 	protected Acl acl;
+
+	/*
+	 * List of actions of this resource that the logged user has access to
+	 */
 	protected List<String> grantedActions;
+
+	/*
+	 * List of fields of this resource that the logged user has access to
+	 * Used to filter some sensitive fields like password
+	 */
 	protected List<String> grantedFields;
 
+	/*
+	 * When a new resource is inserted, we must labelize it based on some fields
+	 * of the resource
+	 * Example:
+	 *   organization: MyOrg
+	 *   site: site1
+	 *
+	 *   --> The label is site1@MyOrg
+	 */
 	@Lookup
 	public abstract String labelize();
 
@@ -236,11 +294,4 @@ public abstract class ResourceEntity implements HasLabel, HasId, HasSchema {
 	public final void setGrantedFields(List<String> grantedFields) {
 		this.grantedFields = grantedFields;
 	}
-
-	// public static class ResourceEntityBuilder {
-	// public UserBuilder password(String password) {
-	// this.password = ENCODER.encode(password);
-	// return this;
-	// }
-	// }
 }

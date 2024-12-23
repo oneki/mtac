@@ -20,16 +20,15 @@ import net.oneki.mtac.util.introspect.annotation.Entity;
 @EqualsAndHashCode(callSuper = true)
 @Entity("iam.role")
 public class RoleEntity extends ResourceEntity {
-    private I18n name;
+    private String name;
+    private I18n localizedName;
     @Builder.Default private List<String> schemas = new ArrayList<>();
     @Builder.Default private List<String> actions = new ArrayList<>();
     @Builder.Default private List<String> fields = new ArrayList<>();
-    
+
     @Override
     public String labelize() {
-        if (name == null) throw new RuntimeException("RoleEntity must have a name");
-        if (name.getEn() == null) throw new RuntimeException("RoleEntity must have an English name");
-        return name.getEn();
+        return name;
     }
 
 }

@@ -13,12 +13,11 @@ import net.oneki.mtac.util.introspect.annotation.Entity;
 @EqualsAndHashCode(callSuper = true)
 @Entity(schema = "tenant")
 public class TenantEntity extends ResourceEntity {
-    private I18n name;
+    private String name;
+    private I18n localizedName;
 
     @Override
     public String labelize() {
-        if (name == null) throw new RuntimeException("TenantEntity must have a name");
-        if (name.getEn() == null) throw new RuntimeException("TenantEntity must have an English name");
-        return name.getEn();
+        return name;
     }
 }

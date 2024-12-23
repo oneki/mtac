@@ -63,7 +63,8 @@ public class SchemaDbSynchronizer {
                 var schemaEntity = resourceRepository.create(SchemaEntity.builder()
                         .pub(true)
                         .urn("root:schema:" + scannedSchemaLabel)
-                        .name(I18n.builder().en(scannedSchemaLabel).build())
+                        .name(scannedSchemaLabel)
+                        .localizedName(I18n.builder().en(scannedSchemaLabel).build())
                         .parents(parents)
                         .build());
                 cache.addSchema(schemaEntity);
@@ -152,7 +153,7 @@ public class SchemaDbSynchronizer {
             return null;
         }
         var declaringSchemaLabel = ResourceRegistry.getSchemaByClass(declaringClass);
-        
+
 
         if (declaringSchemaLabel.equals(scannedSchemaLabel)) {
             var fieldEntity = context.getFieldSchemaIndex().get(scannedSchemaLabel + ":" + scannedField.getLabel());

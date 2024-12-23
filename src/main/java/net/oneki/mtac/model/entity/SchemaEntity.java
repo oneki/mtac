@@ -20,16 +20,16 @@ import net.oneki.mtac.util.introspect.annotation.Entity;
 @EqualsAndHashCode(callSuper = true)
 @Entity("schema")
 public class SchemaEntity extends ResourceEntity {
-    private I18n name;
+    private String name;
+
+    private I18n localizedName;
 
     @Builder.Default
     private List<Ref> parents = new ArrayList<>();
 
     @Override
     public String labelize() {
-        if (name == null) throw new RuntimeException("SchemaEntity must have a name");
-        if (name.getEn() == null) throw new RuntimeException("SchemaEntity must have an English name");
-        return name.getEn();
+        return name;
     }
 
     public static String asUrn(String schemaLabel) {

@@ -35,6 +35,21 @@ public class ResourceService {
     private final SecurityContext securityContext;
     private final RelationService relationService;
 
+    /**
+     * Base method to convert a create request to an actual resource
+     * This method
+     *   - tries to map the request to an entity (actually only fields shared between the request and the entity)
+     *   - checks if the requester can create this kind of entity in the tenant
+     *   - labelizes the entity
+     *   - checks if the entity label is unique (in the scope defined by the schema)
+     *
+     * Any custom mapper should first call this base method and then map manually additional fields that are not
+     * common to both the request and the entity
+     *
+     * @param request: The create request object
+     * @param entityClass: The target entity class
+     * @return The entity
+     */
     public <T extends ResourceEntity, R extends UpsertRequest> T toCreateEntity(R request, Class<T> entityClass) {
         try {
             var entity = mapperService.toEntity(request, entityClass.getDeclaredConstructor().newInstance());
@@ -62,6 +77,21 @@ public class ResourceService {
         }
     }
 
+    /**
+     * Base method to convert an update request to an actual entity
+     * This method
+     *   - get the current entity from the DB (and checks if the requester can access it)
+     *   - checks if the requester can update this entity
+     *   - tries to map the request to the entity (actually only fields shared between the request and the entity)
+     *     if a field is not defined in the request, the field from the entity is kept
+     *
+     * Any custom mapper should first call this base method and then map manually additional fields that are not
+     * common to both the request and the entity
+     *
+     * @param request: The update request object
+     * @param entityClass: The target entity class
+     * @return The entity
+     */
     public <T extends ResourceEntity, R extends UpsertRequest> T toUpdateEntity(R request, Class<T> entityClass) {
         try {
             var entity = resourceRepository.getByLabel(request.getLabel(), request.getTenant(), entityClass);
@@ -108,12 +138,28 @@ public class ResourceService {
     //     }
     // }
 
+   /**
+     * Persists a new entity in the DB
+     *
+     * @param tenantLabel: the label of the tenant containing the entity
+     * @param resourceEntity: The entity to persist
+     * @return The entity containing the auto generated id
+     */
     public <T extends ResourceEntity> T create(String tenantLabel, T resourceEntity) {
         var tenant = Cache.getInstance().getTenantByLabel(tenantLabel);
         resourceEntity.setTenant(tenantLabel);
         return create(resourceEntity);
     }
 
+   /**
+     * Persists a new entity in the DB
+     *
+     * This method verifies that the requester has the permission to create this kind
+     * of entity in the selected tenant
+     *
+     * @param resourceEntity: The entity to persist
+     * @return The entity containing the auto generated id
+     */
     public <T extends ResourceEntity> T create(T resourceEntity) {
         // Verify if the user has the permission to create the resource
         if (!permissionService.hasCreatePermission(resourceEntity.getTenant(),
@@ -123,6 +169,14 @@ public class ResourceService {
         return resourceRepository.create(resourceEntity);
     }
 
+   /**
+     * Persists the changes made on an entity in the DB
+     *
+     * This method verifies that the requester has the permission to update the entity
+     *
+     * @param resourceEntity: The entity to persist
+     * @return void
+     */
     public <T extends ResourceEntity> void update(T resourceEntity) {
 
         // Verify if the user has the permission to update the resource
@@ -132,21 +186,54 @@ public class ResourceService {
         resourceRepository.update(resourceEntity);
     }
 
+   /**
+     * Delte an entity by its internal id
+     *
+     *
+     * @param id: The id of the entity
+     * @param entityClass: the class of the entity
+     * @return void
+     */
     public <T extends ResourceEntity> void deleteById(Integer id, Class<T> entityClass) {
         var entity = resourceRepository.getById(id, entityClass);
         delete(entity);
     }
 
+   /**
+     * Delte an entity by its public id
+     *
+     *
+     * @param uuid: the public ID of the entity
+     * @param entityClass: the class of the entity
+     * @return void
+     */
     public  <T extends ResourceEntity> void deleteByPublicId(UUID publicId, Class<T> entityClass) {
         var entity = resourceRepository.getByPublicId(publicId, entityClass);
         delete(entity);
     }
 
+   /**
+     * Delte an entity by its label, tenant, schema
+     *
+     *
+     * @param tenantLabel: the label of the tenant
+     * @param label: the label of the entity
+     * @param entityClass: the class of the entity
+     * @return void
+     */
     public <T extends ResourceEntity> void deleteByLabel(String tenantLabel, String label, Class<T> entityClass) {
         var entity = resourceRepository.getByLabel(label, tenantLabel, entityClass);
         delete(entity);
     }
 
+   /**
+     * Delete an entity
+     *
+     * This method verifies first that the requester can delete the entity
+     *
+     * @param resourceEntity: the entity to delete
+     * @return void
+     */
     public <T extends ResourceEntity> void delete(T resourceEntity) {
         if (resourceEntity == null) {
             return;
@@ -158,6 +245,13 @@ public class ResourceService {
         resourceRepository.delete(resourceEntity.getId());
     }
 
+   /**
+     * Get an entity by its id
+     *
+     * @param id: the id of the entity
+     * @param resultContentClass: the class of the entity
+     * @return the entity
+     */
     public <T extends ResourceEntity> T getById(Integer id, Class<T> resultContentClass) {
         var result = resourceRepository.getById(id, resultContentClass);
         if (result == null) {
@@ -167,6 +261,14 @@ public class ResourceService {
         return result;
     }
 
+   /**
+     * Get an entity by its tenant, schema, label
+     *
+     * @param tenantLabel: the label of the tenant
+     * @param label: the label of the entity
+     * @param resultContentClass: the class of the entity
+     * @return the entity
+     */
     public <T extends ResourceEntity> T getByLabel(String tenantLabel, String label, Class<T> resultContentClass) {
         var result = resourceRepository.getByLabel(tenantLabel, label, resultContentClass);
         if (result == null) {
@@ -176,6 +278,13 @@ public class ResourceService {
         return result;
     }
 
+   /**
+     * Get a list of entities
+     *
+     * @param query: query used to filter / sort / limit the result
+     * @param resultContentClass: the class of the entity
+     * @return an entity page
+     */
     public <T extends ResourceEntity> Page<T> list(Query query, Class<T> resultContentClass) {
         var resources = resourceRepository.listByTenantAndType(query.getTenant(), resultContentClass, query);
         var relationNames = query.getRelations();
@@ -218,7 +327,7 @@ public class ResourceService {
             ResourceEntity relation) throws IllegalArgumentException, IllegalAccessException {
         if (relation != null) {
             ResourceEntity relationEntity = null;
-            
+
             relationEntity = resourceRepository.getByLabel(relation.getLabel(), upsertRequest.getTenant(),
                     relationField.getRelationClass());
             if (relationEntity == null) {
