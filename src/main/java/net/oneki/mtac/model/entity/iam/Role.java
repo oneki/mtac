@@ -1,4 +1,4 @@
-package net.oneki.mtac.model.entity;
+package net.oneki.mtac.model.entity.iam;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -9,7 +9,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
-import net.oneki.mtac.config.Constants;
+import net.oneki.mtac.model.entity.Resource;
 import net.oneki.mtac.util.introspect.annotation.Entity;
 
 @Data
@@ -17,19 +17,16 @@ import net.oneki.mtac.util.introspect.annotation.Entity;
 @NoArgsConstructor
 @SuperBuilder
 @EqualsAndHashCode(callSuper = true)
-@Entity("schema")
-public class SchemaEntity extends ResourceEntity {
+@Entity("iam.role")
+public class Role extends Resource {
     private String name;
-
-    @Builder.Default
-    private List<Ref> parents = new ArrayList<>();
+    @Builder.Default private List<String> schemas = new ArrayList<>();
+    @Builder.Default private List<String> actions = new ArrayList<>();
+    @Builder.Default private List<String> fields = new ArrayList<>();
 
     @Override
     public String labelize() {
         return name;
     }
 
-    public static String asUrn(String schemaLabel) {
-        return String.format("%s:%s:%s", Constants.TENANT_ROOT_LABEL, Constants.SCHEMA_SCHEMA_LABEL, schemaLabel);
-    }
 }

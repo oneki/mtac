@@ -9,7 +9,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import net.oneki.mtac.model.entity.FieldEntity;
+import net.oneki.mtac.model.entity.Field;
 import net.oneki.mtac.util.introspect.ResourceDesc;
 
 @Data
@@ -17,10 +17,10 @@ import net.oneki.mtac.util.introspect.ResourceDesc;
 @NoArgsConstructor
 @Builder
 public class SyncDbContext {
-    @Builder.Default private List<FieldEntity> fieldEntities = new ArrayList<>();
-    @Builder.Default private Map<String, FieldEntity> fieldSchemaIndex = new HashMap<>();
-    @Builder.Default private Map<Integer, FieldEntity> fieldIndex = new HashMap<>();
-    @Builder.Default private Map<Integer, FieldEntity> nextFieldIndex = new HashMap<>();
-    @Builder.Default private Map<String, FieldEntity> nextFieldSchemaIndex = new HashMap<>();
-    @Builder.Default private Map<ResourceDesc, List<FieldEntity>> nextFieldEntitiesByResourceDesc = new HashMap<>();
+    @Builder.Default private List<Field> fieldEntities = new ArrayList<>();
+    @Builder.Default private Map<String, Field> fieldSchemaIndex = new HashMap<>();
+    @Builder.Default private Map<Integer, Field> fieldIndex = new HashMap<>();
+    @Builder.Default private Map<Integer, Field> nextFieldIndex = new HashMap<>();
+    @Builder.Default private Map<String, Field> nextFieldSchemaIndex = new HashMap<>();
+    @Builder.Default private Map<ResourceDesc, List<Field>> nextFieldEntitiesByResourceDesc = new HashMap<>();
 }

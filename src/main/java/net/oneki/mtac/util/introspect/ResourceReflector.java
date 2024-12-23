@@ -4,6 +4,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -12,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import net.oneki.mtac.model.entity.ResourceEntity;
+import net.oneki.mtac.model.entity.Resource;
 import net.oneki.mtac.util.cache.ResourceRegistry;
 import net.oneki.mtac.util.introspect.annotation.Peer;
 import net.oneki.mtac.util.introspect.annotation.Secret;
@@ -20,6 +21,9 @@ import net.oneki.mtac.util.introspect.annotation.Secret;
 public class ResourceReflector {
 
     public static ResourceDesc reflect(Class<?> clazz, Map<String, Object> annotAttributeMap) {
+        if (clazz.getName().equals("net.oneki.mtac.model.api.iam.identity.user.UserUpsertRequest")) {
+            System.out.println("Reflecting class: " + clazz.getName());
+        }
         var resourceDesc = new HashSet<ResourceField>();
         List<Field> fields = new ArrayList<Field>();
         fields = getAllFields(fields, clazz);
@@ -56,7 +60,7 @@ public class ResourceReflector {
     @SuppressWarnings("unchecked")
     private static ResourceField getFieldType(Field field) {
         var isMultiple = false;
-
+        
         var classType = field.getType();
 
         if (field.getType().isArray()) {
@@ -76,7 +80,7 @@ public class ResourceReflector {
                     .multiple(isMultiple)
                     .field(field)
                     .fieldClass(classType)
-                    .relationClass((Class<? extends ResourceEntity>) classType)
+                    .relationClass((Class<? extends Resource>) classType)
                     .secret(field.isAnnotationPresent(Secret.class))
                     .peer(peer)
                     .build();
@@ -94,6 +98,12 @@ public class ResourceReflector {
     }
 
     private static Class<?> getGenericType(Type type) {
+        if (type instanceof Class) {
+            return (Class<?>) type;
+        }
+        if (type instanceof TypeVariable) {
+            return getGenericType(((TypeVariable<?>) type).getBounds()[0]);
+        }
         var pType = ((ParameterizedType) type).getActualTypeArguments()[0];
         if (pType instanceof Class) {
             return (Class<?>) pType;

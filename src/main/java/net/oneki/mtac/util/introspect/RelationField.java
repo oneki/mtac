@@ -6,7 +6,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
-import net.oneki.mtac.model.entity.ResourceEntity;
+import net.oneki.mtac.model.entity.Resource;
 
 @Data
 @AllArgsConstructor
@@ -14,7 +14,7 @@ import net.oneki.mtac.model.entity.ResourceEntity;
 @SuperBuilder
 @EqualsAndHashCode(callSuper = true)
 public class RelationField extends ResourceField{
-    private Class<? extends ResourceEntity> relationClass;
+    private Class<? extends Resource> relationClass;
     
     public boolean isRelation() {
         return true;

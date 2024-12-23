@@ -6,8 +6,8 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
-import net.oneki.mtac.model.entity.ResourceEntity;
-import net.oneki.mtac.model.entity.iam.identity.GroupEntity;
+import net.oneki.mtac.model.entity.Resource;
+import net.oneki.mtac.model.entity.iam.identity.Group;
 import net.oneki.mtac.util.introspect.annotation.Entity;
 import net.oneki.mtac.util.introspect.annotation.Peer;
 
@@ -17,11 +17,11 @@ import net.oneki.mtac.util.introspect.annotation.Peer;
 @NoArgsConstructor
 @Entity("iam.identity")
 @EqualsAndHashCode(callSuper = true)
-public class IdentityEntity extends ResourceEntity {
+public class Identity extends Resource {
     private String email;
 
     @Peer("members")
-    private List<GroupEntity> memberOf;
+    private List<Group> memberOf;
 
     // @Lookup
     // public abstract void labelize();

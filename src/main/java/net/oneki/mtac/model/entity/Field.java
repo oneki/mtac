@@ -14,7 +14,7 @@ import net.oneki.mtac.util.introspect.ResourceField;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class FieldEntity {
+public class Field {
     private Integer id;
     private String label;
     private String type;

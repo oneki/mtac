@@ -3,56 +3,56 @@ package net.oneki.mtac.model.framework;
 import java.util.HashMap;
 import java.util.Map;
 
-import net.oneki.mtac.model.entity.ResourceEntity;
+import net.oneki.mtac.model.entity.Resource;
 
 
 public class Relations {
-    private Map<Integer, ResourceEntity> byId = new HashMap<>();
-    private Map<String, ResourceEntity> byUrn = new HashMap<>();
-    private Map<Class<? extends ResourceEntity>, Map<String, Map<String, ResourceEntity>>> byLabel = new HashMap<>(); // key = schemaLabel, value = Map<tenantLabel, Map<resourceLabel, ResourceEntity>>
+    private Map<Integer, Resource> byId = new HashMap<>();
+    private Map<String, Resource> byUrn = new HashMap<>();
+    private Map<Class<? extends Resource>, Map<String, Map<String, Resource>>> byLabel = new HashMap<>(); // key = schemaLabel, value = Map<tenantLabel, Map<resourceLabel, ResourceEntity>>
 
-    public Map<Integer, ResourceEntity> getRelationsById() {
+    public Map<Integer, Resource> getRelationsById() {
         return byId;
     }
 
-    public Map<String, ResourceEntity> getRelationsByUrn() {
+    public Map<String, Resource> getRelationsByUrn() {
         return byUrn;
     }
 
-    public Map<Class<? extends ResourceEntity>, Map<String, Map<String, ResourceEntity>>> getRelationsByLabel() {
+    public Map<Class<? extends Resource>, Map<String, Map<String, Resource>>> getRelationsByLabel() {
         return byLabel;
     }
 
-    public void putId(Integer id, ResourceEntity resource) {
+    public void putId(Integer id, Resource resource) {
         byId.put(id, resource);
     }
 
-    public void putUrn(String urn, ResourceEntity resource) {
+    public void putUrn(String urn, Resource resource) {
         byUrn.put(urn, resource);
     }
 
-    public void putLabel(RelationLabel label, ResourceEntity resource) {
-        Map<String, Map<String, ResourceEntity>> schemaResourceEntitys = byLabel.getOrDefault(label.getSchema(), new HashMap<String, Map<String, ResourceEntity>>());
-        Map<String, ResourceEntity> tenantResourceEntitys = schemaResourceEntitys.getOrDefault(label.getTenantLabel(), new HashMap<String, ResourceEntity>());
+    public void putLabel(RelationLabel label, Resource resource) {
+        Map<String, Map<String, Resource>> schemaResourceEntitys = byLabel.getOrDefault(label.getSchema(), new HashMap<String, Map<String, Resource>>());
+        Map<String, Resource> tenantResourceEntitys = schemaResourceEntitys.getOrDefault(label.getTenantLabel(), new HashMap<String, Resource>());
         tenantResourceEntitys.put(label.getLabel(), resource);
         schemaResourceEntitys.put(label.getTenantLabel(), tenantResourceEntitys);
         byLabel.put(label.getSchema(), schemaResourceEntitys);
     }
 
-    public ResourceEntity getResourceEntityById(Integer id) {
+    public Resource getResourceEntityById(Integer id) {
         return byId.get(id);
     }
 
-    public ResourceEntity getResourceEntityByUrn(String urn) {
+    public Resource getResourceEntityByUrn(String urn) {
         return byUrn.get(urn);
     }
 
-    public ResourceEntity getResourceEntityByLabel(RelationLabel label) {
-        Map<String, Map<String, ResourceEntity>> schemaResourceEntitys = byLabel.getOrDefault(label.getSchema(), null);
+    public Resource getResourceEntityByLabel(RelationLabel label) {
+        Map<String, Map<String, Resource>> schemaResourceEntitys = byLabel.getOrDefault(label.getSchema(), null);
         if (schemaResourceEntitys == null) {
             return null;
         }
-        Map<String, ResourceEntity> tenantResourceEntitys = schemaResourceEntitys.getOrDefault(label.getTenantLabel(), null);
+        Map<String, Resource> tenantResourceEntitys = schemaResourceEntitys.getOrDefault(label.getTenantLabel(), null);
         if (tenantResourceEntitys == null) {
             return null;
         }
@@ -63,9 +63,9 @@ public class Relations {
         byId.putAll(relations.getRelationsById());
         byUrn.putAll(relations.getRelationsByUrn());
         for (var schema: relations.getRelationsByLabel().keySet()) {
-            Map<String, Map<String, ResourceEntity>> schemaResourceEntitys = byLabel.getOrDefault(schema, new HashMap<String, Map<String, ResourceEntity>>());
+            Map<String, Map<String, Resource>> schemaResourceEntitys = byLabel.getOrDefault(schema, new HashMap<String, Map<String, Resource>>());
             for (String tenant: relations.getRelationsByLabel().get(schema).keySet()) {
-                Map<String, ResourceEntity> tenantResourceEntitys = schemaResourceEntitys.getOrDefault(tenant, new HashMap<String, ResourceEntity>());
+                Map<String, Resource> tenantResourceEntitys = schemaResourceEntitys.getOrDefault(tenant, new HashMap<String, Resource>());
                 tenantResourceEntitys.putAll(relations.getRelationsByLabel().get(schema).get(tenant));
                 schemaResourceEntitys.put(tenant, tenantResourceEntitys);
             }

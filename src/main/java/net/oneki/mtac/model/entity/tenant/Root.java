@@ -4,7 +4,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
-import net.oneki.mtac.model.entity.TenantEntity;
+import net.oneki.mtac.model.entity.Tenant;
 import net.oneki.mtac.util.introspect.annotation.Entity;
 
 
@@ -13,7 +13,7 @@ import net.oneki.mtac.util.introspect.annotation.Entity;
 @NoArgsConstructor
 @EqualsAndHashCode(callSuper = true)
 @Entity("tenant.root")
-public class Root extends TenantEntity {
+public class Root extends Tenant {
     @Override
     public String labelize() {
         return "root";

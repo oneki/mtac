@@ -8,8 +8,8 @@ import org.springframework.jdbc.core.RowMapper;
 
 import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.config.Constants;
-import net.oneki.mtac.model.entity.ResourceEntity;
-import net.oneki.mtac.model.entity.SchemaEntity;
+import net.oneki.mtac.model.entity.Resource;
+import net.oneki.mtac.model.entity.Schema;
 import net.oneki.mtac.model.security.Ace;
 import net.oneki.mtac.model.security.Acl;
 import net.oneki.mtac.repository.ResourceRepository;
@@ -19,7 +19,7 @@ import net.oneki.mtac.util.exception.UnexpectedException;
 import net.oneki.mtac.util.json.JsonUtil;
 
 @RequiredArgsConstructor
-public class ResourceRowMapper<T extends ResourceEntity> implements RowMapper<T> {
+public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
     private final ResourceRepository resourceRepository;
 
     @SuppressWarnings("unchecked")
@@ -61,7 +61,7 @@ public class ResourceRowMapper<T extends ResourceEntity> implements RowMapper<T>
         var schema = Cache.getInstance().getSchemaById(schemaId);
 
         if (schema == null) {
-            schema = resourceRepository.getByIdUnsecure(schemaId, SchemaEntity.class);
+            schema = resourceRepository.getByIdUnsecure(schemaId, Schema.class);
             if (schema == null) {
                 throw new UnexpectedException("SCHEMA_NOT_FOUND", "Schema not found for id " + schemaId);
             }

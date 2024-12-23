@@ -15,7 +15,7 @@ import org.springframework.stereotype.Repository;
 
 import net.oneki.mtac.repository.framework.AbstractRepository;
 import lombok.RequiredArgsConstructor;
-import net.oneki.mtac.model.entity.FieldEntity;
+import net.oneki.mtac.model.entity.Field;
 import net.oneki.mtac.util.json.JsonUtil;
 import net.oneki.mtac.util.sql.SqlUtils;
 
@@ -23,13 +23,13 @@ import net.oneki.mtac.util.sql.SqlUtils;
 @RequiredArgsConstructor
 public class FieldRepository extends AbstractRepository {
 
-    public List<FieldEntity> listAllFieldsUnsecure() {
+    public List<Field> listAllFieldsUnsecure() {
         var sql = SqlUtils.getSQL("field/field_list_all_unsecure.sql");
-        var fields = jdbcTemplate.query(sql, new HashMap<String, Object>(), new RowMapper<FieldEntity>() {
+        var fields = jdbcTemplate.query(sql, new HashMap<String, Object>(), new RowMapper<Field>() {
 
             @Override
-            public FieldEntity mapRow(ResultSet rs, int rowNum) throws SQLException {
-                return FieldEntity.builder()
+            public Field mapRow(ResultSet rs, int rowNum) throws SQLException {
+                return Field.builder()
                         .id(rs.getInt("id") == 0 ? null : rs.getInt("id"))
                         .label(rs.getString("label"))
                         .type(rs.getString("type"))
@@ -51,7 +51,7 @@ public class FieldRepository extends AbstractRepository {
         return fields;
     }
 
-    public FieldEntity create(FieldEntity fieldEntity) {
+    public Field create(Field fieldEntity) {
         Map<String, Object> parameters = SqlUtils.getPropertySqlParameters(fieldEntity);
         KeyHolder keyHolder = new GeneratedKeyHolder();
         var sql = SqlUtils.getSQL("field/field_insert.sql");
@@ -64,7 +64,7 @@ public class FieldRepository extends AbstractRepository {
         return null;
     }
 
-    public void update(FieldEntity fieldEntity) {
+    public void update(Field fieldEntity) {
         Map<String, Object> parameters = SqlUtils.getPropertySqlParameters(fieldEntity);
 
         SqlParameterSource parameterSource = new MapSqlParameterSource(parameters);
@@ -72,7 +72,7 @@ public class FieldRepository extends AbstractRepository {
         jdbcTemplate.update(sql, parameterSource);
     }
 
-    public void updatePeer(FieldEntity fieldEntity) {
+    public void updatePeer(Field fieldEntity) {
         Map<String, Object> parameters = SqlUtils.getPropertySqlParameters(fieldEntity);
 
         SqlParameterSource parameterSource = new MapSqlParameterSource(parameters);

@@ -4,7 +4,7 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.model.entity.Ref;
-import net.oneki.mtac.model.entity.ResourceEntity;
+import net.oneki.mtac.model.entity.Resource;
 import net.oneki.mtac.model.security.Acl;
 import net.oneki.mtac.repository.ResourceRepository;
 import net.oneki.mtac.repository.iam.RoleRepository;
@@ -72,15 +72,15 @@ public class PermissionService {
     private final RoleRepository roleRepository;
 
     public boolean hasPermission(Ref resourceRef, String permission) {
-        var resource = resourceRepository.getById(resourceRef.getId(), ResourceEntity.class);
+        var resource = resourceRepository.getById(resourceRef.getId(), Resource.class);
         return hasPermission(resource, permission);
     }
 
     public boolean hasPermission(String label, String tenantLabel, String schemaLabel, String permission) {
-        return hasPermission(label, tenantLabel, ResourceEntity.class, permission);
+        return hasPermission(label, tenantLabel, Resource.class, permission);
     }
 
-    public boolean hasPermission(String label, String tenantLabel, Class<? extends ResourceEntity> resourceClass,
+    public boolean hasPermission(String label, String tenantLabel, Class<? extends Resource> resourceClass,
             String permission) {
         var resource = resourceRepository.getByLabel(label, tenantLabel, resourceClass);
         return hasPermission(resource, permission);
@@ -95,11 +95,11 @@ public class PermissionService {
         // on the type of the resource (= coarse grain)
         // Example: Does the user has access to the resource "company1" of type
         // "tenant.company"?
-        var resource = resourceRepository.getById(resourceId, ResourceEntity.class);
+        var resource = resourceRepository.getById(resourceId, Resource.class);
         return hasPermission(resource, permission);
     }
 
-    public boolean hasPermission(ResourceEntity resource, String permission) {
+    public boolean hasPermission(Resource resource, String permission) {
         if (resource == null) {
             return false;
         }
@@ -111,7 +111,7 @@ public class PermissionService {
         return hasPermissionByPath(resource.getAcl(), resource.getSchema(), permission);
     }
 
-    public boolean hasCreatePermission(String tenantLabel, Class<? extends ResourceEntity> resourceToCreateClass) {
+    public boolean hasCreatePermission(String tenantLabel, Class<? extends Resource> resourceToCreateClass) {
         var tenantId = ResourceRegistry.getTenantId(tenantLabel);
         return hasCreatePermission(tenantId, resourceToCreateClass);
     }
@@ -133,7 +133,7 @@ public class PermissionService {
      * @param schemaLabel
      * @return
      */
-    public boolean hasCreatePermission(Integer tenantId, Class<? extends ResourceEntity> resourceToCreateClass) {
+    public boolean hasCreatePermission(Integer tenantId, Class<? extends Resource> resourceToCreateClass) {
         var schemaLabel = ResourceRegistry.getSchemaByClass(resourceToCreateClass);
         return hasCreatePermission(tenantId, schemaLabel);
     }

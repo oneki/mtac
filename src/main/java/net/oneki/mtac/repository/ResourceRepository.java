@@ -18,7 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.config.Constants;
-import net.oneki.mtac.model.entity.ResourceEntity;
+import net.oneki.mtac.model.entity.Resource;
 import net.oneki.mtac.repository.framework.AbstractRepository;
 import net.oneki.mtac.util.SetUtils;
 import net.oneki.mtac.util.cache.Cache;
@@ -44,7 +44,7 @@ public class ResourceRepository extends AbstractRepository {
 
     // ------------------------------------------------- CREATE
     @Transactional
-    public <T extends ResourceEntity> T create(T resource) {
+    public <T extends Resource> T create(T resource) {
         resource.setCreatedBy(securityContext != null ? securityContext.getUsername() : "");
         Map<String, Object> parameters = SqlUtils.getPropertySqlParameters(resource);
 
@@ -61,7 +61,7 @@ public class ResourceRepository extends AbstractRepository {
         return resource;
     }
 
-    protected <T extends ResourceEntity> T create(T resource,
+    protected <T extends Resource> T create(T resource,
             SqlParameterSource parameterSource) {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         var sql = SqlUtils.getSQL("resource/resource_insert.sql");
@@ -75,7 +75,7 @@ public class ResourceRepository extends AbstractRepository {
 
     // ------------------------------------------------- UPDATE
 
-    public <T extends ResourceEntity> void update(T resource) {
+    public <T extends Resource> void update(T resource) {
         Map<String, Object> parameters = SqlUtils.getPropertySqlParameters(resource);
         try {
             var json = entityToDbMapper.writeValueAsString(resource);
@@ -106,7 +106,7 @@ public class ResourceRepository extends AbstractRepository {
         }
     }
 
-    public <T extends ResourceEntity> void delete(String tenantLabel, String label, Class<T> resourceClass) {
+    public <T extends Resource> void delete(String tenantLabel, String label, Class<T> resourceClass) {
         var tenantId = Cache.getInstance().getTenantId(tenantLabel);
         var schemaId = Cache.getInstance().getSchemaId(ResourceRegistry.getSchemaByClass(resourceClass));
         var sql = "DELETE FROM resource WHERE label = :label AND tenant_id = :tenantId AND schema_id = :schemaId";
@@ -119,20 +119,20 @@ public class ResourceRepository extends AbstractRepository {
 
     // ------------------------------------------------- GET BY ID
 
-    public <T extends ResourceEntity> T getById(int id, Class<T> resultContentClass) {
+    public <T extends Resource> T getById(int id, Class<T> resultContentClass) {
         return getById(id, resultContentClass, null, null);
     }
 
-    public <T extends ResourceEntity> T getById(int id, Class<T> resultContentClass, String sql) {
+    public <T extends Resource> T getById(int id, Class<T> resultContentClass, String sql) {
         return getById(id, resultContentClass, sql, null);
     }
 
-    public <T extends ResourceEntity> T getByIdUnsecure(int id, Class<T> resultContentClass) {
+    public <T extends Resource> T getByIdUnsecure(int id, Class<T> resultContentClass) {
         var sql = SqlUtils.getSQL("resource/resource_get_by_id_unsecure.sql");
         return getById(id, resultContentClass, sql);
     }
 
-    public <T extends ResourceEntity> T getById(int id, Class<T> resultContentClass, String sql,
+    public <T extends Resource> T getById(int id, Class<T> resultContentClass, String sql,
             Map<String, Object> args) {
         if (sql == null) {
             sql = SqlUtils.getSQL("resource/resource_get_by_id.sql");
@@ -157,7 +157,7 @@ public class ResourceRepository extends AbstractRepository {
     }
 
     // ------------------------------------------------- GET BY URN
-    public <T extends ResourceEntity> T getByLabelOrUrn(String labelOrUrn, Class<T> resultContentClass) {
+    public <T extends Resource> T getByLabelOrUrn(String labelOrUrn, Class<T> resultContentClass) {
         if (labelOrUrn.startsWith("urn:")){
             return getByUrn(labelOrUrn, resultContentClass);
         } else {
@@ -165,15 +165,15 @@ public class ResourceRepository extends AbstractRepository {
         }
     }
 
-    public <T extends ResourceEntity> T getByUrn(String urn, Class<T> resultContentClass) {
+    public <T extends Resource> T getByUrn(String urn, Class<T> resultContentClass) {
         return getByUrn(urn, resultContentClass, null, null);
     }
 
-    public <T extends ResourceEntity> T getByUrn(String urn, Class<T> resultContentClass, String sql) {
+    public <T extends Resource> T getByUrn(String urn, Class<T> resultContentClass, String sql) {
         return getByUrn(urn, resultContentClass, sql, null);
     }  
 
-    public <T extends ResourceEntity> T getByUrn(String urn, Class<T> resultContentClass, String sql,
+    public <T extends Resource> T getByUrn(String urn, Class<T> resultContentClass, String sql,
             Map<String, Object> args) {
         if (sql == null) {
             sql = SqlUtils.getSQL("resource/resource_get_by_urn.sql");
@@ -199,29 +199,29 @@ public class ResourceRepository extends AbstractRepository {
 
     // ------------------------------------------------- GET BY LABEL
 
-    public <T extends ResourceEntity> T getByLabel(String label, String tenantLabel,
+    public <T extends Resource> T getByLabel(String label, String tenantLabel,
             Class<T> resultContentClass) {
         return getByLabel(label, tenantLabel, resultContentClass, null, null);
     }
 
-    public <T extends ResourceEntity> T getByLabel(String label, String tenantLabel,
+    public <T extends Resource> T getByLabel(String label, String tenantLabel,
             Class<T> resultContentClass, String sql) {
         return getByLabel(label, tenantLabel, resultContentClass, sql, null);
     }
 
-    public <T extends ResourceEntity> T getByUniqueLabel(String label,
+    public <T extends Resource> T getByUniqueLabel(String label,
             Class<T> resultContentClass) {
         var sql = SqlUtils.getSQL("resource/resource_get_by_label_unique.sql");
         return getByLabel(label, null, resultContentClass, sql, null);
     }
 
-    public <T extends ResourceEntity> T getByUniqueLabelUnsecure(String label,
+    public <T extends Resource> T getByUniqueLabelUnsecure(String label,
             Class<T> resultContentClass) {
         var sql = SqlUtils.getSQL("resource/resource_get_by_label_unique_unsecure.sql");
         return getByLabel(label, null, resultContentClass, sql, null);
     }
 
-    public <T extends ResourceEntity> T getByLabel(String label, String tenantLabel,
+    public <T extends Resource> T getByLabel(String label, String tenantLabel,
             Class<T> resultContentClass, String sql, Map<String, Object> args) {
         if (sql == null) {
             sql = SqlUtils.getSQL("resource/resource_get_by_label.sql");
@@ -259,21 +259,21 @@ public class ResourceRepository extends AbstractRepository {
 
     // ------------------------------------------------- LIST
 
-    public <T extends ResourceEntity> List<T> listByTypeUnsecure(Class<T> resultContentClass,
+    public <T extends Resource> List<T> listByTypeUnsecure(Class<T> resultContentClass,
             Query query) {
         var sql = SqlUtils.getSQL("resource/resource_list_by_schema_unsecure.sql");
         var result = list(Constants.TENANT_ROOT_ID, resultContentClass, sql, query);
         return result;
     }
 
-    public <T extends ResourceEntity> List<T> listByTenantAndType(String tenantLabel,
+    public <T extends Resource> List<T> listByTenantAndType(String tenantLabel,
             Class<T> resultContentClass,
             Query query) {
         var tenantId = Cache.getInstance().getTenantId(tenantLabel);
         return listByTenantAndType(tenantId, resultContentClass, query);
     }
 
-    public <T extends ResourceEntity> List<T> listByTenantAndType(int tenantId,
+    public <T extends Resource> List<T> listByTenantAndType(int tenantId,
             Class<T> resultContentClass,
             Query query) {
         var sql = SqlUtils.getSQL("resource/resource_list_by_tenant_and_schema.sql");
@@ -283,17 +283,17 @@ public class ResourceRepository extends AbstractRepository {
 
     // ------------------------------------------------- GENERIC LIST
 
-    public <T extends ResourceEntity> List<T> list(Integer tenantId, Class<T> contentClass,
+    public <T extends Resource> List<T> list(Integer tenantId, Class<T> contentClass,
             String sql) {
         return list(tenantId, contentClass, sql, null, null);
     }
 
-    public <T extends ResourceEntity> List<T> list(Integer tenantId, Class<T> contentClass,
+    public <T extends Resource> List<T> list(Integer tenantId, Class<T> contentClass,
             String sql, Query query) {
         return list(tenantId, contentClass, sql, query, null);
     }
 
-    public <T extends ResourceEntity> List<T> list(Integer tenantId, Class<T> contentClass,
+    public <T extends Resource> List<T> list(Integer tenantId, Class<T> contentClass,
             String sql, Query query,
             Map<String, Object> args) {
 
@@ -519,25 +519,25 @@ public class ResourceRepository extends AbstractRepository {
         return result == null;
     }
 
-    public List<ResourceEntity> listbyIds(Collection<Integer> ids) {
+    public List<Resource> listbyIds(Collection<Integer> ids) {
         Map<String, Object> args = new HashMap<>();
         var sql = SqlUtils.getSQL("resource/resource_get_by_ids.sql");
         args.put("ids", ids);
         if (securityContext != null) {
             args.put("sids", securityContext.getSids());
         }
-        List<ResourceEntity> entities = jdbcTemplate.query(sql, args, new ResourceRowMapper<ResourceEntity>(this));
+        List<Resource> entities = jdbcTemplate.query(sql, args, new ResourceRowMapper<Resource>(this));
         return entities;
     }
 
-    public List<ResourceEntity> listbyUrns(Collection<String> urns) {
+    public List<Resource> listbyUrns(Collection<String> urns) {
         Map<String, Object> args = new HashMap<>();
-        var sql = SqlUtils.getSQL("resource/resource_get_by_public_ids.sql");
+        var sql = SqlUtils.getSQL("resource/resource_get_by_urns.sql");
         args.put("urns", urns);
         if (securityContext != null) {
             args.put("sids", securityContext.getSids());
         }
-        List<ResourceEntity> entities = jdbcTemplate.query(sql, args, new ResourceRowMapper<ResourceEntity>(this));
+        List<Resource> entities = jdbcTemplate.query(sql, args, new ResourceRowMapper<Resource>(this));
         return entities;
     }
 

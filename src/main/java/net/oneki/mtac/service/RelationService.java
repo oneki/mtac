@@ -12,7 +12,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
-import net.oneki.mtac.model.entity.ResourceEntity;
+import net.oneki.mtac.model.entity.Resource;
 import net.oneki.mtac.model.framework.HasSchema;
 import net.oneki.mtac.model.framework.RelationLabel;
 import net.oneki.mtac.model.framework.RelationRefs;
@@ -69,8 +69,8 @@ public class RelationService {
 	private HasSchema populateRelation(Object resource, ResourceField field, Relations relations, String subRelationName, boolean inList) {
 		if (ResourceUtils.isRef(resource)) {
 			switch(resource) {
-				case ResourceEntity ref -> {
-					ResourceEntity relation = null;
+				case Resource ref -> {
+					Resource relation = null;
 					if (ref.getId() != null) {
 						relation = relations.getResourceEntityById(ref.getId());
 					} else {
@@ -115,7 +115,7 @@ public class RelationService {
 		Map<String, RelationRefs> subRelations = new HashMap<>();
 		RelationRefs relationsRefs = new RelationRefs();
 		Relations result = new Relations();
-		Map<String, List<ResourceEntity>> subRelationsToLoad = new HashMap<>();
+		Map<String, List<Resource>> subRelationsToLoad = new HashMap<>();
 		if (resources != null && resources.size() > 0) {
 			for (HasSchema resource : resources) {
 				for (String relationName : relationNames) {
@@ -137,11 +137,11 @@ public class RelationService {
 					}
 				}
 			}
-			var relations = new ArrayList<ResourceEntity>();
+			var relations = new ArrayList<Resource>();
 
 			if (relationsRefs.getIds().size() > 0) {
 				var relationsById = resourceRepository.listbyIds(new HashSet<>(relationsRefs.getIds()));
-				for (ResourceEntity relation : relationsById) {
+				for (Resource relation : relationsById) {
 					result.putId(relation.getId(), relation);
 					// if (relation.getLinkId() != null && result.getResourceEntityById(relation.getLinkId()) == null) {
 					// 	result.putId(relation.getLinkId(), relation);
@@ -170,8 +170,8 @@ public class RelationService {
 
 				// we try to convert these NICs ref to actual NICs object (since we have loaded
 				// them just above)
-				List<ResourceEntity> subResourceEntitys = new ArrayList<>();
-				for (ResourceEntity relation : relations) {
+				List<Resource> subResourceEntitys = new ArrayList<>();
+				for (Resource relation : relations) {
 					var relationClass = relation.getClass();
 
 					if (subRelationRefs.containsId(relation.getId())
@@ -186,7 +186,7 @@ public class RelationService {
 		}
 
 		// managed embedded resources
-		for (Map.Entry<String, List<ResourceEntity>> entry : subRelationsToLoad.entrySet()) {
+		for (Map.Entry<String, List<Resource>> entry : subRelationsToLoad.entrySet()) {
 			result.add(loadRelations(entry.getValue(), SetUtils.of(entry.getKey())));
 		}
 
@@ -220,7 +220,7 @@ public class RelationService {
 	 * This embedded object can contains other embedded object or relations
 	 * We need to do a recursion until we find a relation -> this relation is saved in the embedded parameter
 	 */
-	private void addRelationsToLoadEmbedded(Map<String, List<ResourceEntity>> relationsToLoad, Object resource, String relationName) {
+	private void addRelationsToLoadEmbedded(Map<String, List<Resource>> relationsToLoad, Object resource, String relationName) {
 		if (!(resource instanceof HasSchema)) {
 			return;
 		}
@@ -234,18 +234,18 @@ public class RelationService {
 					var owner = ((List<Object>) sub).get(i);
 					if (isResourceEmbedded(owner, tokens[1])) {
 						addRelationsToLoadEmbedded(relationsToLoad, owner, subRelationName);
-					} else if (owner instanceof ResourceEntity) {
-						List<ResourceEntity> embeddedRelationsToLoad = relationsToLoad.getOrDefault(subRelationName, new ArrayList<>());
-						embeddedRelationsToLoad.add((ResourceEntity) owner);
+					} else if (owner instanceof Resource) {
+						List<Resource> embeddedRelationsToLoad = relationsToLoad.getOrDefault(subRelationName, new ArrayList<>());
+						embeddedRelationsToLoad.add((Resource) owner);
 						relationsToLoad.put(subRelationName, embeddedRelationsToLoad);
 					}
 				}
 			} else {
 				if (isResourceEmbedded(sub, tokens[1])) {
 					addRelationsToLoadEmbedded(relationsToLoad, sub, subRelationName);
-				} else if (sub instanceof ResourceEntity) {
-					List<ResourceEntity> embeddedRelationsToLoad = relationsToLoad.getOrDefault(subRelationName, new ArrayList<>());
-					embeddedRelationsToLoad.add((ResourceEntity) sub);
+				} else if (sub instanceof Resource) {
+					List<Resource> embeddedRelationsToLoad = relationsToLoad.getOrDefault(subRelationName, new ArrayList<>());
+					embeddedRelationsToLoad.add((Resource) sub);
 					relationsToLoad.put(subRelationName, embeddedRelationsToLoad);
 				}
 			}
@@ -275,7 +275,7 @@ public class RelationService {
 	private void addRelationRef(RelationRefs relationRefs, Object sub) {
 		switch (sub) {
 			case null -> {}
-			case ResourceEntity resource -> {
+			case Resource resource -> {
 				var id = resource.getId();
 				if (id != null) {
 					relationRefs.addId(id);

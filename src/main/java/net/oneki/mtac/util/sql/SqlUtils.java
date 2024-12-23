@@ -51,8 +51,8 @@ public class SqlUtils {
             case "id":
                 operand += tableAliases.get("resource") + ".id";
                 break;
-            case "public_id":
-                operand += tableAliases.get("resource") + ".public_id";
+            case "urn":
+                operand += tableAliases.get("resource") + ".urn";
                 break;                
             case "label":
                 operand += tableAliases.get("resource") + ".label";

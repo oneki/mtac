@@ -17,7 +17,7 @@ WITH "<placeholder for dynamic temporary tables />"
   )
 SELECT
   r.id,
-  r.public_id,
+  r.urn,
   r.label,
   r.pub,
   r.schema_id,

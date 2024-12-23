@@ -18,7 +18,7 @@ import com.fasterxml.jackson.databind.ser.BeanSerializerModifier;
 
 import net.oneki.mtac.model.api.UpsertRequest;
 import net.oneki.mtac.model.entity.Ref;
-import net.oneki.mtac.model.entity.ResourceEntity;
+import net.oneki.mtac.model.entity.Resource;
 import net.oneki.mtac.service.ResourceService;
 
 @Component
@@ -37,7 +37,7 @@ public class UpsertRequestModule extends SimpleModule {
 
                 if (UpsertRequest.class.isAssignableFrom(beanDescription.getBeanClass())) {
                     return new UpsertRequestDeserializer(originalDeserializer, beanDescription, resourceService);
-                } else if (ResourceEntity.class.isAssignableFrom(beanDescription.getBeanClass())) {
+                } else if (Resource.class.isAssignableFrom(beanDescription.getBeanClass())) {
                     return new RelationDeserializer(beanDescription, originalDeserializer);
                 } else {
                     return originalDeserializer;
@@ -59,7 +59,7 @@ public class UpsertRequestModule extends SimpleModule {
             public List<BeanPropertyWriter> changeProperties(SerializationConfig config,
                     BeanDescription beanDesc, List<BeanPropertyWriter> beanProperties) {
 
-                if (ResourceEntity.class.isAssignableFrom(beanDesc.getBeanClass()) ||
+                if (Resource.class.isAssignableFrom(beanDesc.getBeanClass()) ||
                         Ref.class.isAssignableFrom(beanDesc.getBeanClass())) {
                     var result = new ArrayList<BeanPropertyWriter>();
                     for (BeanPropertyWriter writer : beanProperties) {

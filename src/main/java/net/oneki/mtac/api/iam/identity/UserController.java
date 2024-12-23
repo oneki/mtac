@@ -14,8 +14,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import lombok.RequiredArgsConstructor;
-import net.oneki.mtac.model.api.iam.identity.user.DefaultUserUpsertRequest;
-import net.oneki.mtac.model.entity.iam.identity.DefaultUserEntity;
+import net.oneki.mtac.model.api.iam.identity.user.BaseUserUpsertRequest;
+import net.oneki.mtac.model.entity.iam.identity.User;
+import net.oneki.mtac.model.entity.iam.identity.Group;
 import net.oneki.mtac.model.framework.Page;
 import net.oneki.mtac.repository.ResourceRepository;
 import net.oneki.mtac.service.RelationService;
@@ -24,7 +25,7 @@ import net.oneki.mtac.service.iam.identity.UserService;
 import net.oneki.mtac.util.query.Query;
 
 @RequiredArgsConstructor
-public class UserResource {
+public class UserController {
     private final UserService userService;
     private final ResourceService resourceService;
     private final ResourceRepository resourceRepository;
@@ -39,55 +40,55 @@ public class UserResource {
 
     // GET one entity
     @GetMapping("/users/{label_or_urn}")
-    public DefaultUserEntity getByLabelOrUrn(@PathVariable("label_or_urn") String labelOrUrn) {
-        return resourceRepository.getByLabelOrUrn(labelOrUrn, DefaultUserEntity.class);
+    public User getByLabelOrUrn(@PathVariable("label_or_urn") String labelOrUrn) {
+        return resourceRepository.getByLabelOrUrn(labelOrUrn, User.class);
     }
 
     @GetMapping("/users/{tenantLabel}/{label}")
-    public DefaultUserEntity getByLabel(@PathVariable("tenantLabel") String tenantLabel,
+    public User getByLabel(@PathVariable("tenantLabel") String tenantLabel,
             @PathVariable("label") String label) {
-        return resourceRepository.getByLabel(label, tenantLabel, DefaultUserEntity.class);
+        return resourceRepository.getByLabel(label, tenantLabel, User.class);
     }
 
     // List / search entities
     @GetMapping(value = "/users")
-    public Page<DefaultUserEntity> search(@RequestParam Map<String, String> params) throws Exception {
-        var query = Query.fromRest(params, DefaultUserEntity.class);
-        return resourceService.list(query, DefaultUserEntity.class);
+    public Page<User> search(@RequestParam Map<String, String> params) throws Exception {
+        var query = Query.fromRest(params, User.class);
+        return resourceService.list(query, User.class);
     }
 
     @PostMapping("/users")
-    public DefaultUserEntity createUser(@RequestBody DefaultUserUpsertRequest user) {
+    public User createUser(@RequestBody BaseUserUpsertRequest<Group> user) {
         var result = userService.create(user);
         return result;
     }
 
     @PostMapping("/users/relations/{relations}")
-    public List<DefaultUserEntity> populateRelations(@RequestBody List<DefaultUserEntity> entities, @PathVariable("relations") Set<String> relations) {
+    public List<User> populateRelations(@RequestBody List<User> entities, @PathVariable("relations") Set<String> relations) {
         return relationService.populateRelations(entities, relations);
     }
 
     @PostMapping("/user/relations/{relations}")
-    public DefaultUserEntity populateRelations(@RequestBody DefaultUserEntity entity, @PathVariable("relations") Set<String> relations) {
+    public User populateRelations(@RequestBody User entity, @PathVariable("relations") Set<String> relations) {
         return relationService.populateRelations(entity, relations);
 
     }
 
-    @PutMapping("/users")
-    public DefaultUserEntity updateUser(@RequestBody DefaultUserUpsertRequest user) {
-        var result = userService.update(user);
-        return result;
-    }
+    // @PutMapping("/users")
+    // public User updateUser(@RequestBody BaseUserUpsertRequest<Group> user) {
+    //     var result = userService.update(user);
+    //     return result;
+    // }
 
-    @DeleteMapping("/users/{publicId}")
-    public void deleteUser(@PathVariable("publicId") UUID publicId) {
-        resourceService.deleteByPublicId(publicId, DefaultUserEntity.class);
+    @DeleteMapping("/users/{label_or_urn}")
+    public void deleteUser(@PathVariable("label_or_urn") String labelOrUrn) {
+        resourceService.deleteByLabelOrUrn(labelOrUrn, User.class);
     }
 
     @DeleteMapping("/tenants/{tenantLabel}/users/{userLabel}")
     public void deleteUser(@PathVariable("tenantLabel") String tenantLabel,
             @PathVariable("userLabel") String userLabel) {
-        resourceService.deleteByLabel(tenantLabel, userLabel, DefaultUserEntity.class);
+        resourceService.deleteByLabel(tenantLabel, userLabel, User.class);
     }
 
 }

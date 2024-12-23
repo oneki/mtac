@@ -11,8 +11,8 @@ import org.springframework.stereotype.Component;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.oneki.mtac.config.Constants;
-import net.oneki.mtac.model.entity.SchemaEntity;
-import net.oneki.mtac.model.entity.TenantEntity;
+import net.oneki.mtac.model.entity.Schema;
+import net.oneki.mtac.model.entity.Tenant;
 import net.oneki.mtac.util.cache.Cache;
 import net.oneki.mtac.util.cache.ResourceRegistry;
 
@@ -59,7 +59,7 @@ public class PgNotificationConsumer implements Consumer<PGNotification> {
                             if (isSchema) {
                                 log.info("Add schema id={}, label={} to cache", id, label);
                                 cache.addSchema(
-                                        SchemaEntity.builder().id(id).urn(SchemaEntity.asUrn(label)).build());
+                                        Schema.builder().id(id).urn(Schema.asUrn(label)).build());
                             }
                             if (isTenant) {
                                 log.info("Add tenant id={}, label={} to cache", id, label);
@@ -73,7 +73,7 @@ public class PgNotificationConsumer implements Consumer<PGNotification> {
                                 var schema = ResourceRegistry.getSchemaById(schemaId);
                                 
                                 cache.addTenant(
-                                        TenantEntity.builder().id(id).urn(String.format("%s:%s:%s", parentTenantLabel, schema.getLabel(), label)).build());
+                                        Tenant.builder().id(id).urn(String.format("%s:%s:%s", parentTenantLabel, schema.getLabel(), label)).build());
                             }
                             break;
 

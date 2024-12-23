@@ -8,10 +8,10 @@ import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.config.Constants;
-import net.oneki.mtac.model.entity.FieldEntity;
+import net.oneki.mtac.model.entity.Field;
 import net.oneki.mtac.model.entity.Ref;
-import net.oneki.mtac.model.entity.ResourceEntity;
-import net.oneki.mtac.model.entity.SchemaEntity;
+import net.oneki.mtac.model.entity.Resource;
+import net.oneki.mtac.model.entity.Schema;
 import net.oneki.mtac.model.framework.SyncDbContext;
 import net.oneki.mtac.repository.FieldRepository;
 import net.oneki.mtac.repository.FieldSchemaRepository;
@@ -35,7 +35,7 @@ public class SchemaDbSynchronizer {
         var classIndex = ResourceRegistry.getClassindex();
         var schemaIndex = ResourceRegistry.getSchemaIndex();
         var scannedSchemaLabels = classIndex.keySet();
-        var dbSchemaLabels = cache.getSchemas().values().stream().map(SchemaEntity::getLabel)
+        var dbSchemaLabels = cache.getSchemas().values().stream().map(Schema::getLabel)
                 .collect(Collectors.toSet());
 
         for (var scannedSchemaLabel : scannedSchemaLabels) {
@@ -56,7 +56,7 @@ public class SchemaDbSynchronizer {
             }
 
             if (!dbSchemaLabels.contains(scannedSchemaLabel)) {
-                var schemaEntity = resourceRepository.create(SchemaEntity.builder()
+                var schemaEntity = resourceRepository.create(Schema.builder()
                         .pub(true)
                         .urn("root:schema:" + scannedSchemaLabel)
                         .name(scannedSchemaLabel)
@@ -104,9 +104,9 @@ public class SchemaDbSynchronizer {
         syncFieldsPeer(context);
     }
 
-    private List<FieldEntity> syncFieldsToDb(SyncDbContext context, String scannedSchemaLabel) {
+    private List<Field> syncFieldsToDb(SyncDbContext context, String scannedSchemaLabel) {
         var resourceDescs = ResourceRegistry.getResourceDescs();
-        var result = new ArrayList<FieldEntity>();
+        var result = new ArrayList<Field>();
         if (scannedSchemaLabel.startsWith("req.")) {
             return result;
         }
@@ -138,13 +138,13 @@ public class SchemaDbSynchronizer {
         return result;
     }
 
-    private FieldEntity syncFieldToDb(SyncDbContext context, String scannedSchemaLabel, String scannedFieldLabel) {
+    private Field syncFieldToDb(SyncDbContext context, String scannedSchemaLabel, String scannedFieldLabel) {
         var classIndex = ResourceRegistry.getClassindex();
         var resourceClass = classIndex.get(scannedSchemaLabel);
         var resourceDesc = ResourceRegistry.getResourceDescs().get(scannedSchemaLabel);
         var scannedField = resourceDesc.getField(scannedFieldLabel);
         var declaringClass = scannedField.getField().getDeclaringClass();
-        if (declaringClass.equals(ResourceEntity.class) || declaringClass.equals(SchemaEntity.class)) {
+        if (declaringClass.equals(Resource.class) || declaringClass.equals(Schema.class)) {
             return null;
         }
         var declaringSchemaLabel = ResourceRegistry.getSchemaByClass(declaringClass);
@@ -156,7 +156,7 @@ public class SchemaDbSynchronizer {
             if (nextFieldEntity != null) {
                 return nextFieldEntity;
             }
-            nextFieldEntity = FieldEntity.builder()
+            nextFieldEntity = Field.builder()
                     .label(scannedField.getLabel())
                     .type(scannedField.getType())
                     .owner(scannedSchemaLabel)

@@ -2,7 +2,6 @@ package net.oneki.mtac.api;
 
 import java.util.Map;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,7 +20,7 @@ import net.oneki.mtac.service.security.JwtTokenService;
 import net.oneki.mtac.service.security.PermissionService;
 
 @RequiredArgsConstructor
-public class OpenIdAPI {
+public class OpenIdController {
 
     protected final UserService userService;
     protected final JwtTokenService tokenService;
@@ -43,7 +42,7 @@ public class OpenIdAPI {
                         .produces(MediaType.APPLICATION_JSON_VALUE)
                         .build(),
                 this,
-                OpenIdAPI.class.getDeclaredMethod("auth", LoginRequest.class)
+                OpenIdController.class.getDeclaredMethod("auth", LoginRequest.class)
         );
 
         handlerMapping.registerMapping(
@@ -53,7 +52,7 @@ public class OpenIdAPI {
                     .produces(MediaType.APPLICATION_JSON_VALUE)
                     .build(),
             this,
-            OpenIdAPI.class.getDeclaredMethod("auth", String.class, String.class, String.class)
+            OpenIdController.class.getDeclaredMethod("auth", String.class, String.class, String.class)
         );
 
         handlerMapping.registerMapping(
@@ -62,7 +61,7 @@ public class OpenIdAPI {
                     .produces(MediaType.APPLICATION_JSON_VALUE)
                     .build(),
             this,
-            OpenIdAPI.class.getDeclaredMethod("getJwks")
+            OpenIdController.class.getDeclaredMethod("getJwks")
         );        
 
     }

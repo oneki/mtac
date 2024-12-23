@@ -2,10 +2,10 @@ package net.oneki.mtac.repository.framework;
 
 import org.springframework.beans.factory.annotation.Autowired;
 
-import net.oneki.mtac.model.entity.ResourceEntity;
+import net.oneki.mtac.model.entity.Resource;
 import net.oneki.mtac.repository.ResourceRepository;
 
-public abstract class BaseRepository<T extends ResourceEntity> extends AbstractRepository {
+public abstract class BaseRepository<T extends Resource> extends AbstractRepository {
     protected ResourceRepository resourceRepository;
 
     @Autowired

@@ -8,7 +8,7 @@ import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.ser.BeanPropertyWriter;
 
 import net.oneki.mtac.model.entity.Ref;
-import net.oneki.mtac.model.entity.ResourceEntity;
+import net.oneki.mtac.model.entity.Resource;
 import net.oneki.mtac.util.introspect.ResourceField;
 
 public class RefWriter extends BeanPropertyWriter {
@@ -30,12 +30,12 @@ public class RefWriter extends BeanPropertyWriter {
             gen.writeNullField(fieldName);
         } else if (resourceField.isMultiple()) {
             var refs = new HashSet<Ref>();
-            for (ResourceEntity entity : (Collection<ResourceEntity>) value) {
+            for (Resource entity : (Collection<Resource>) value) {
                 refs.add(entity.toRef());
             }
             gen.writeObjectField(fieldName, refs);
         } else {
-            var resourceEntity = (ResourceEntity) value;
+            var resourceEntity = (Resource) value;
             gen.writeObjectField(fieldName, resourceEntity.toRef());
         }
     }

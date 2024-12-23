@@ -9,8 +9,9 @@ import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.model.api.UpsertRequest;
 import net.oneki.mtac.model.entity.Ref;
-import net.oneki.mtac.model.entity.ResourceEntity;
+import net.oneki.mtac.model.entity.Resource;
 import net.oneki.mtac.model.framework.Page;
+import net.oneki.mtac.model.framework.Urn;
 import net.oneki.mtac.repository.ResourceRepository;
 import net.oneki.mtac.service.security.PermissionService;
 import net.oneki.mtac.util.cache.Cache;
@@ -50,7 +51,7 @@ public class ResourceService {
      * @param entityClass: The target entity class
      * @return The entity
      */
-    public <T extends ResourceEntity, R extends UpsertRequest> T toCreateEntity(R request, Class<T> entityClass) {
+    public <T extends Resource, R extends UpsertRequest> T toCreateEntity(R request, Class<T> entityClass) {
         try {
             var entity = mapperService.toEntity(request, entityClass.getDeclaredConstructor().newInstance());
             if (!permissionService.hasCreatePermission(entity.getTenant(),
@@ -92,13 +93,14 @@ public class ResourceService {
      * @param entityClass: The target entity class
      * @return The entity
      */
-    public <T extends ResourceEntity, R extends UpsertRequest> T toUpdateEntity(R request, Class<T> entityClass) {
+    public <T extends Resource, R extends UpsertRequest> T toUpdateEntity(String urn, R request, Class<T> entityClass) {
         try {
-            var entity = resourceRepository.getByLabel(request.getLabel(), request.getTenant(), entityClass);
+            var urnRecord = Urn.of(urn);
+            var entity = resourceRepository.getByLabel(urnRecord.label(), urnRecord.tenant(), entityClass);
             if (entity == null) {
                 throw new NotFoundException(
-                        "Cannot find resource with tenant" + request.getTenant() + ", schema " + entityClass.getSimpleName()
-                                + " and label " + request.getLabel());
+                        "Cannot find resource with tenant" + urnRecord.tenant() + ", schema " + entityClass.getSimpleName()
+                                + " and label " + urnRecord.label());
             }
 
             entity = mapperService.toEntity(request, entity);
@@ -145,10 +147,15 @@ public class ResourceService {
      * @param resourceEntity: The entity to persist
      * @return The entity containing the auto generated id
      */
-    public <T extends ResourceEntity> T create(String tenantLabel, T resourceEntity) {
-        var tenant = Cache.getInstance().getTenantByLabel(tenantLabel);
-        resourceEntity.setTenant(tenantLabel);
-        return create(resourceEntity);
+    // public <T extends Resource> T create(String tenantLabel, T resourceEntity) {
+    //     var tenant = Cache.getInstance().getTenantByLabel(tenantLabel);
+    //     resourceEntity.setTenant(tenantLabel);
+    //     return create(resourceEntity);
+    // }
+
+    public <T extends UpsertRequest, R extends Resource> R create (T request, Class<R> entityClass) {
+        var entity = toCreateEntity(request, entityClass);
+        return create(entity);
     }
 
    /**
@@ -160,7 +167,7 @@ public class ResourceService {
      * @param resourceEntity: The entity to persist
      * @return The entity containing the auto generated id
      */
-    public <T extends ResourceEntity> T create(T resourceEntity) {
+    public <T extends Resource> T create(T resourceEntity) {
         // Verify if the user has the permission to create the resource
         if (!permissionService.hasCreatePermission(resourceEntity.getTenant(),
                 resourceEntity.getSchema())) {
@@ -177,7 +184,7 @@ public class ResourceService {
      * @param resourceEntity: The entity to persist
      * @return void
      */
-    public <T extends ResourceEntity> void update(T resourceEntity) {
+    public <T extends Resource> void update(T resourceEntity) {
 
         // Verify if the user has the permission to update the resource
         if (!permissionService.hasPermission(resourceEntity.getId(), "update")) {
@@ -194,7 +201,7 @@ public class ResourceService {
      * @param entityClass: the class of the entity
      * @return void
      */
-    public <T extends ResourceEntity> void deleteById(Integer id, Class<T> entityClass) {
+    public <T extends Resource> void deleteById(Integer id, Class<T> entityClass) {
         var entity = resourceRepository.getById(id, entityClass);
         delete(entity);
     }
@@ -207,7 +214,7 @@ public class ResourceService {
      * @param entityClass: the class of the entity
      * @return void
      */
-    public  <T extends ResourceEntity> void deleteByLabelOrUrn(String labelOrUrn, Class<T> entityClass) {
+    public  <T extends Resource> void deleteByLabelOrUrn(String labelOrUrn, Class<T> entityClass) {
         var entity = resourceRepository.getByLabelOrUrn(labelOrUrn, entityClass);
         delete(entity);
     }
@@ -221,7 +228,7 @@ public class ResourceService {
      * @param entityClass: the class of the entity
      * @return void
      */
-    public <T extends ResourceEntity> void deleteByLabel(String tenantLabel, String label, Class<T> entityClass) {
+    public <T extends Resource> void deleteByLabel(String tenantLabel, String label, Class<T> entityClass) {
         var entity = resourceRepository.getByLabel(label, tenantLabel, entityClass);
         delete(entity);
     }
@@ -234,7 +241,7 @@ public class ResourceService {
      * @param resourceEntity: the entity to delete
      * @return void
      */
-    public <T extends ResourceEntity> void delete(T resourceEntity) {
+    public <T extends Resource> void delete(T resourceEntity) {
         if (resourceEntity == null) {
             return;
         }
@@ -252,7 +259,7 @@ public class ResourceService {
      * @param resultContentClass: the class of the entity
      * @return the entity
      */
-    public <T extends ResourceEntity> T getById(Integer id, Class<T> resultContentClass) {
+    public <T extends Resource> T getById(Integer id, Class<T> resultContentClass) {
         var result = resourceRepository.getById(id, resultContentClass);
         if (result == null) {
             throw new BusinessException("NOT_FOUND", "Resource not found");
@@ -269,7 +276,7 @@ public class ResourceService {
      * @param resultContentClass: the class of the entity
      * @return the entity
      */
-    public <T extends ResourceEntity> T getByLabel(String tenantLabel, String label, Class<T> resultContentClass) {
+    public <T extends Resource> T getByLabel(String tenantLabel, String label, Class<T> resultContentClass) {
         var result = resourceRepository.getByLabel(tenantLabel, label, resultContentClass);
         if (result == null) {
             throw new BusinessException("NOT_FOUND", "Resource not found");
@@ -285,7 +292,7 @@ public class ResourceService {
      * @param resultContentClass: the class of the entity
      * @return an entity page
      */
-    public <T extends ResourceEntity> Page<T> list(Query query, Class<T> resultContentClass) {
+    public <T extends Resource> Page<T> list(Query query, Class<T> resultContentClass) {
         var resources = resourceRepository.listByTenantAndType(query.getTenant(), resultContentClass, query);
         var relationNames = query.getRelations();
         if (relationNames != null) {
@@ -306,15 +313,15 @@ public class ResourceService {
         for (var relationField : relationFields) {
             relationField.getField().setAccessible(true);
             if (relationField.isMultiple()) {
-                var relations = (List<ResourceEntity>) relationField.getField().get(upsertRequest);
-                var relationEntities = new ArrayList<ResourceEntity>();
+                var relations = (List<Resource>) relationField.getField().get(upsertRequest);
+                var relationEntities = new ArrayList<Resource>();
                 for (var relation : relations) {
                     var relationEntity = getRelationEntity(upsertRequest, relationField, relation);
                     relationEntities.add(relationEntity);
                 }
                 relationField.getField().set(upsertRequest, relationEntities);
             } else {
-                var relation = (ResourceEntity) relationField.getField().get(upsertRequest);
+                var relation = (Resource) relationField.getField().get(upsertRequest);
                 var relationEntity = getRelationEntity(upsertRequest, relationField, relation);
                 relationField.getField().set(upsertRequest, relationEntity);
             }
@@ -323,10 +330,10 @@ public class ResourceService {
         return upsertRequest;
     }
 
-    private ResourceEntity getRelationEntity(UpsertRequest upsertRequest, RelationField relationField,
-            ResourceEntity relation) throws IllegalArgumentException, IllegalAccessException {
+    private Resource getRelationEntity(UpsertRequest upsertRequest, RelationField relationField,
+            Resource relation) throws IllegalArgumentException, IllegalAccessException {
         if (relation != null) {
-            ResourceEntity relationEntity = null;
+            Resource relationEntity = null;
 
             relationEntity = resourceRepository.getByLabel(relation.getLabel(), upsertRequest.getTenant(),
                     relationField.getRelationClass());

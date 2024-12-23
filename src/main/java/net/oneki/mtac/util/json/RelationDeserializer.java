@@ -13,7 +13,7 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.deser.std.DelegatingDeserializer;
 
 import net.oneki.mtac.util.json.RelationDeserializer;
-import net.oneki.mtac.model.entity.ResourceEntity;
+import net.oneki.mtac.model.entity.Resource;
 
 public class RelationDeserializer extends DelegatingDeserializer  /*implements ContextualDeserializer*/ {
 
@@ -60,8 +60,8 @@ public class RelationDeserializer extends DelegatingDeserializer  /*implements C
                 var stringType = ctxt.constructType(String.class);
                 JsonDeserializer<Object> deserializer = ctxt.findRootValueDeserializer(stringType);
                 var value = (String) deserializer.deserialize(parser, ctxt);
-                var instance = (ResourceEntity) beanDescription.instantiateBean(false);
-                instance.setLabel(value);
+                var instance = (Resource) beanDescription.instantiateBean(false);
+                instance.setUrn(value);
                 //Object instance = beanDeserializer.getValueInstantiator().getDefaultCreator().call();
                 // SettableBeanProperty property = beanDeserializer.findProperty(primitiveName);
                 // property.deserializeAndSet(parser, ctxt, instance);

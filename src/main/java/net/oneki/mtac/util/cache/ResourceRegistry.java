@@ -17,10 +17,10 @@ import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.model.api.ResourceRequest;
-import net.oneki.mtac.model.entity.ResourceEntity;
-import net.oneki.mtac.model.entity.SchemaEntity;
-import net.oneki.mtac.model.entity.TenantEntity;
-import net.oneki.mtac.model.entity.iam.RoleEntity;
+import net.oneki.mtac.model.entity.Resource;
+import net.oneki.mtac.model.entity.Schema;
+import net.oneki.mtac.model.entity.Tenant;
+import net.oneki.mtac.model.entity.iam.Role;
 import net.oneki.mtac.repository.FieldRepository;
 import net.oneki.mtac.repository.FieldSchemaRepository;
 import net.oneki.mtac.repository.ResourceRepository;
@@ -52,9 +52,9 @@ public class ResourceRegistry {
     protected final FieldSchemaRepository fieldSchemaRepository;
     protected final SchemaDbSynchronizer schemaDbSynchronizer;
     protected final InitRepository initRepository;
-    @Value("${scan.package.entity}")
+    @Value("${mtac.scan.package.entity}")
     private String entityPackage;
-    @Value("${scan.package.apiRequest}")
+    @Value("${mtac.scan.package.apiRequest}")
     private String apiRequestPackage;
 
     private final static Map<String, Class<?>> classIndex = new HashMap<>();
@@ -73,17 +73,17 @@ public class ResourceRegistry {
         scanApiRequests("net.oneki.mtac.model.api");
         scanApiRequests(apiRequestPackage);
         handleFieldType();
-        List<SchemaEntity> schemas = schemaRepository.listAllSchemasUnsecure();
+        List<Schema> schemas = schemaRepository.listAllSchemasUnsecure();
         cache.setSchemas(schemas);
         schemaDbSynchronizer.syncSchemaToDb();
         schemaDbSynchronizer.syncFieldsToDb();
 
-        List<TenantEntity> tenants = resourceRepository.listByTypeUnsecure(TenantEntity.class,
-                Query.fromRest(Map.of("sortBy", "id"), TenantEntity.class));
+        List<Tenant> tenants = resourceRepository.listByTypeUnsecure(Tenant.class,
+                Query.fromRest(Map.of("sortBy", "id"), Tenant.class));
         cache.setTenants(tenants);
 
-        List<RoleEntity> roles = resourceRepository.listByTypeUnsecure(RoleEntity.class,
-                Query.fromRest(Map.of("sortBy", "id"), RoleEntity.class));
+        List<Role> roles = resourceRepository.listByTypeUnsecure(Role.class,
+                Query.fromRest(Map.of("sortBy", "id"), Role.class));
         cache.setRoles(roles);
 
     }
@@ -122,7 +122,7 @@ public class ResourceRegistry {
     public static ResourceDesc getResourceDesc(Class<?> resourceClass) {
         var schemaLabel = getSchemaByClass(resourceClass);
         ResourceDesc result = null;
-        if (schemaLabel == null && (resourceClass.isAssignableFrom(ResourceEntity.class) ||
+        if (schemaLabel == null && (resourceClass.isAssignableFrom(Resource.class) ||
                 resourceClass.isAssignableFrom(ResourceRequest.class))) {
             throw new NotFoundException("INVALID_RESOURCE_CLASS",
                     "The class " + resourceClass.getCanonicalName()
@@ -151,7 +151,7 @@ public class ResourceRegistry {
     }
 
     // ------------------------------------------------- Cache facade ------------
-    public static void addTenant(TenantEntity tenant) {
+    public static void addTenant(Tenant tenant) {
         instance.getCache().addTenant(tenant);
     }
 
@@ -159,10 +159,10 @@ public class ResourceRegistry {
         instance.getCache().deleteTenant(tenantId);
     }
 
-    public static SchemaEntity getSchemaById(Integer id) {
+    public static Schema getSchemaById(Integer id) {
         var result = instance.getCache().getSchemaById(id);
         if (result == null) {
-            result = instance.getResourceRepository().getByIdUnsecure(id, SchemaEntity.class);
+            result = instance.getResourceRepository().getByIdUnsecure(id, Schema.class);
             if (result != null) {
                 instance.getCache().addSchema(result);
             }
@@ -178,7 +178,7 @@ public class ResourceRegistry {
         return instance.getCache().getSchemaId(getSchemaByClass(resourceClass));
     }
 
-    public static SchemaEntity getSchemaByLabel(String schemaLabel) {
+    public static Schema getSchemaByLabel(String schemaLabel) {
         return instance.getCache().getSchemaByLabel(schemaLabel);
     }
 
@@ -186,10 +186,10 @@ public class ResourceRegistry {
         return instance.getCache().getTenantId(tenantLabel);
     }
 
-    public static TenantEntity getTenantById(Integer id) {
+    public static Tenant getTenantById(Integer id) {
         var result = instance.getCache().getTenantById(id);
         if (result == null) {
-            result = instance.getResourceRepository().getByIdUnsecure(id, TenantEntity.class);
+            result = instance.getResourceRepository().getByIdUnsecure(id, Tenant.class);
             if (result != null) {
                 instance.getCache().addTenant(result);
             }
@@ -197,15 +197,15 @@ public class ResourceRegistry {
         return result;
     }
 
-    public static TenantEntity getTenantByLabel(String tenantLabel) {
+    public static Tenant getTenantByLabel(String tenantLabel) {
         return instance.getCache().getTenantByLabel(tenantLabel);
     }
 
-    public static Map<Integer, SchemaEntity> getSchemas() {
+    public static Map<Integer, Schema> getSchemas() {
         return instance.getCache().getSchemas();
     }
 
-    public static Map<Integer, TenantEntity> getTenants() {
+    public static Map<Integer, Tenant> getTenants() {
         return instance.getCache().getTenants();
     }
 
@@ -226,16 +226,16 @@ public class ResourceRegistry {
                 var schemaLabel = (String) annotAttributeMap.get("value");
                 if (schemaLabel == null || "".equals(schemaLabel)) {
                     schemaLabel = bd.getBeanClassName().substring(basePackage.length() + 1);
+                    var substrLength = 0;
                     if (schemaLabel.endsWith("Entity")) {
-                        var tokens = schemaLabel.split("\\.");
-                        tokens[tokens.length - 1] = StringUtils.pascalToCamel(
-                                tokens[tokens.length - 1].substring(0, tokens[tokens.length - 1].length() - 6));
-                        schemaLabel = String.join(".", tokens);
-                        schemaLabel = StringUtils.pascalToSnake(schemaLabel);
-                    } else {
-                        throw new UnexpectedException("INVALID_ANNOTATION",
-                                "The class " + bd.getBeanClassName() + " annoted with @Entity must end with 'Entity'.");
-                    }
+                        substrLength = 6;
+                    } 
+                    var tokens = schemaLabel.split("\\.");
+                    tokens[tokens.length - 1] = StringUtils.pascalToCamel(
+                            tokens[tokens.length - 1].substring(0, tokens[tokens.length - 1].length() - substrLength));
+                    schemaLabel = String.join(".", tokens);
+                    schemaLabel = StringUtils.pascalToSnake(schemaLabel);
+                    
                 }
                 var resourceClass = (Class<?>) Class.forName(bd.getBeanClassName());
                 addResourceClass(schemaLabel.toString(), resourceClass);

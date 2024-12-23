@@ -13,7 +13,7 @@ import net.oneki.mtac.service.security.PermissionService;
 import net.oneki.mtac.util.exception.BusinessException;
 
 @RequiredArgsConstructor
-public class PermissionResource {
+public class PermissionController {
 
     protected final UserService userService;
     protected final JwtTokenService tokenService;

@@ -8,8 +8,8 @@ import org.springframework.stereotype.Service;
 
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
-import net.oneki.mtac.model.api.iam.identity.user.DefaultUserUpsertRequest;
-import net.oneki.mtac.model.entity.iam.identity.DefaultUserEntity;
+import net.oneki.mtac.model.api.iam.identity.user.BaseUserUpsertRequest;
+import net.oneki.mtac.model.entity.iam.identity.User;
 import net.oneki.mtac.repository.ResourceRepository;
 import net.oneki.mtac.repository.TenantRepository;
 import net.oneki.mtac.repository.iam.identity.GroupMembershipRepository;
@@ -32,8 +32,8 @@ public class UserService {
   private final ResourceRepository resourceRepository;
   private final ResourceService resourceService;
 
-  public DefaultUserEntity getByLabel(String tenantLabel, String userLabel) {
-    return resourceRepository.getByLabel(userLabel, tenantLabel, DefaultUserEntity.class);
+  public User getByLabel(String tenantLabel, String userLabel) {
+    return resourceRepository.getByLabel(userLabel, tenantLabel, User.class);
   }
 
   public Map<String, Object> login(String username, String password) {
@@ -55,8 +55,8 @@ public class UserService {
         "sids", sids));
   }
 
-  public DefaultUserEntity create(DefaultUserUpsertRequest request) {
-    var userEntity = resourceService.toCreateEntity(request, DefaultUserEntity.class);
+  public User create(BaseUserUpsertRequest request) {
+    var userEntity = resourceService.toCreateEntity(request, User.class);
     if (userEntity.getPassword() == null) {
       throw new BusinessException("INVALID_PASSWORD", "Password cannot be blank");
     }
@@ -65,15 +65,15 @@ public class UserService {
 
   }
 
-  public DefaultUserEntity update(DefaultUserUpsertRequest request) {
-    var userEntity = resourceService.toUpdateEntity(request, DefaultUserEntity.class);
+  public User update(String urn, BaseUserUpsertRequest request) {
+    var userEntity = resourceService.toUpdateEntity(urn, request, User.class);
     if (request.getPassword() != null) {
       userEntity.setPassword(passwordEncoder.encode(request.getPassword()));
     }
     return userRepository.update(userEntity);
   }
 
-  public Set<Integer> listGroupSids(@NonNull DefaultUserEntity user) {
+  public Set<Integer> listGroupSids(@NonNull User user) {
     Set<Integer> groupSids = groupMembershipRepository.listByRight(user.toRef());
     if (groupSids.size() > 0) {
       var nestedGroupSids = groupRepository.listNestedGroupSidsUnsecure(groupSids);

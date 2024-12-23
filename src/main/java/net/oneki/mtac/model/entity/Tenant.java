@@ -11,7 +11,7 @@ import net.oneki.mtac.util.introspect.annotation.Entity;
 @SuperBuilder
 @EqualsAndHashCode(callSuper = true)
 @Entity(schema = "tenant")
-public class TenantEntity extends ResourceEntity {
+public class Tenant extends Resource {
     private String name;
 
     @Override

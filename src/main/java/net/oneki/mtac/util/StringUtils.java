@@ -7,6 +7,14 @@ public class StringUtils {
     }
 
     public static String pascalToSnake(String str) {
+        return pascalToSeparator(str, "_");
+    }
+
+    public static String pascalToKebab(String str) {
+        return pascalToSeparator(str, "-");
+    }
+
+    private static String pascalToSeparator(String str, String separator) {
 
         // Empty String
         String result = "";
@@ -26,7 +34,7 @@ public class StringUtils {
             // then append '_' and such character
             // (in lower case) to result string
             if (Character.isUpperCase(ch)) {
-                result = result + '_';
+                result = result + separator;
                 result = result
                         + Character.toLowerCase(ch);
             }

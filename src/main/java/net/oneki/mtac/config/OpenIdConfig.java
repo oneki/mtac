@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 
-import net.oneki.mtac.api.OpenIdAPI;
+import net.oneki.mtac.api.OpenIdController;
 import net.oneki.mtac.service.iam.identity.UserService;
 import net.oneki.mtac.service.security.JwtTokenService;
 import net.oneki.mtac.service.security.PermissionService;
@@ -17,7 +17,7 @@ import net.oneki.mtac.service.security.PermissionService;
 public class OpenIdConfig {
 
     @RestController
-    public class DefaultOpenIdAPI extends OpenIdAPI {
+    public class DefaultOpenIdAPI extends OpenIdController {
 
         public DefaultOpenIdAPI(UserService userService, JwtTokenService tokenService,
                 PermissionService permissionService, RequestMappingHandlerMapping handlerMapping, @Value("${mtac.api.base-path:/api}") String apiBasePath) {

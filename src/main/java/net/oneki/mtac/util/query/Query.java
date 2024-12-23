@@ -15,7 +15,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import net.oneki.mtac.model.entity.ResourceEntity;
+import net.oneki.mtac.model.entity.Resource;
 import net.oneki.mtac.util.cache.ResourceRegistry;
 import net.oneki.mtac.util.exception.BusinessException;
 import net.oneki.mtac.util.introspect.ResourceDesc;
@@ -37,7 +37,7 @@ public class Query {
   private Set<String> fields;
   private Set<String> relations;
 
-  public static <T extends ResourceEntity> Query fromRest(Map<String, String> params, Class<T> resultContentClass) {
+  public static <T extends Resource> Query fromRest(Map<String, String> params, Class<T> resultContentClass) {
     var schemaLabel = ResourceRegistry.getSchemaByClass(resultContentClass);
     return fromRest(schemaLabel, params);
   }

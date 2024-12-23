@@ -26,7 +26,7 @@ WITH  "<placeholder for dynamic temporary tables />"
   )
 SELECT
   r.id,
-  r.public_id,
+  r.urn,
   r.label,
   r.pub,
   r.schema_id,
@@ -38,7 +38,7 @@ SELECT
   r.updated_by,
   r.content,
   l.id as link_id,
-  l.public_id as link_public_id,
+  l.urn as link_urn,
   l.content as link_content,
   l.pub as link_pub,
   l.tenant_id as link_tenant_id,

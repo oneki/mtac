@@ -6,22 +6,22 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Lookup;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 import net.oneki.mtac.model.framework.HasSchema;
+import net.oneki.mtac.model.framework.Urn;
 import net.oneki.mtac.model.security.Acl;
 import net.oneki.mtac.util.cache.ResourceRegistry;
-import net.oneki.mtac.util.introspect.annotation.Entity;
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @SuperBuilder
-@Entity
-public abstract class ResourceEntity implements HasLabel, HasId, HasSchema {
+public abstract class Resource implements HasLabel, HasId, HasSchema {
 	/*
 	 * Internal id of the resource. Auto generated during the first insertion in the DB
 	 * This id should never be exposed to the outside and is only used internally
@@ -38,6 +38,9 @@ public abstract class ResourceEntity implements HasLabel, HasId, HasSchema {
 	 */
 	@JsonAlias("@urn")
 	protected String urn;
+
+	@JsonIgnore
+	protected Urn urnRecord;
 
 	/*
 	 * A public resource is visible by any sub-tenant
@@ -128,7 +131,7 @@ public abstract class ResourceEntity implements HasLabel, HasId, HasSchema {
 	@Override
 	public boolean equals(Object otherEntity) {
 		if (this.getClass() == otherEntity.getClass()) {
-			if (id != null && id.equals(((ResourceEntity) otherEntity).getId())) {
+			if (id != null && id.equals(((Resource) otherEntity).getId())) {
 				return true;
 			}
 		}
@@ -157,30 +160,29 @@ public abstract class ResourceEntity implements HasLabel, HasId, HasSchema {
 	}
 
 	public final void setUrn(String urn) {
+		this.urnRecord = Urn.of(urn);
 		this.urn = urn;
 	}
 
 	public final String getLabel() {
-		if (urn == null)
+		
+		if (urnRecord == null)
 			return null;
-		var startPos = urn.indexOf(":", urn.indexOf(":") + 1);
-		if (startPos == -1)
-			return null;
-		return urn.substring(startPos + 1);
+		return urnRecord.label();
 	}
 
-	public final void setLabel(String label) {
-		if (urn == null) {
-			urn = "::" + label;
-		} else {
-			var startPos = urn.indexOf(":", urn.indexOf(":") + 1);
-			if (startPos == -1) {
-				urn = urn + ":" + label;
-			} else {
-				urn = urn.substring(0, startPos + 1) + label;
-			}
-		}
-	}
+	// public final void setLabel(String label) {
+	// 	if (urn == null) {
+	// 		urn = "::" + label;
+	// 	} else {
+	// 		var startPos = urn.indexOf(":", urn.indexOf(":") + 1);
+	// 		if (startPos == -1) {
+	// 			urn = urn + ":" + label;
+	// 		} else {
+	// 			urn = urn.substring(0, startPos + 1) + label;
+	// 		}
+	// 	}
+	// }
 
 	public final boolean isPub() {
 		return pub;
@@ -194,46 +196,42 @@ public abstract class ResourceEntity implements HasLabel, HasId, HasSchema {
 		return ResourceRegistry.getSchemaByClass(this.getClass());
 	}
 
-	public final void setSchema(String schema) {
-		if (urn == null) {
-			urn =  ":" + schema + ":";
-		} else {
-			var startPos = urn.indexOf(":");
-			if (startPos == -1) {
-				urn = ":" + schema + ":" + urn;
-			} else {
-				var endPos = urn.indexOf(":", startPos + 1);
-				if (endPos == -1) {
-					urn = urn + ":" + schema;
-				} else {
-					urn = urn.substring(0, startPos + 1) + schema + urn.substring(endPos);
-				}
-			}
-		}
-	}
+	// public final void setSchema(String schema) {
+	// 	if (urn == null) {
+	// 		urn =  ":" + schema + ":";
+	// 	} else {
+	// 		var startPos = urn.indexOf(":");
+	// 		if (startPos == -1) {
+	// 			urn = ":" + schema + ":" + urn;
+	// 		} else {
+	// 			var endPos = urn.indexOf(":", startPos + 1);
+	// 			if (endPos == -1) {
+	// 				urn = urn + ":" + schema;
+	// 			} else {
+	// 				urn = urn.substring(0, startPos + 1) + schema + urn.substring(endPos);
+	// 			}
+	// 		}
+	// 	}
+	// }
 
 	public final String getTenant() {
-		if (urn == null)
+		if (urnRecord == null)
 			return null;
-		var endPos = urn.indexOf(":");
-		if (endPos == -1) {
-			return urn;
-		}
-		return urn.substring(0, urn.indexOf(":"));
+		return urnRecord.tenant();
 	}
 
-	public final void setTenant(String tenantLabel) {
-		if (urn == null) {
-			urn = tenantLabel + "::";
-		} else {
-			var endPos = urn.indexOf(":");
-			if (endPos == -1) {
-				urn = tenantLabel + ":" + urn;
-			} else {
-				urn = tenantLabel + urn.substring(endPos);
-			}
-		}
-	}
+	// public final void setTenant(String tenantLabel) {
+	// 	if (urn == null) {
+	// 		urn = tenantLabel + "::";
+	// 	} else {
+	// 		var endPos = urn.indexOf(":");
+	// 		if (endPos == -1) {
+	// 			urn = tenantLabel + ":" + urn;
+	// 		} else {
+	// 			urn = tenantLabel + urn.substring(endPos);
+	// 		}
+	// 	}
+	// }
 
 	public final boolean isLink() {
 		return link;

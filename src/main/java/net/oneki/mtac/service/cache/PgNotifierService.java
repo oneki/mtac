@@ -11,7 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.oneki.mtac.model.entity.ResourceEntity;
+import net.oneki.mtac.model.entity.Resource;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -20,13 +20,13 @@ public class PgNotifierService {
     private final JdbcTemplate tpl;
 
     @Transactional
-    public void notifyCreateResource(ResourceEntity resource) {
+    public void notifyCreateResource(Resource resource) {
         tpl.execute("NOTIFY " + RESOURCE_CHANNEL + ", 'create," + resource.getId() + "," + resource.getTenantId() + ","
                 + resource.getSchemaId() + "," + resource.getLabel() + "'");
     }
 
     @Transactional
-    public void notifyUpdateResource(ResourceEntity resource) {
+    public void notifyUpdateResource(Resource resource) {
         tpl.execute("NOTIFY " + RESOURCE_CHANNEL + ", 'update," + resource.getId() + "," + resource.getTenantId() + ","
                 + resource.getSchemaId() + "," + resource.getLabel() + "'");
     }
