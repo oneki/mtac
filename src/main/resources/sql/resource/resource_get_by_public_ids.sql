@@ -1,6 +1,6 @@
 SELECT
       r.id as id,
-      r.public_id,
+      r.urn,
       r.label,
       r.pub,
       r.schema_id,
@@ -12,7 +12,7 @@ SELECT
       r.created_by,
       r.updated_by,
       l.id as link_id,
-      l.public_id as link_public_id,
+      l.urn as link_urn,
       l.content as link_content,
       l.pub as link_pub,
       l.tenant_id as link_tenant_id,
@@ -27,6 +27,6 @@ FROM  resource r
           JOIN resource ro on ra.role_id = ro.id
         ON r.id = ra.resource_id AND ra.identity_id IN (:sids)
 WHERE
-      (r.public_id IN (:publicIds) OR l.public_id IN (:publicIds))
+      (r.urn IN (:urns) OR l.urn IN (:urns))
 GROUP BY r.id, l.id
 ORDER BY r.id

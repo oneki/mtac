@@ -66,7 +66,7 @@ public class ResourceUtils {
 		
 	}
 
-	private static Set<String> refFields =  Set.of("id", "label", "schema", "publicId", "pub", "link", "urn", "tenant");
+	private static Set<String> refFields =  Set.of("id", "label", "schema", "pub", "link", "urn", "tenant");
     public static boolean isRef(Object resource) {
 		if (resource instanceof HasSchema) {
 			var resourceDesc = ResourceRegistry.getResourceDesc(resource.getClass());

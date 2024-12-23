@@ -207,8 +207,8 @@ public class ResourceService {
      * @param entityClass: the class of the entity
      * @return void
      */
-    public  <T extends ResourceEntity> void deleteByPublicId(UUID publicId, Class<T> entityClass) {
-        var entity = resourceRepository.getByPublicId(publicId, entityClass);
+    public  <T extends ResourceEntity> void deleteByLabelOrUrn(String labelOrUrn, Class<T> entityClass) {
+        var entity = resourceRepository.getByLabelOrUrn(labelOrUrn, entityClass);
         delete(entity);
     }
 

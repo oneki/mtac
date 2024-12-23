@@ -38,9 +38,9 @@ public class UserResource {
     // }
 
     // GET one entity
-    @GetMapping("/users/{publicId}")
-    public DefaultUserEntity getByPublicid(@PathVariable("publicId") UUID publicId) {
-        return resourceRepository.getByPublicId(publicId, DefaultUserEntity.class);
+    @GetMapping("/users/{label_or_urn}")
+    public DefaultUserEntity getByLabelOrUrn(@PathVariable("label_or_urn") String labelOrUrn) {
+        return resourceRepository.getByLabelOrUrn(labelOrUrn, DefaultUserEntity.class);
     }
 
     @GetMapping("/users/{tenantLabel}/{label}")

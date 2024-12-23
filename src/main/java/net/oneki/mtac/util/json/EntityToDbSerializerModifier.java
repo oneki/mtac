@@ -8,14 +8,13 @@ import com.fasterxml.jackson.databind.SerializationConfig;
 import com.fasterxml.jackson.databind.ser.BeanPropertyWriter;
 import com.fasterxml.jackson.databind.ser.BeanSerializerModifier;
 
-import net.oneki.mtac.util.cache.ResourceRegistry;
-import net.oneki.mtac.util.json.RefWriter;
 import net.oneki.mtac.model.entity.Ref;
+import net.oneki.mtac.util.cache.ResourceRegistry;
 
 public class EntityToDbSerializerModifier extends BeanSerializerModifier {
 
     private final static Set<String> skipFields = Set.of("tenant", "label", "schema", "id", "createdAt", "createdBy",
-            "updatedAt", "updatedBy", "pub", "resourceClass", "schemaId", "tenantId", "link", "linkId", "acl", "publicId");
+            "updatedAt", "updatedBy", "pub", "resourceClass", "schemaId", "tenantId", "link", "linkId", "acl", "urn");
 
     @Override
     public List<BeanPropertyWriter> changeProperties(

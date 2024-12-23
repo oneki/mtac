@@ -2,25 +2,21 @@ package net.oneki.mtac.model.framework;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
-import net.oneki.mtac.model.framework.RelationLabel;
-import net.oneki.mtac.model.framework.Relations;
 import net.oneki.mtac.model.entity.ResourceEntity;
-import net.oneki.mtac.util.query.Relation;
 
 
 public class Relations {
     private Map<Integer, ResourceEntity> byId = new HashMap<>();
-    private Map<UUID, ResourceEntity> byPublicId = new HashMap<>();
+    private Map<String, ResourceEntity> byUrn = new HashMap<>();
     private Map<Class<? extends ResourceEntity>, Map<String, Map<String, ResourceEntity>>> byLabel = new HashMap<>(); // key = schemaLabel, value = Map<tenantLabel, Map<resourceLabel, ResourceEntity>>
 
     public Map<Integer, ResourceEntity> getRelationsById() {
         return byId;
     }
 
-    public Map<UUID, ResourceEntity> getRelationsByPublicId() {
-        return byPublicId;
+    public Map<String, ResourceEntity> getRelationsByUrn() {
+        return byUrn;
     }
 
     public Map<Class<? extends ResourceEntity>, Map<String, Map<String, ResourceEntity>>> getRelationsByLabel() {
@@ -31,8 +27,8 @@ public class Relations {
         byId.put(id, resource);
     }
 
-    public void putPublicId(UUID publicId, ResourceEntity resource) {
-        byPublicId.put(publicId, resource);
+    public void putUrn(String urn, ResourceEntity resource) {
+        byUrn.put(urn, resource);
     }
 
     public void putLabel(RelationLabel label, ResourceEntity resource) {
@@ -47,8 +43,8 @@ public class Relations {
         return byId.get(id);
     }
 
-    public ResourceEntity getResourceEntityByPublicId(UUID publicId) {
-        return byPublicId.get(publicId);
+    public ResourceEntity getResourceEntityByUrn(String urn) {
+        return byUrn.get(urn);
     }
 
     public ResourceEntity getResourceEntityByLabel(RelationLabel label) {
@@ -65,7 +61,7 @@ public class Relations {
 
     public void add(Relations relations) {
         byId.putAll(relations.getRelationsById());
-        byPublicId.putAll(relations.getRelationsByPublicId());
+        byUrn.putAll(relations.getRelationsByUrn());
         for (var schema: relations.getRelationsByLabel().keySet()) {
             Map<String, Map<String, ResourceEntity>> schemaResourceEntitys = byLabel.getOrDefault(schema, new HashMap<String, Map<String, ResourceEntity>>());
             for (String tenant: relations.getRelationsByLabel().get(schema).keySet()) {
@@ -79,7 +75,7 @@ public class Relations {
 
     public int size() {
         int result = byId.size();
-        result += byPublicId.size();
+        result += byUrn.size();
         for (var schema: byLabel.keySet()) {
             for (String tenant: byLabel.get(schema).keySet()) {
                 result += byLabel.get(schema).get(tenant).size();

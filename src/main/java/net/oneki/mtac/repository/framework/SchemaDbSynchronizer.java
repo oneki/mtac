@@ -1,16 +1,13 @@
 package net.oneki.mtac.repository.framework;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.config.Constants;
-import net.oneki.mtac.model.embedded.I18n;
 import net.oneki.mtac.model.entity.FieldEntity;
 import net.oneki.mtac.model.entity.Ref;
 import net.oneki.mtac.model.entity.ResourceEntity;
@@ -23,7 +20,6 @@ import net.oneki.mtac.repository.SchemaRepository;
 import net.oneki.mtac.util.cache.Cache;
 import net.oneki.mtac.util.cache.ResourceRegistry;
 import net.oneki.mtac.util.exception.UnexpectedException;
-import net.oneki.mtac.util.introspect.ResourceField;
 
 @Component
 @RequiredArgsConstructor
@@ -64,7 +60,6 @@ public class SchemaDbSynchronizer {
                         .pub(true)
                         .urn("root:schema:" + scannedSchemaLabel)
                         .name(scannedSchemaLabel)
-                        .localizedName(I18n.builder().en(scannedSchemaLabel).build())
                         .parents(parents)
                         .build());
                 cache.addSchema(schemaEntity);

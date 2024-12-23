@@ -10,7 +10,6 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 import net.oneki.mtac.config.Constants;
-import net.oneki.mtac.model.embedded.I18n;
 import net.oneki.mtac.util.introspect.annotation.Entity;
 
 @Data
@@ -21,8 +20,6 @@ import net.oneki.mtac.util.introspect.annotation.Entity;
 @Entity("schema")
 public class SchemaEntity extends ResourceEntity {
     private String name;
-
-    private I18n localizedName;
 
     @Builder.Default
     private List<Ref> parents = new ArrayList<>();

@@ -2,15 +2,10 @@ package net.oneki.mtac.model.framework;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
-
-import net.oneki.mtac.model.framework.HasSchema;
-import net.oneki.mtac.model.framework.RelationLabel;
-import net.oneki.mtac.model.framework.RelationRefs;
 
 public class RelationRefs {
     private List<Integer> ids = new ArrayList<>();
-    private List<UUID> publicIds = new ArrayList<>();
+    private List<String> urns = new ArrayList<>();
     private List<RelationLabel> labels = new ArrayList<>();
     private List<HasSchema> embeddeds = new ArrayList<>();
 
@@ -30,12 +25,12 @@ public class RelationRefs {
         this.ids.addAll(ids);
     }
 
-    public void addPublicId(UUID id) {
-        publicIds.add(id);
+    public void addUrns(String urn) {
+        urns.add(urn);
     }
 
-    public void addPublicIds(List<UUID> publicIds) {
-        this.publicIds.addAll(publicIds);
+    public void addUrns(List<String> urns) {
+        this.urns.addAll(urns);
     }
 
     public void addLabel(RelationLabel relationLabel) {
@@ -54,8 +49,8 @@ public class RelationRefs {
         return ids;
     }
 
-    public List<UUID> getPublicIds() {
-        return publicIds;
+    public List<String> getUrns() {
+        return urns;
     }
 
     public List<RelationLabel> getLabels() {
@@ -66,8 +61,8 @@ public class RelationRefs {
         return ids.contains(id);
     }
 
-    public boolean containsPublicId(UUID id) {
-        return publicIds.contains(id);
+    public boolean containsUrn(String urn) {
+        return urns.contains(urn);
     }
 
     public boolean containsLabel(String label, Class<?> schema) {
@@ -81,7 +76,7 @@ public class RelationRefs {
 
     public void add(RelationRefs refs) {
         addIds(refs.getIds());
-        addPublicIds(refs.getPublicIds());
+        addUrns(refs.getUrns());
         addLabels(refs.getLabels());
     }
 

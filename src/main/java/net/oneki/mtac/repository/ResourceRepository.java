@@ -156,27 +156,34 @@ public class ResourceRepository extends AbstractRepository {
 
     }
 
-    // ------------------------------------------------- GET BY PUBLIC ID
-
-    public <T extends ResourceEntity> T getByPublicId(UUID publicId, Class<T> resultContentClass) {
-        return getByPublicId(publicId, resultContentClass, null, null);
+    // ------------------------------------------------- GET BY URN
+    public <T extends ResourceEntity> T getByLabelOrUrn(String labelOrUrn, Class<T> resultContentClass) {
+        if (labelOrUrn.startsWith("urn:")){
+            return getByUrn(labelOrUrn, resultContentClass);
+        } else {
+            return getByUniqueLabel(labelOrUrn, resultContentClass);
+        }
     }
 
-    public <T extends ResourceEntity> T getByPublicId(UUID publicId, Class<T> resultContentClass, String sql) {
-        return getByPublicId(publicId, resultContentClass, sql, null);
+    public <T extends ResourceEntity> T getByUrn(String urn, Class<T> resultContentClass) {
+        return getByUrn(urn, resultContentClass, null, null);
+    }
+
+    public <T extends ResourceEntity> T getByUrn(String urn, Class<T> resultContentClass, String sql) {
+        return getByUrn(urn, resultContentClass, sql, null);
     }  
 
-    public <T extends ResourceEntity> T getByPublicId(UUID publicId, Class<T> resultContentClass, String sql,
+    public <T extends ResourceEntity> T getByUrn(String urn, Class<T> resultContentClass, String sql,
             Map<String, Object> args) {
         if (sql == null) {
-            sql = SqlUtils.getSQL("resource/resource_get_by_public_id.sql");
+            sql = SqlUtils.getSQL("resource/resource_get_by_urn.sql");
         }
 
         if (args == null) {
             args = new HashMap<>();
         }
 
-        args.put("publicId", publicId);
+        args.put("urn", urn);
         // sids represent the id of the logged-in user + all the groups in which he/she
         // is present
         if (securityContext != null) {
@@ -523,10 +530,10 @@ public class ResourceRepository extends AbstractRepository {
         return entities;
     }
 
-    public List<ResourceEntity> listbyPublicIds(Collection<UUID> publicIds) {
+    public List<ResourceEntity> listbyUrns(Collection<String> urns) {
         Map<String, Object> args = new HashMap<>();
         var sql = SqlUtils.getSQL("resource/resource_get_by_public_ids.sql");
-        args.put("publicIds", publicIds);
+        args.put("urns", urns);
         if (securityContext != null) {
             args.put("sids", securityContext.getSids());
         }
