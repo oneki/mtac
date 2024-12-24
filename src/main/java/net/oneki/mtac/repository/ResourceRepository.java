@@ -5,7 +5,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -24,7 +23,7 @@ import net.oneki.mtac.util.SetUtils;
 import net.oneki.mtac.util.cache.Cache;
 import net.oneki.mtac.util.cache.ResourceRegistry;
 import net.oneki.mtac.util.exception.BusinessException;
-import net.oneki.mtac.util.json.EntityToDbMapper;
+import net.oneki.mtac.util.json.EntityMapper;
 import net.oneki.mtac.util.query.Filter;
 import net.oneki.mtac.util.query.FilterCriteria;
 import net.oneki.mtac.util.query.Query;
@@ -39,8 +38,8 @@ import net.oneki.mtac.util.sql.SqlUtils;
 @RequiredArgsConstructor
 public class ResourceRepository extends AbstractRepository {
     private final SecurityContext securityContext;
-    @Qualifier("entityToDbMapper")
-    private final EntityToDbMapper entityToDbMapper;
+    @Qualifier("entityMapper")
+    private final EntityMapper entityMapper;
 
     // ------------------------------------------------- CREATE
     @Transactional
@@ -49,7 +48,7 @@ public class ResourceRepository extends AbstractRepository {
         Map<String, Object> parameters = SqlUtils.getPropertySqlParameters(resource);
 
         try {
-            var json = entityToDbMapper.writeValueAsString(resource);
+            var json = entityMapper.writeValueAsString(resource);
             parameters.put("content", json);
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -78,7 +77,7 @@ public class ResourceRepository extends AbstractRepository {
     public <T extends Resource> void update(T resource) {
         Map<String, Object> parameters = SqlUtils.getPropertySqlParameters(resource);
         try {
-            var json = entityToDbMapper.writeValueAsString(resource);
+            var json = entityMapper.writeValueAsString(resource);
             parameters.put("content", json);
         } catch (Exception e) {
             throw new RuntimeException(e);

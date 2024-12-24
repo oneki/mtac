@@ -23,9 +23,9 @@ import net.oneki.mtac.service.ResourceService;
 
 @Component
 public class UpsertRequestModule extends SimpleModule {
-    private final static Set<String> skipFields = Set.of("id", "schemaId", "tenantId", "pub", "acl", "link", "label", "tenant", "schema");
-    private final static Set<String> metadataFields = Set.of("createdAt", "updatedAt", "createdBy", "updatedBy", "urn");
-    private final static MetadataNameTransformer metadataNameTransformer = new MetadataNameTransformer();
+    private final static Set<String> skipFields = Set.of("id", "@pub", "acl", "link", "@l", "@t", "@s");
+    // private final static Set<String> metadataFields = Set.of("createdAt", "updatedAt", "createdBy", "updatedBy", "urn");
+    // private final static MetadataNameTransformer metadataNameTransformer = new MetadataNameTransformer();
     @Autowired
     public UpsertRequestModule(ResourceService resourceService) {
         super();
@@ -65,8 +65,8 @@ public class UpsertRequestModule extends SimpleModule {
                     for (BeanPropertyWriter writer : beanProperties) {
                         if (skipFields.contains(writer.getName())) {
                             continue;
-                        } else if (metadataFields.contains(writer.getName())) {
-                            result.add(writer.rename(metadataNameTransformer));
+                        // } else if (metadataFields.contains(writer.getName())) {
+                        //     result.add(writer.rename(metadataNameTransformer));
                         } else {
                             result.add(writer);
                         }

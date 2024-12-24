@@ -77,7 +77,7 @@ public class RelationService {
 						relation = relations.getResourceEntityByLabel(RelationLabel.builder()
 							.label(ref.getLabel())
 							.schema(ref.getClass())
-							.tenantLabel(ref.getTenant())
+							.tenantLabel(ref.getTenantLabel())
 							.build()
 						);
 					}
@@ -283,7 +283,7 @@ public class RelationService {
 					relationRefs.addLabel(RelationLabel.builder()
 						.label(resource.getLabel())
 						.schema(resource.getClass())
-						.tenantLabel(resource.getTenant())
+						.tenantLabel(resource.getTenantLabel())
 						.build()
 					);
 				}

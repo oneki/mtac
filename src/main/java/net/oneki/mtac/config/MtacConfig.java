@@ -10,11 +10,8 @@ import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.fasterxml.jackson.databind.ser.BeanSerializerFactory;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
-import net.oneki.mtac.util.json.EntityToDbMapper;
-import net.oneki.mtac.util.json.EntityToDbSerializerModifier;
 import net.oneki.mtac.util.json.UpsertRequestModule;
 
 @Configuration
@@ -31,17 +28,5 @@ public class MtacConfig {
                 .addModule(upsertRequestModule)
                 .addModule(new JavaTimeModule())
                 .build();
-    }
-
-    @Bean(name = "entityToDbMapper")
-    public EntityToDbMapper entityToDbMapper() {
-        return EntityToDbMapper.builder()
-            .enable(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY)
-            .serializationInclusion(Include.NON_NULL)
-            .addModule(new JavaTimeModule())
-            .serializerFactory(BeanSerializerFactory.instance
-                .withSerializerModifier(new EntityToDbSerializerModifier()
-            ))
-            .build();
     }
 }

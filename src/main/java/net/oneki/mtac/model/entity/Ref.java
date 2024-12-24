@@ -1,6 +1,6 @@
 package net.oneki.mtac.model.entity;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -14,12 +14,12 @@ import lombok.NoArgsConstructor;
 public class Ref {
     private Integer id;
 
-    @JsonAlias("@tenant")
-    private String tenant;
-    @JsonAlias("@label")
+    @JsonProperty("@t")
+    private Integer tenant;
+    @JsonProperty("@l")
     private String label;
-    @JsonAlias("@schema")
-    private String schema;
+    @JsonProperty("@s")
+    private Integer schema;
 
     public Ref(Integer id) {
         this.id = id;

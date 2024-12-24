@@ -51,14 +51,15 @@ public class SchemaDbSynchronizer {
                 parents.add(Ref.builder()
                         .id(parentSchemaEntityId)
                         .label(parentSchemaLabel)
-                        .schema(Constants.SCHEMA_SCHEMA_LABEL)
+                        .schema(Constants.SCHEMA_SCHEMA_ID)
+                        .tenant(Constants.TENANT_ROOT_ID)
                         .build());
             }
 
             if (!dbSchemaLabels.contains(scannedSchemaLabel)) {
                 var schemaEntity = resourceRepository.create(Schema.builder()
                         .pub(true)
-                        .urn("root:schema:" + scannedSchemaLabel)
+                        .urn("urn:root:schema:" + scannedSchemaLabel)
                         .name(scannedSchemaLabel)
                         .parents(parents)
                         .build());

@@ -12,15 +12,17 @@ import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.deser.std.DelegatingDeserializer;
 
-import net.oneki.mtac.util.json.RelationDeserializer;
+import net.oneki.mtac.util.json.RefDeserializer;
+import net.oneki.mtac.model.entity.Ref;
 import net.oneki.mtac.model.entity.Resource;
+import net.oneki.mtac.model.framework.Urn;
 
-public class RelationDeserializer extends DelegatingDeserializer  /*implements ContextualDeserializer*/ {
+public class RefDeserializer extends DelegatingDeserializer  /*implements ContextualDeserializer*/ {
 
     private JavaType type;
     private BeanDescription beanDescription;
 
-    public RelationDeserializer(BeanDescription beanDescription, JsonDeserializer<?> originalDeserializer) {
+    public RefDeserializer(BeanDescription beanDescription, JsonDeserializer<?> originalDeserializer) {
         super(originalDeserializer);
         this.type = beanDescription.getType();
         this.beanDescription = beanDescription;
@@ -29,7 +31,7 @@ public class RelationDeserializer extends DelegatingDeserializer  /*implements C
     
     @Override
     protected JsonDeserializer<?> newDelegatingInstance(JsonDeserializer<?> newDelegate) {
-        return new RelationDeserializer(beanDescription, newDelegate);
+        return new RefDeserializer(beanDescription, newDelegate);
     }
 
     @Override
@@ -54,19 +56,17 @@ public class RelationDeserializer extends DelegatingDeserializer  /*implements C
             throws IOException {
         
         if (token == JsonToken.START_OBJECT) {
-            return super.deserialize(parser, ctxt);
+            Ref ref = (Ref) super.deserialize(parser, ctxt);
+            var urn = Urn.of(ref).toString();
+            return null;
+            
         } else if (token == JsonToken.VALUE_STRING) {
             try {
                 var stringType = ctxt.constructType(String.class);
                 JsonDeserializer<Object> deserializer = ctxt.findRootValueDeserializer(stringType);
                 var value = (String) deserializer.deserialize(parser, ctxt);
                 var instance = (Resource) beanDescription.instantiateBean(false);
-                if (value.startsWith("urn:")) {
-                    instance.setUrn(value);
-                } else {
-                    instance.setLabel(value);
-                }
-                
+                instance.setUrn(value);
                 //Object instance = beanDeserializer.getValueInstantiator().getDefaultCreator().call();
                 // SettableBeanProperty property = beanDeserializer.findProperty(primitiveName);
                 // property.deserializeAndSet(parser, ctxt, instance);

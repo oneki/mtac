@@ -5,8 +5,8 @@ import java.util.List;
 
 import org.springframework.beans.factory.annotation.Lookup;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -28,24 +28,31 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 	 */
 	protected Integer id;
 
+	@JsonProperty("@s")
+	protected Integer schemaId;
+	@JsonProperty("@t")
+	protected Integer tenantId;
+	@JsonProperty("@l")
+	protected String label;
+
+	@JsonIgnore
+	protected String tenantLabel;
+
 	/*
 	 * A urn is used as a public id and uniquely identifies a resource
 	 * The format is <tenant>:<schema>:<label>
 	 *
 	 * A tenant or a schema can't contain a colon
 	 *
-	 * Example: oneki:iam.identity.user:olivier.franki@gmail.com
+	 * Example: urn:root:iam.identity.user:olivier.franki@gmail.com
 	 */
-	@JsonAlias("@urn")
+	@JsonProperty("@urn")
 	protected String urn;
-
-	@JsonIgnore
-	protected Urn urnRecord;
 
 	/*
 	 * A public resource is visible by any sub-tenant
 	 */
-	@JsonAlias("@pub")
+	@JsonProperty("@pub")
 	protected boolean pub;
 
 	/*
@@ -56,25 +63,25 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 	/*
 	 * The datetime at which the resource was created
 	 */
-	@JsonAlias("@createdAt")
+	@JsonProperty("@createdAt")
 	protected Instant createdAt;
 
 	/*
 	 * The datetime at which the resource was last updated
 	 */
-	@JsonAlias("@updatedAt")
+	@JsonProperty("@updatedAt")
 	protected Instant updatedAt;
 
 	/*
 	 * The email of the creator of the resource
 	 */
-	@JsonAlias("@createdBy")
+	@JsonProperty("@createdBy")
 	protected String createdBy;
 
 	/*
 	 * The email of the last updater of the resource
 	 */
-	@JsonAlias("@updatedBy")
+	@JsonProperty("@updatedBy")
 	protected String updatedBy;
 
 	/*
@@ -116,15 +123,15 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 	}
 
 	public Integer getTenantId() {
-		return ResourceRegistry.getTenantId(getTenant());
+		return ResourceRegistry.getTenantId(getTenantLabel());
 	}
 
 	public Ref toRef() {
 		return Ref.builder()
 				.id(id)
 				.label(getLabel())
-				.schema(getSchema())
-				.tenant(getTenant())
+				.schema(getSchemaId())
+				.tenant(getTenantId())
 				.build();
 	}
 
@@ -160,15 +167,17 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 	}
 
 	public final void setUrn(String urn) {
-		this.urnRecord = Urn.of(urn);
 		this.urn = urn;
 	}
 
 	public final String getLabel() {
-		
-		if (urnRecord == null)
-			return null;
-		return urnRecord.label();
+		if (label != null) return label;
+		if (urn != null) {
+			var label = Urn.of(urn).label();
+			this.label = label;
+			return label;
+		}
+		return null;
 	}
 
 	// public final void setLabel(String label) {
@@ -192,6 +201,7 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 		this.pub = pub;
 	}
 
+	@JsonIgnore
 	public final String getSchema() {
 		return ResourceRegistry.getSchemaByClass(this.getClass());
 	}
@@ -214,11 +224,18 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 	// 	}
 	// }
 
-	public final String getTenant() {
-		if (urnRecord == null)
-			return null;
-		return urnRecord.tenant();
+	public final String getTenantLabel() {
+		if (tenantLabel != null) return tenantLabel;
+		if (tenantId != null) return ResourceRegistry.getTenantLabel(tenantId);
+		if (urn != null) {
+			var tenantLabel = Urn.of(urn).tenant();
+			this.tenantLabel = tenantLabel;
+			return tenantLabel;
+		}
+		return null;
 	}
+
+	
 
 	// public final void setTenant(String tenantLabel) {
 	// 	if (urn == null) {

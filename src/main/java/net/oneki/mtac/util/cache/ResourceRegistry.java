@@ -178,6 +178,12 @@ public class ResourceRegistry {
         return instance.getCache().getSchemaId(getSchemaByClass(resourceClass));
     }
 
+    public static String getSchemaLabel(Integer schemaId) {
+        var schema = instance.getCache().getSchemaById(schemaId);
+        if (schema == null) return null;
+        return schema.getLabel();
+    }    
+
     public static Schema getSchemaByLabel(String schemaLabel) {
         return instance.getCache().getSchemaByLabel(schemaLabel);
     }
@@ -185,6 +191,12 @@ public class ResourceRegistry {
     public static Integer getTenantId(String tenantLabel) {
         return instance.getCache().getTenantId(tenantLabel);
     }
+
+    public static String getTenantLabel(Integer tenantId) {
+        var tenant = instance.getCache().getTenantById(tenantId);
+        if (tenant == null) return null;
+        return tenant.getLabel();
+    } 
 
     public static Tenant getTenantById(Integer id) {
         var result = instance.getCache().getTenantById(id);

@@ -15,6 +15,7 @@ import net.oneki.mtac.config.Constants;
 import net.oneki.mtac.model.entity.Schema;
 import net.oneki.mtac.model.entity.Tenant;
 import net.oneki.mtac.model.entity.iam.Role;
+import net.oneki.mtac.model.framework.Urn;
 
 @Component
 @RequiredArgsConstructor
@@ -35,13 +36,13 @@ public class Cache {
   public void init() {
     addSchema(Schema.builder()
       .id(Constants.SCHEMA_SCHEMA_ID)
-      .urn(Schema.asUrn(Constants.SCHEMA_SCHEMA_LABEL))
+      .urn(String.format("urn:%s:%s:%s", Constants.TENANT_ROOT_LABEL, Constants.SCHEMA_SCHEMA_LABEL, Constants.SCHEMA_SCHEMA_LABEL))
       .pub(true)
       .build()
     );
     addTenant(Tenant.builder()
       .id(Constants.TENANT_ROOT_ID)
-      .urn(String.format("%s:%s:%s", Constants.TENANT_ROOT_LABEL, Constants.TENANT_ROOT_SCHEMA_LABEL, Constants.TENANT_ROOT_LABEL))
+      .urn(String.format("urn::%s:%s", Constants.TENANT_ROOT_SCHEMA_LABEL, Constants.TENANT_ROOT_LABEL))
       .pub(false)
       .build()
     );

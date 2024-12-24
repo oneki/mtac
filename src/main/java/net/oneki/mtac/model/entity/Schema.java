@@ -30,6 +30,6 @@ public class Schema extends Resource {
     }
 
     public static String asUrn(String schemaLabel) {
-        return String.format("%s:%s:%s", Constants.TENANT_ROOT_LABEL, Constants.SCHEMA_SCHEMA_LABEL, schemaLabel);
+        return String.format("urn:%s:%s:%s", Constants.TENANT_ROOT_LABEL, Constants.SCHEMA_SCHEMA_LABEL, schemaLabel);
     }
 }

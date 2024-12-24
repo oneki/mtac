@@ -3,6 +3,8 @@ package net.oneki.mtac.util.rowmapper;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.springframework.jdbc.core.RowMapper;
 
@@ -28,29 +30,51 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
         var schemaLabel = Cache.getInstance().getSchemaById(rs.getInt("schema_id")).getLabel();
         var clazz = (Class<T>) ResourceRegistry.getClassBySchema(schemaLabel);
 
-        var tenantLabel = "";
-        var tenantId = 0;
+
         if (rs.getInt("link_id") == 0) {
             json = rs.getString("content");
-            tenantId = rs.getInt("tenant_id");
         } else {
             json = rs.getString("link_content");
-            tenantId = rs.getInt("link_tenant_id");
         }
         var resource = JsonUtil.json2Object(json, clazz);
+        var relationFields = ResourceRegistry.getRelations(clazz);
+        for (var relationField : relationFields) {
+            relationField.getField().setAccessible(true);
+            try {
+                if (relationField.isMultiple()) {
+                    var relations = (List<Resource>) relationField.getField().get(resource);
+                    if (relations == null) continue;
+                    //var relationEntities = new ArrayList<Resource>();
+                    for (var relation : relations) {
+                        relation.setUrn(String.format("urn:%s:%s:%s", 
+                            ResourceRegistry.getTenantLabel(relation.getTenantId()), 
+                            ResourceRegistry.getSchemaLabel(relation.getSchemaId()), 
+                            relation.getLabel()));
+                    }
+                    //relationField.getField().set(resource, relationEntities);
+                } else {
+                    var relation = (Resource) relationField.getField().get(resource);
+                    if (relation == null) continue;
+                    relation.setUrn(String.format("urn:%s:%s:%s", 
+                            ResourceRegistry.getTenantLabel(relation.getTenantId()), 
+                            ResourceRegistry.getSchemaLabel(relation.getSchemaId()), 
+                            relation.getLabel()));
+                }
+            } catch (IllegalAccessException e) {
+                throw new SQLException(e);
+            }
+        }
 
-        if (tenantId == 0) {
-            tenantLabel = Constants.TENANT_ROOT_LABEL;
-        } else {
-            tenantLabel = ResourceRegistry.getTenantById(tenantId).getLabel();
-        } 
-        resource.setUrn(String.format("%s:%s:%s", tenantLabel, schemaLabel, rs.getString("label")));
+        // resource.setUrn(String.format("%s:%s:%s", tenantLabel, schemaLabel, rs.getString("label")));
 
         ResultSetMetaData rsmd = rs.getMetaData();
         for (int col = 1; col <= rsmd.getColumnCount(); col++) {
             String columnName = rsmd.getColumnName(col);
             mapColumn(rs, columnName, resource);
         }
+
+
+
         return resource;
     }
 
@@ -73,6 +97,10 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
                 columnName = isLink ? "link_id" : "id";
                 resource.setId(rs.getInt(columnName));  
                 break;
+            case "urn":
+                columnName = isLink ? "link_urn" : "urn";
+                resource.setUrn(rs.getString(columnName));
+                break;                
             case "pub":
                 columnName = isLink ? "link_pub" : "pub";
                 resource.setPub(rs.getBoolean(columnName));

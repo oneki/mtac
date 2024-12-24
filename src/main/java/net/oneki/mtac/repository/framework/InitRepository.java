@@ -39,7 +39,7 @@ public class InitRepository extends AbstractRepository {
                 ScriptUtils.executeSqlScript(dataSource.getConnection(), new ByteArrayResource(sql.getBytes()));
 
                 // Seed tables
-                sql = SqlUtils.getSQL("framework/seed.sql");
+                sql = SqlUtils.getSQL("framework/seeding.sql");
                 ScriptUtils.executeSqlScript(dataSource.getConnection(), new ByteArrayResource(sql.getBytes()));
                 log.info("Database initialized");
             } catch (Exception e) {

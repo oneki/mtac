@@ -13,8 +13,8 @@ import net.oneki.mtac.util.cache.ResourceRegistry;
 
 public class EntityToDbSerializerModifier extends BeanSerializerModifier {
 
-    private final static Set<String> skipFields = Set.of("tenant", "label", "schema", "id", "createdAt", "createdBy",
-            "updatedAt", "updatedBy", "pub", "resourceClass", "schemaId", "tenantId", "link", "linkId", "acl", "urn");
+    private final static Set<String> skipFields = Set.of("id", "@l", "@s", "@t", "@createdAt", "@createdBy",
+            "@updatedAt", "@updatedBy", "@pub", "link", "acl", "@urn");
 
     @Override
     public List<BeanPropertyWriter> changeProperties(

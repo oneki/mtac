@@ -4,7 +4,7 @@ CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
 <dbmodel pgmodeler-ver="1.1.0" use-changelog="false" max-obj-count="46"
-	 last-position="0,152" last-zoom="1" scene-rect="-80,-40.5,1707.33,2074.22"
+	 last-position="-80,151" last-zoom="1" scene-rect="-80,-40.5,1707.33,2074.22"
 	 default-owner="postgres"
 	 layers="Default"
 	 active-layers="0"
@@ -1640,12 +1640,12 @@ BEGIN
         SELECT * FROM temp_resource_fields
     LOOP  
         UPDATE resource r
-        SET    content =jsonb_set(content, ('{' ||r2.field_label  || ',' || r2.pos || ',label}')::text[],to_jsonb(NEW.label))
+        SET    content =jsonb_set(content, ('{' ||r2.field_label  || ',' || r2.pos || ',@l}')::text[],to_jsonb(NEW.label))
         FROM (
           SELECT   r.id, ordinality - 1 AS pos, record.field_label as field_label
           FROM     resource r, jsonb_array_elements(r.content->record.field_label) with ordinality
           WHERE r.schema_id = record.schema_id
-                AND (value->>'label')::text = OLD.label
+                AND (value->>'@l')::text = OLD.label
                 AND record.multiple is TRUE
           ) r2
         WHERE r2.id = r.id;
@@ -1656,13 +1656,13 @@ BEGIN
         SELECT * FROM temp_resource_fields
     LOOP  
         UPDATE resource r
-        SET    content = jsonb_set(r.content, ('{' || record.field_label  || ',label}')::text[], to_jsonb(NEW.label))
+        SET    content = jsonb_set(r.content, ('{' || record.field_label  || ',@l}')::text[], to_jsonb(NEW.label))
         FROM (
           SELECT   r.id
           FROM     resource r, jsonb_each(r.content) fields
           WHERE r.schema_id = record.schema_id
 			    AND fields.key = record.field_label
-                AND (fields.value->>'label')::text = OLD.label
+                AND (fields.value->>'@l')::text = OLD.label
                 AND record.multiple is NOT TRUE
           ) r2
         WHERE r2.id = r.id;           
@@ -2285,10 +2285,10 @@ BEGIN
       SET        content = (
                 CASE
                       WHEN r.content->record.peer_label IS NOT NULL AND record.peer_multiple IS TRUE
-                      THEN jsonb_insert(r.content, ('{' || record.peer_label || ', 0}')::text[], json_build_object('id', NEW.id, 'publicId', NEW.public_id, 'schema', record.schema_label, 'label', NEW.label )::jsonb)
+                      THEN jsonb_insert(r.content, ('{' || record.peer_label || ', 0}')::text[], json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label )::jsonb)
                       WHEN r.content->record.peer_label  IS NULL AND record.peer_multiple IS TRUE
-                      THEN jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_array(json_build_object('id', NEW.id, 'publicId', NEW.public_id, 'schema',record.schema_label, 'label', NEW.label ))::jsonb)
-                  ELSE jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_object('id', NEW.id, 'publicId', NEW.public_id, 'schema',record.schema_label, 'label', NEW.label )::jsonb)
+                      THEN jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_array(json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label ))::jsonb)
+                  ELSE jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label )::jsonb)
                   END
               ), updated_by=NEW.updated_by, updated_at=NEW.updated_at
       WHERE   r.id IN ( SELECT 
@@ -2350,10 +2350,10 @@ BEGIN
       SET      content = (
                     CASE
                       WHEN r.content->record.peer_label IS NOT NULL AND record.peer_multiple IS TRUE
-                      THEN jsonb_insert(r.content, ('{' || record.peer_label || ', 0}')::text[], json_build_object('id', NEW.id, 'publicId', NEW.public_id, 'schema', record.schema_label, 'label', NEW.label )::jsonb)
+                      THEN jsonb_insert(r.content, ('{' || record.peer_label || ', 0}')::text[], json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label )::jsonb)
                       WHEN r.content->record.peer_label  IS NULL AND record.peer_multiple IS TRUE
-                      THEN jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_array(json_build_object('id', NEW.id, 'publicId', NEW.public_id, 'schema',record.schema_label, 'label', NEW.label ))::jsonb)
-                    ELSE jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_object('id', NEW.id, 'publicId', NEW.public_id, 'schema',record.schema_label, 'label', NEW.label )::jsonb)
+                      THEN jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_array(json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label ))::jsonb)
+                    ELSE jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label )::jsonb)
                     END
               ), updated_by=NEW.created_by, updated_at=NEW.created_at
       WHERE r.id IN ( SELECT 
@@ -2605,9 +2605,9 @@ END;]]> </definition>
 	 dst-table="public.ace" reference-fk="ace_source_fk"
 	 src-required="false" dst-required="false">
 	<line>
-		<position x="1236.85" y="387.308"/>
-	<position x="1236.85" y="307"/>
-	<position x="1115.9" y="307"/>
+		<position x="1192.25" y="387.308"/>
+	<position x="1192.25" y="307"/>
+	<position x="1086.17" y="307"/>
 	</line>
 </relationship>
 
@@ -2616,9 +2616,9 @@ END;]]> </definition>
 	 dst-table="public.resource" reference-fk="resource_link_fk"
 	 src-required="false" dst-required="false">
 	<line>
-		<position x="802.4" y="579.575"/>
-	<position x="802.4" y="447"/>
-	<position x="646.267" y="447"/>
+		<position x="754.95" y="579.575"/>
+	<position x="754.95" y="447"/>
+	<position x="614.633" y="447"/>
 	</line>
 </relationship>
 
@@ -2627,9 +2627,9 @@ END;]]> </definition>
 	 dst-table="public.resource" reference-fk="resource_tenant_fk"
 	 src-required="false" dst-required="false">
 	<line>
-		<position x="826.298" y="603.473"/>
-	<position x="826.298" y="423.102"/>
-	<position x="622.369" y="423.102"/>
+		<position x="778.848" y="603.473"/>
+	<position x="778.848" y="423.102"/>
+	<position x="590.735" y="423.102"/>
 	</line>
 </relationship>
 
@@ -2638,9 +2638,9 @@ END;]]> </definition>
 	 dst-table="public.resource" reference-fk="resource_schema_fk"
 	 src-required="false" dst-required="false">
 	<line>
-		<position x="850.196" y="627.371"/>
-	<position x="850.196" y="399.204"/>
-	<position x="598.471" y="399.204"/>
+		<position x="802.746" y="627.371"/>
+	<position x="802.746" y="399.204"/>
+	<position x="566.837" y="399.204"/>
 	</line>
 </relationship>
 
@@ -2669,9 +2669,9 @@ END;]]> </definition>
 	 dst-table="public.field" reference-fk="field_peer_fk"
 	 src-required="false" dst-required="false">
 	<line>
-		<position x="1541.03" y="980.175"/>
-	<position x="1541.03" y="827"/>
-	<position x="1398.69" y="827"/>
+		<position x="1490.5" y="980.175"/>
+	<position x="1490.5" y="827"/>
+	<position x="1365" y="827"/>
 	</line>
 </relationship>
 

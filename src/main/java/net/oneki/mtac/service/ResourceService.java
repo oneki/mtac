@@ -54,18 +54,18 @@ public class ResourceService {
     public <T extends Resource, R extends UpsertRequest> T toCreateEntity(R request, Class<T> entityClass) {
         try {
             var entity = mapperService.toEntity(request, entityClass.getDeclaredConstructor().newInstance());
-            if (!permissionService.hasCreatePermission(entity.getTenant(),
+            if (!permissionService.hasCreatePermission(entity.getTenantLabel(),
                     entity.getSchema())) {
                 throw new ForbiddenException(
                         "The creation of the entity " + entityClass.getSimpleName() + " with label " + entity.getLabel()
-                                + " in tenant " + entity.getTenant() + " is forbidden for user "
+                                + " in tenant " + entity.getTenantLabel() + " is forbidden for user "
                                 + securityContext.getUsername());
             }
             entity.labelize();
 
             // check uniqueness
             var uniqueInScope = ResourceRegistry.getUniqueInScope(entityClass);
-            if (!resourceRepository.isUnique(entity.getLabel(), entity.getTenant(), entityClass, uniqueInScope)) {
+            if (!resourceRepository.isUnique(entity.getLabel(), entity.getTenantLabel(), entityClass, uniqueInScope)) {
                 throw new BusinessException("RESOURCE_ALREADY_EXISTS",
                         "Resource with label " + entity.getLabel() + " already exists");
             }
@@ -107,7 +107,7 @@ public class ResourceService {
             if (!permissionService.hasPermission(entity, "update")) {
                 throw new ForbiddenException(
                         "The update of the entity " + entityClass.getSimpleName() + " with label " + entity.getLabel()
-                                + " in tenant " + entity.getTenant() + " is forbidden for user "
+                                + " in tenant " + entity.getTenantLabel() + " is forbidden for user "
                                 + securityContext.getUsername());
             }
             return entity;
@@ -169,7 +169,7 @@ public class ResourceService {
      */
     public <T extends Resource> T create(T resourceEntity) {
         // Verify if the user has the permission to create the resource
-        if (!permissionService.hasCreatePermission(resourceEntity.getTenant(),
+        if (!permissionService.hasCreatePermission(resourceEntity.getTenantLabel(),
                 resourceEntity.getSchema())) {
             throw new BusinessException("FORBIDDEN", "Forbidden access");
         }
@@ -334,9 +334,12 @@ public class ResourceService {
             Resource relation) throws IllegalArgumentException, IllegalAccessException {
         if (relation != null) {
             Resource relationEntity = null;
-
-            relationEntity = resourceRepository.getByLabel(relation.getLabel(), upsertRequest.getTenant(),
-                    relationField.getRelationClass());
+            if (relation.getUrn() != null) {
+                relationEntity = resourceRepository.getByUrn(relation.getUrn(), relationField.getRelationClass());
+            } else if (relation.getLabel() != null) {
+                relationEntity = resourceRepository.getByLabel(relation.getLabel(), upsertRequest.getTenant(),
+                        relationField.getRelationClass());
+            }
             if (relationEntity == null) {
                 throw new BusinessException("RESOURCE_NOT_FOUND",
                         "Cannot find resource with tenant" + upsertRequest.getTenant() + ", schema "
