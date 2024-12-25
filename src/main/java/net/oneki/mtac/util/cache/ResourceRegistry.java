@@ -1,6 +1,8 @@
 package net.oneki.mtac.util.cache;
 
+import java.lang.annotation.Annotation;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -27,17 +29,16 @@ import net.oneki.mtac.repository.ResourceRepository;
 import net.oneki.mtac.repository.SchemaRepository;
 import net.oneki.mtac.repository.framework.InitRepository;
 import net.oneki.mtac.repository.framework.SchemaDbSynchronizer;
-import net.oneki.mtac.util.StringUtils;
-import net.oneki.mtac.util.cache.ResourceRegistry;
 import net.oneki.mtac.util.exception.NotFoundException;
 import net.oneki.mtac.util.exception.UnexpectedException;
+import net.oneki.mtac.util.introspect.ClassType;
+import net.oneki.mtac.util.introspect.ReflectorContext;
 import net.oneki.mtac.util.introspect.RelationField;
 import net.oneki.mtac.util.introspect.ResourceDesc;
 import net.oneki.mtac.util.introspect.ResourceField;
 import net.oneki.mtac.util.introspect.ResourceReflector;
 import net.oneki.mtac.util.introspect.annotation.ApiRequest;
 import net.oneki.mtac.util.introspect.annotation.Entity;
-import net.oneki.mtac.util.introspect.annotation.EntityInterface;
 import net.oneki.mtac.util.query.Query;
 
 @Data
@@ -68,14 +69,52 @@ public class ResourceRegistry {
     public void initResourceRegistry() throws ClassNotFoundException {
         instance = this;
         initRepository.initSchema();
-        scanEntities("net.oneki.mtac.model.entity");
-        scanEntities(entityPackage);
-        scanApiRequests("net.oneki.mtac.model.api");
-        scanApiRequests(apiRequestPackage);
+        var reflectorContext = ReflectorContext.builder()
+                .classIndex(classIndex)
+                .schemaIndex(schemaIndex)
+                .resourceDescIndex(resourceDescIndex)
+                .basePackage("net.oneki.mtac.model.entity")
+                .classType(ClassType.Entity)
+                .build();
+        scanClasses(reflectorContext);
+        reflectorContext.setBasePackage(entityPackage);
+        scanClasses(reflectorContext);
+        reflectorContext.setBasePackage("net.oneki.mtac.model.api");
+        reflectorContext.setClassType(ClassType.ApiRequest);
+        scanClasses(reflectorContext);
+        reflectorContext.setBasePackage(apiRequestPackage);
+        scanClasses(reflectorContext);
+        var resourceClasses = new HashSet<>(schemaIndex.keySet());
+        for (var resourceClass : resourceClasses) {
+            ResourceReflector.reflect(resourceClass, reflectorContext);
+        }
+        for (var resourceDesc : resourceDescIndex.values()) {
+            if (resourceDesc.isInterface()) {
+                for (var resourceField : resourceDesc.getFields()) {
+                    if (resourceField.getField() == null) {
+                        // find the field in the child classes
+                        for (var childClass : resourceDesc.getChildClasses()) {
+                            var childResourceDesc = getResourceDesc(childClass);
+                            var childResourceField = childResourceDesc.getField(resourceField.getLabel());
+                            if (childResourceField != null && childResourceField.getField() != null) {
+                                childResourceField.setOwnerClass(resourceDesc.getClazz());
+                                resourceField.setField(childResourceField.getField());
+                                break;
+                            }
+                        }
+                        for (var childClass : resourceDesc.getChildClasses()) {
+                            var childResourceDesc = getResourceDesc(childClass);
+                            childResourceDesc.setFieldOwnerOrAddField(resourceField, resourceDesc.getClazz());
+                        }
+
+                    }
+                }
+            }
+        }
         handleFieldType();
         List<Schema> schemas = schemaRepository.listAllSchemasUnsecure();
         cache.setSchemas(schemas);
-        schemaDbSynchronizer.syncSchemaToDb();
+        schemaDbSynchronizer.syncSchemasToDb();
         schemaDbSynchronizer.syncFieldsToDb();
 
         List<Tenant> tenants = resourceRepository.listByTypeUnsecure(Tenant.class,
@@ -93,7 +132,6 @@ public class ResourceRegistry {
         return classIndex.get(schemaLabel);
     }
 
-
     public static String getSchemaByClass(Class<?> resourceClass) {
         return schemaIndex.get(resourceClass);
     }
@@ -110,6 +148,7 @@ public class ResourceRegistry {
     public static Set<RelationField> getRelations(Class<?> resourceClass) {
         var result = relations.get(resourceClass);
         if (result == null) {
+            System.out.println("resourceClass: " + resourceClass);
             var resourceDesc = getResourceDesc(resourceClass);
             relations.put(resourceClass, resourceDesc.getFields().stream().filter(ResourceField::isRelation)
                     .map(f -> (RelationField) f).collect(Collectors.toSet()));
@@ -180,9 +219,10 @@ public class ResourceRegistry {
 
     public static String getSchemaLabel(Integer schemaId) {
         var schema = instance.getCache().getSchemaById(schemaId);
-        if (schema == null) return null;
+        if (schema == null)
+            return null;
         return schema.getLabel();
-    }    
+    }
 
     public static Schema getSchemaByLabel(String schemaLabel) {
         return instance.getCache().getSchemaByLabel(schemaLabel);
@@ -194,9 +234,10 @@ public class ResourceRegistry {
 
     public static String getTenantLabel(Integer tenantId) {
         var tenant = instance.getCache().getTenantById(tenantId);
-        if (tenant == null) return null;
+        if (tenant == null)
+            return null;
         return tenant.getLabel();
-    } 
+    }
 
     public static Tenant getTenantById(Integer id) {
         var result = instance.getCache().getTenantById(id);
@@ -222,90 +263,99 @@ public class ResourceRegistry {
     }
 
     // ------------------------------------------------- private methods
-    private void scanEntities(String basePackage) throws ClassNotFoundException {
+    // private void scanEntities(String basePackage, ReflectorContext reflectorContext) throws ClassNotFoundException {
+    //     ClassPathScanningCandidateComponentProvider entityProvider = new ClassPathScanningCandidateComponentProvider(
+    //             false);
+    //     // entityProvider.addIncludeFilter(new
+    //     // AnnotationTypeFilter(EntityInterface.class));
+    //     entityProvider.addIncludeFilter(new AnnotationTypeFilter(Entity.class));
+
+    //     var beanDefs = entityProvider.findCandidateComponents(basePackage);
+
+    //     for (BeanDefinition bd : beanDefs) {
+    //         if (bd instanceof AnnotatedBeanDefinition) {
+    //             Map<String, Object> annotAttributeMap = ((AnnotatedBeanDefinition) bd)
+    //                     .getMetadata()
+    //                     .getAnnotationAttributes(Entity.class.getCanonicalName());
+    //             var schemaLabel = (String) annotAttributeMap.get("value");
+    //             var resourceClass = (Class<?>) Class.forName(bd.getBeanClassName());
+    //             if (schemaLabel == null || "".equals(schemaLabel)) {
+    //                 schemaLabel = ResourceReflector.buildSchemaLabel(resourceClass, reflectorContext);
+    //             }
+
+    //             addResourceClass(schemaLabel.toString(), resourceClass);
+    //         }
+    //     }
+
+
+    // }
+
+    // private void scanApiRequests(String basePackage, ReflectorContext reflectorContext) throws ClassNotFoundException {
+    //     ClassPathScanningCandidateComponentProvider entityProvider = new ClassPathScanningCandidateComponentProvider(
+    //             false);
+    //     entityProvider.addIncludeFilter(new AnnotationTypeFilter(ApiRequest.class));
+
+    //     var beanDefs = entityProvider.findCandidateComponents(basePackage);
+
+    //     for (BeanDefinition bd : beanDefs) {
+    //         if (bd instanceof AnnotatedBeanDefinition) {
+    //             Map<String, Object> annotAttributeMap = ((AnnotatedBeanDefinition) bd)
+    //                     .getMetadata()
+    //                     .getAnnotationAttributes(ApiRequest.class.getCanonicalName());
+    //             var schemaLabel = (String) annotAttributeMap.get("value");
+    //             var resourceClass = (Class<?>) Class.forName(bd.getBeanClassName());
+    //             if (schemaLabel == null || "".equals(schemaLabel)) {
+    //                 schemaLabel = ResourceReflector.buildSchemaLabel(resourceClass, reflectorContext);
+    //             }
+
+    //             addResourceClass(schemaLabel.toString(), resourceClass);
+    //             addResourceDesc(schemaLabel, ResourceReflector.reflect(resourceClass, annotAttributeMap));
+    //         }
+    //     }
+    // }
+
+    private void scanClasses(ReflectorContext reflectorContext) throws ClassNotFoundException {
         ClassPathScanningCandidateComponentProvider entityProvider = new ClassPathScanningCandidateComponentProvider(
                 false);
-        entityProvider.addIncludeFilter(new AnnotationTypeFilter(EntityInterface.class));
-        entityProvider.addIncludeFilter(new AnnotationTypeFilter(Entity.class));
-
-        var beanDefs = entityProvider.findCandidateComponents(basePackage);
-
+        Class<? extends Annotation> clazz = switch (reflectorContext.getClassType()) {
+            case Entity -> Entity.class;
+            case ApiRequest -> ApiRequest.class;
+            default -> null;
+        };
+        entityProvider.addIncludeFilter(new AnnotationTypeFilter(clazz));
+        var beanDefs = entityProvider.findCandidateComponents(reflectorContext.getBasePackage());
         for (BeanDefinition bd : beanDefs) {
             if (bd instanceof AnnotatedBeanDefinition) {
                 Map<String, Object> annotAttributeMap = ((AnnotatedBeanDefinition) bd)
                         .getMetadata()
-                        .getAnnotationAttributes(Entity.class.getCanonicalName());
+                        .getAnnotationAttributes(clazz.getCanonicalName());
                 var schemaLabel = (String) annotAttributeMap.get("value");
-                if (schemaLabel == null || "".equals(schemaLabel)) {
-                    schemaLabel = bd.getBeanClassName().substring(basePackage.length() + 1);
-                    var substrLength = 0;
-                    if (schemaLabel.endsWith("Entity")) {
-                        substrLength = 6;
-                    } 
-                    var tokens = schemaLabel.split("\\.");
-                    tokens[tokens.length - 1] = StringUtils.pascalToCamel(
-                            tokens[tokens.length - 1].substring(0, tokens[tokens.length - 1].length() - substrLength));
-                    schemaLabel = String.join(".", tokens);
-                    schemaLabel = StringUtils.pascalToSnake(schemaLabel);
-                    
-                }
                 var resourceClass = (Class<?>) Class.forName(bd.getBeanClassName());
+                if (schemaLabel == null || "".equals(schemaLabel)) {
+                    schemaLabel = ResourceReflector.buildSchemaLabel(resourceClass, reflectorContext);
+                }
+
                 addResourceClass(schemaLabel.toString(), resourceClass);
-                addResourceDesc(schemaLabel, ResourceReflector.reflect(resourceClass, annotAttributeMap));
             }
         }
     }
 
     private void handleFieldType() {
-        // During the first pass of reflection, it could happen that the type of a field is set to object
-        // instead of the real type. This is because the class of the field is not yet loaded.
-        // Therefore we do a second pass to set the correct type (after evrything is loaded).
-        for(ResourceDesc resourceDesc : resourceDescIndex.values()) {
-            for(ResourceField field : resourceDesc.getFields()) {
-                if("object".equals(field.getType())) {
+        // During the first pass of reflection, it could happen that the type of a field
+        // is set to object
+        // instead of the real type. This is because the class of the field is not yet
+        // loaded.
+        // Therefore we do a second pass to set the correct type (after evrything is
+        // loaded).
+        for (ResourceDesc resourceDesc : resourceDescIndex.values()) {
+            for (ResourceField field : resourceDesc.getFields()) {
+                if ("object".equals(field.getType())) {
                     var type = ResourceReflector.getType(field.getFieldClass());
                     field.setType(type);
                 }
             }
         }
     }
-
-    private void scanApiRequests(String basePackage) throws ClassNotFoundException {
-        ClassPathScanningCandidateComponentProvider entityProvider = new ClassPathScanningCandidateComponentProvider(
-                false);
-        entityProvider.addIncludeFilter(new AnnotationTypeFilter(ApiRequest.class));
-
-        var beanDefs = entityProvider.findCandidateComponents(basePackage);
-
-        for (BeanDefinition bd : beanDefs) {
-            if (bd instanceof AnnotatedBeanDefinition) {
-                Map<String, Object> annotAttributeMap = ((AnnotatedBeanDefinition) bd)
-                        .getMetadata()
-                        .getAnnotationAttributes(ApiRequest.class.getCanonicalName());
-                var schemaLabel = (String) annotAttributeMap.get("value");
-                if (schemaLabel == null || "".equals(schemaLabel)) {
-                    var tokens = bd.getBeanClassName().split("\\.");
-                    var dtoName = tokens[tokens.length - 2]; // e.g: "user"
-                    var requestType = tokens[tokens.length - 1]; // e.g: "UserCreateRequest"
-                    if (!requestType.endsWith("Request")) {
-                        throw new UnexpectedException("INVALID_ANNOTATION", "The class " + bd.getBeanClassName()
-                                + " annoted with @ApiRequest must end with 'Request'.");
-                    }
-                    var action = requestType.substring(dtoName.length(), requestType.length() - 7); // e.g: "Create"
-
-                    schemaLabel = bd.getBeanClassName().substring(basePackage.length() + 1,
-                            bd.getBeanClassName().lastIndexOf("."));
-                    schemaLabel = "req." + schemaLabel + ":" + StringUtils.pascalToCamel(action);
-                    schemaLabel = StringUtils.pascalToSnake(schemaLabel);
-                }
-                var resourceClass = (Class<?>) Class.forName(bd.getBeanClassName());
-                addResourceClass(schemaLabel.toString(), resourceClass);
-                addResourceDesc(schemaLabel, ResourceReflector.reflect(resourceClass, annotAttributeMap));
-            }
-        }
-    }
-
-    
 
     private void addResourceClass(String schemaLabel, Class<?> resourceClass) {
         classIndex.put(schemaLabel, resourceClass);

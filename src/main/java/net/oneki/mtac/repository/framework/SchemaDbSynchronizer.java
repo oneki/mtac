@@ -1,7 +1,9 @@
 package net.oneki.mtac.repository.framework;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
@@ -20,6 +22,7 @@ import net.oneki.mtac.repository.SchemaRepository;
 import net.oneki.mtac.util.cache.Cache;
 import net.oneki.mtac.util.cache.ResourceRegistry;
 import net.oneki.mtac.util.exception.UnexpectedException;
+import net.oneki.mtac.util.introspect.ClassType;
 
 @Component
 @RequiredArgsConstructor
@@ -30,50 +33,15 @@ public class SchemaDbSynchronizer {
     private final SchemaRepository schemaRepository;
     protected final Cache cache;
 
-    public void syncSchemaToDb() {
+    public void syncSchemasToDb() {
 
         var classIndex = ResourceRegistry.getClassindex();
-        var schemaIndex = ResourceRegistry.getSchemaIndex();
         var scannedSchemaLabels = classIndex.keySet();
         var dbSchemaLabels = cache.getSchemas().values().stream().map(Schema::getLabel)
                 .collect(Collectors.toSet());
 
         for (var scannedSchemaLabel : scannedSchemaLabels) {
-            if (scannedSchemaLabel.startsWith("req."))
-                continue;
-
-            var resourceClass = classIndex.get(scannedSchemaLabel);
-            var parentResourceClass = resourceClass.getSuperclass();
-            var parentSchemaLabel = schemaIndex.get(parentResourceClass);
-            var parents = new ArrayList<Ref>();
-            if (parentSchemaLabel != null) {
-                var parentSchemaEntityId = cache.getSchemaId(parentSchemaLabel);
-                parents.add(Ref.builder()
-                        .id(parentSchemaEntityId)
-                        .label(parentSchemaLabel)
-                        .schema(Constants.SCHEMA_SCHEMA_ID)
-                        .tenant(Constants.TENANT_ROOT_ID)
-                        .build());
-            }
-
-            if (!dbSchemaLabels.contains(scannedSchemaLabel)) {
-                var schemaEntity = resourceRepository.create(Schema.builder()
-                        .pub(true)
-                        .urn("urn:root:schema:" + scannedSchemaLabel)
-                        .name(scannedSchemaLabel)
-                        .parents(parents)
-                        .build());
-                cache.addSchema(schemaEntity);
-            } else {
-                // compare parents
-                var schemaEntity = cache.getSchemaByLabel(scannedSchemaLabel);
-                var parentsInDb = schemaEntity.getParents();
-                if (parentsInDb.containsAll(parents) && parents.containsAll(parentsInDb)) {
-                    continue;
-                }
-                schemaEntity.setParents(parents);
-                resourceRepository.update(schemaEntity);
-            }
+            syncSchemaToDb(scannedSchemaLabel, dbSchemaLabels);
         }
 
         for (var dbSchemaLabel : dbSchemaLabels) {
@@ -85,6 +53,63 @@ public class SchemaDbSynchronizer {
         fieldRepository.deleteOrphans();
     }
 
+    private void syncSchemaToDb(String scannedSchemaLabel, Set<String> dbSchemaLabels) {
+        var classIndex = ResourceRegistry.getClassindex();
+        var schemaIndex = ResourceRegistry.getSchemaIndex();
+
+        var resourceDesc = ResourceRegistry.getResourceDescs().get(scannedSchemaLabel);
+        if (resourceDesc.getId() != null || resourceDesc.getClassType() == null || resourceDesc.getClassType() == ClassType.ApiRequest) {
+            return;
+        }
+        var resourceClass = classIndex.get(scannedSchemaLabel);
+        var parentSchemaLabels = new HashSet<String>();
+        var parentResourceClass = resourceClass.getSuperclass();
+        var superSchemaLabel = schemaIndex.get(parentResourceClass);
+        if (superSchemaLabel != null) {
+            parentSchemaLabels.add(superSchemaLabel);
+        }
+        var interfaceClasses = resourceClass.getInterfaces();
+        for (var interfaceClass : interfaceClasses) {
+            var interfaceSchemaLabel = schemaIndex.get(interfaceClass);
+            if (interfaceSchemaLabel != null) {
+                parentSchemaLabels.add(interfaceSchemaLabel);
+            }
+        }
+
+        var parents = new ArrayList<Ref>();
+        for (var parentSchemaLabel : parentSchemaLabels) {
+            syncSchemaToDb(parentSchemaLabel, dbSchemaLabels);
+            var parentSchemaEntityId = cache.getSchemaId(parentSchemaLabel);
+            parents.add(Ref.builder()
+                    .id(parentSchemaEntityId)
+                    .label(parentSchemaLabel)
+                    .schema(Constants.SCHEMA_SCHEMA_ID)
+                    .tenant(Constants.TENANT_ROOT_ID)
+                    .build());
+        }
+
+        if (!dbSchemaLabels.contains(scannedSchemaLabel)) {
+            var schemaEntity = resourceRepository.create(Schema.builder()
+                    .pub(true)
+                    .urn("urn:root:schema:" + scannedSchemaLabel)
+                    .name(scannedSchemaLabel)
+                    .parents(parents)
+                    .build());
+            cache.addSchema(schemaEntity);
+            resourceDesc.setId(schemaEntity.getId());
+        } else {
+            // compare parents
+            var schemaEntity = cache.getSchemaByLabel(scannedSchemaLabel);
+            resourceDesc.setId(schemaEntity.getId());
+            var parentsInDb = schemaEntity.getParents();
+            if (parentsInDb.containsAll(parents) && parents.containsAll(parentsInDb)) {
+                return;
+            }
+            schemaEntity.setParents(parents);
+            resourceRepository.update(schemaEntity);
+        }        
+    }
+
     public void syncFieldsToDb() {
         var context = new SyncDbContext();
         var scannedSchemaLabels = ResourceRegistry.getClassindex().keySet();
@@ -92,9 +117,9 @@ public class SchemaDbSynchronizer {
 
         for (var fieldEntity : context.getFieldEntities()) {
             for (var schema : fieldEntity.getSchemas()) {
-                context.getFieldSchemaIndex().put(schema + ":" + fieldEntity.getLabel(), fieldEntity);
+                context.getDbFieldSchemaIndex().put(schema + ":" + fieldEntity.getLabel(), fieldEntity);
             }
-            context.getFieldIndex().put(fieldEntity.getId(), fieldEntity);
+            context.getDbFieldIndex().put(fieldEntity.getId(), fieldEntity);
         }
 
         for (var scannedSchemaLabel : scannedSchemaLabels) {
@@ -108,12 +133,13 @@ public class SchemaDbSynchronizer {
     private List<Field> syncFieldsToDb(SyncDbContext context, String scannedSchemaLabel) {
         var resourceDescs = ResourceRegistry.getResourceDescs();
         var result = new ArrayList<Field>();
-        if (scannedSchemaLabel.startsWith("req.")) {
+        var resourceDesc = resourceDescs.get(scannedSchemaLabel);
+        if (resourceDesc.getClassType() == null || resourceDesc.getClassType() == ClassType.ApiRequest) {
             return result;
         }
-        var resourceDesc = resourceDescs.get(scannedSchemaLabel);
-        if (context.getNextFieldEntitiesByResourceDesc().containsKey(resourceDesc)) {
-            return context.getNextFieldEntitiesByResourceDesc().get(resourceDesc);
+        
+        if (context.getScannedFieldEntitiesByResourceDesc().containsKey(resourceDesc)) {
+            return context.getScannedFieldEntitiesByResourceDesc().get(resourceDesc);
         }
 
         for (var scannedField : resourceDesc.getFields()) {
@@ -124,17 +150,22 @@ public class SchemaDbSynchronizer {
         }
 
         for (var nextFieldEntity : result) {
-            context.getNextFieldSchemaIndex().put(scannedSchemaLabel + ":" + nextFieldEntity.getLabel(),
+            context.getScannedFieldSchemaIndex().put(scannedSchemaLabel + ":" + nextFieldEntity.getLabel(),
                     nextFieldEntity);
             var schemas = nextFieldEntity.getSchemas();
             if (schemas == null) {
                 schemas = new ArrayList<>();
             }
+            var childSchemaLabels = resourceDesc.getChildClasses().stream()
+                    .map(childClass -> ResourceRegistry.getSchemaIndex().get(childClass))
+                    .toList();
+
             schemas.add(scannedSchemaLabel);
+            schemas.addAll(childSchemaLabels);
             nextFieldEntity.setSchemas(schemas);
         }
 
-        context.getNextFieldEntitiesByResourceDesc().put(resourceDesc, result);
+        context.getScannedFieldEntitiesByResourceDesc().put(resourceDesc, result);
 
         return result;
     }
@@ -144,16 +175,18 @@ public class SchemaDbSynchronizer {
         var resourceClass = classIndex.get(scannedSchemaLabel);
         var resourceDesc = ResourceRegistry.getResourceDescs().get(scannedSchemaLabel);
         var scannedField = resourceDesc.getField(scannedFieldLabel);
-        var declaringClass = scannedField.getField().getDeclaringClass();
+        var declaringClass = scannedField.getOwnerClass() != null ? scannedField.getOwnerClass() : scannedField.getField().getDeclaringClass();
         if (declaringClass.equals(Resource.class) || declaringClass.equals(Schema.class)) {
+            return null;
+        }
+        if (scannedField.getOwnerClass() != null && !scannedField.getOwnerClass().equals(resourceClass)) {
             return null;
         }
         var declaringSchemaLabel = ResourceRegistry.getSchemaByClass(declaringClass);
 
-
         if (declaringSchemaLabel.equals(scannedSchemaLabel)) {
-            var fieldEntity = context.getFieldSchemaIndex().get(scannedSchemaLabel + ":" + scannedField.getLabel());
-            var nextFieldEntity = context.getNextFieldSchemaIndex().get(scannedSchemaLabel + ":" + scannedField.getLabel());
+            var fieldEntity = context.getDbFieldSchemaIndex().get(scannedSchemaLabel + ":" + scannedField.getLabel());
+            var nextFieldEntity = context.getScannedFieldSchemaIndex().get(scannedSchemaLabel + ":" + scannedField.getLabel());
             if (nextFieldEntity != null) {
                 return nextFieldEntity;
             }
@@ -176,8 +209,8 @@ public class SchemaDbSynchronizer {
                 nextFieldEntity = fieldRepository.create(nextFieldEntity);
             }
             scannedField.setId(nextFieldEntity.getId());
-            context.getNextFieldIndex().put(nextFieldEntity.getId(), nextFieldEntity);
-            context.getNextFieldSchemaIndex().put(scannedSchemaLabel + ":" + scannedField.getLabel(),
+            context.getScannedFieldIndex().put(nextFieldEntity.getId(), nextFieldEntity);
+            context.getScannedFieldSchemaIndex().put(scannedSchemaLabel + ":" + scannedField.getLabel(),
                     nextFieldEntity);
             return nextFieldEntity;
         } else {
@@ -194,8 +227,8 @@ public class SchemaDbSynchronizer {
 
     private void syncFieldsPeer(SyncDbContext context) {
 
-        for (var nextFieldEntity : context.getNextFieldIndex().values()) {
-            var fieldEntity = context.getFieldIndex().get(nextFieldEntity.getId());
+        for (var nextFieldEntity : context.getScannedFieldIndex().values()) {
+            var fieldEntity = context.getDbFieldIndex().get(nextFieldEntity.getId());
             var scannedField = nextFieldEntity.getScannedField();
             if (scannedField.getPeer() == null) {
                 if (fieldEntity != null && fieldEntity.getPeerId() != null) {
@@ -203,7 +236,7 @@ public class SchemaDbSynchronizer {
                     fieldRepository.updatePeer(nextFieldEntity);
                 }
             } else {
-                var peerFieldEntity = context.getNextFieldSchemaIndex()
+                var peerFieldEntity = context.getScannedFieldSchemaIndex()
                         .get(scannedField.getType() + ":" + scannedField.getPeer());
                 if (peerFieldEntity == null) {
                     throw new UnexpectedException("INVALID_PEER_FIELD",
@@ -219,8 +252,8 @@ public class SchemaDbSynchronizer {
     }
 
     private void linkFieldsToSchemas(SyncDbContext context) {
-        for (var nextFieldEntity : context.getNextFieldIndex().values()) {
-            var fieldEntity = context.getFieldIndex().get(nextFieldEntity.getId());
+        for (var nextFieldEntity : context.getScannedFieldIndex().values()) {
+            var fieldEntity = context.getDbFieldIndex().get(nextFieldEntity.getId());
             for (var nextSchema : nextFieldEntity.getSchemas()) {
                 if (fieldEntity == null || !fieldEntity.getSchemas().contains(nextSchema)) {
 
@@ -250,8 +283,8 @@ public class SchemaDbSynchronizer {
     }
 
     private void removeFieldsFromDb(SyncDbContext context) {
-        for (var fieldId : context.getFieldIndex().keySet()) {
-            if (!context.getNextFieldIndex().containsKey(fieldId)) {
+        for (var fieldId : context.getDbFieldIndex().keySet()) {
+            if (!context.getScannedFieldIndex().containsKey(fieldId)) {
                 fieldRepository.delete(fieldId);
             }
         }

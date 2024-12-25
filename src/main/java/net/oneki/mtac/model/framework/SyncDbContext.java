@@ -18,9 +18,9 @@ import net.oneki.mtac.util.introspect.ResourceDesc;
 @Builder
 public class SyncDbContext {
     @Builder.Default private List<Field> fieldEntities = new ArrayList<>();
-    @Builder.Default private Map<String, Field> fieldSchemaIndex = new HashMap<>();
-    @Builder.Default private Map<Integer, Field> fieldIndex = new HashMap<>();
-    @Builder.Default private Map<Integer, Field> nextFieldIndex = new HashMap<>();
-    @Builder.Default private Map<String, Field> nextFieldSchemaIndex = new HashMap<>();
-    @Builder.Default private Map<ResourceDesc, List<Field>> nextFieldEntitiesByResourceDesc = new HashMap<>();
+    @Builder.Default private Map<String, Field> dbFieldSchemaIndex = new HashMap<>();
+    @Builder.Default private Map<Integer, Field> dbFieldIndex = new HashMap<>(); // fields already in the database
+    @Builder.Default private Map<Integer, Field> scannedFieldIndex = new HashMap<>(); // fields scanned in classes
+    @Builder.Default private Map<String, Field> scannedFieldSchemaIndex = new HashMap<>(); 
+    @Builder.Default private Map<ResourceDesc, List<Field>> scannedFieldEntitiesByResourceDesc = new HashMap<>();
 }
