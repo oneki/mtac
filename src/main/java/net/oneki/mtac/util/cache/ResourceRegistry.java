@@ -88,6 +88,7 @@ public class ResourceRegistry {
         for (var resourceClass : resourceClasses) {
             ResourceReflector.reflect(resourceClass, reflectorContext);
         }
+
         for (var resourceDesc : resourceDescIndex.values()) {
             if (resourceDesc.isInterface()) {
                 for (var resourceField : resourceDesc.getFields()) {

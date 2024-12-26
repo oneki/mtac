@@ -61,29 +61,33 @@ public class ResourceReflector {
         System.out.println(methods.length);
     }
 
-    public static ResourceDesc reflect(Class<?> clazz, ReflectorContext context) {
-        return reflect(clazz, context, new HashSet<>());
+    public static void reflect(Class<?> clazz, ReflectorContext context) {
+        reflect(clazz, context, new HashSet<>());
     }
 
-    public static ResourceDesc reflect(Class<?> clazz, ReflectorContext context, Set<Class<?>> descendantClasses) {
+    public static void reflect(Class<?> clazz, ReflectorContext context, Set<Class<?>> descendantClasses) {
         var schemaLabel = context.getSchemaIndex().get(clazz);
-        ResourceDesc resourceDesc = context.getResourceDescIndex().get(schemaLabel);
-        if (resourceDesc != null) {
-            resourceDesc.getChildClasses().addAll(descendantClasses);
-            return resourceDesc;
+        if (schemaLabel == null) { // if clazz = Resource.class
+            return;
         }
+        ResourceDesc resourceDesc = context.getResourceDescIndex().get(schemaLabel);
         var superClass = clazz.getSuperclass();
+        var parentDescendantClasses = new HashSet<>(descendantClasses);
+        parentDescendantClasses.add(clazz);
         if (superClass != null && !superClass.getName().equals("java.lang.Object")) {
-            var parentDescendantClasses = new HashSet<>(descendantClasses);
-            parentDescendantClasses.add(clazz);
             reflect(superClass, context, parentDescendantClasses);
         }
         var resourceFields = new HashSet<ResourceField>();
         var entityAnnotation = clazz.getAnnotation(Entity.class);
 
-        var resourceDescInterfaces = reflectInterfaces(clazz, context);
-        for (var resourceDescInterface : resourceDescInterfaces) {
-            resourceDescInterface.getChildClasses().add(clazz);
+        var interfaces = clazz.getInterfaces();
+        for (var interfaceClass : interfaces) {
+            reflectInterface(interfaceClass, context, parentDescendantClasses);
+        }
+
+        if (resourceDesc != null) {
+            resourceDesc.getChildClasses().addAll(descendantClasses);
+            return;
         }
 
         List<Field> fields = new ArrayList<Field>();
@@ -104,34 +108,48 @@ public class ResourceReflector {
                 .build();
         
         context.getResourceDescIndex().put(schemaLabel, result);
-        return result;
     }
 
-    private static Set<ResourceDesc> reflectInterfaces(Class<?> clazz, ReflectorContext context) {
-        Set<ResourceDesc> resourceDescs = new HashSet<>();
-        var interfaces = clazz.getInterfaces();
-        for (var interfaceClass : interfaces) {
-            resourceDescs.addAll(reflectInterfaces(interfaceClass, context));
-        }
-        var resourceDesc = reflectInterface(clazz, context);
-        if (resourceDesc != null) {
-            resourceDescs.add(resourceDesc);
-        }
-        return resourceDescs;
-    }
+    // private static Set<ResourceDesc> reflectInterfaces(Class<?> clazz, ReflectorContext context, Set<Class<?>> descendantClasses) {
+    //     Set<ResourceDesc> resourceDescs = new HashSet<>();
+    //     descendantClasses.add(clazz);
+    //     var interfaces = clazz.getInterfaces();
+    //     for (var interfaceClass : interfaces) {
+    //         var interfaceDescendantClasses = new HashSet<>(descendantClasses);
+    //         resourceDescs.addAll(reflectInterfaces(interfaceClass, context, interfaceDescendantClasses));
+    //     }
+    //     var resourceDesc = reflectInterface(clazz, context);
+    //     if (resourceDesc != null) {
+    //         resourceDesc.getChildClasses().addAll(descendantClasses);
+    //         resourceDescs.add(resourceDesc);
+    //     }
+    //     return resourceDescs;
+    // }
 
-    private static ResourceDesc reflectInterface(Class<?> clazz, ReflectorContext context) {
+    private static void reflectInterface(Class<?> clazz, ReflectorContext context, Set<Class<?>> descendantClasses) {
         String schemaLabel = null;
+        
         var annotation = clazz.getAnnotation(EntityInterface.class);
-        if (annotation == null) return null;
+        if (annotation == null) return;
         if (!annotation.value().isEmpty()) {
             schemaLabel = annotation.value();
         } else {
             schemaLabel = buildSchemaLabel(clazz, context);
-        }        
-        if (context.getResourceDescIndex().containsKey(schemaLabel)) {
-            return context.getResourceDescIndex().get(schemaLabel);
+        } 
+        ResourceDesc resourceDesc = context.getResourceDescIndex().get(schemaLabel);
+
+        var interfaces = clazz.getInterfaces();
+        var interfaceDescendantClasses = new HashSet<>(descendantClasses);
+        interfaceDescendantClasses.add(clazz);
+        for (var interfaceClass : interfaces) {
+            reflectInterface(interfaceClass, context, interfaceDescendantClasses);
         }
+
+        if (resourceDesc != null) {
+            resourceDesc.getChildClasses().addAll(descendantClasses);
+            return;
+        }
+
         var resourceFields = new HashSet<ResourceField>();
         var methods = clazz.getDeclaredMethods();
         for (var method : methods) {
@@ -160,22 +178,22 @@ public class ResourceReflector {
             }
         }
         
-        var resourceDesc = ResourceDesc.builder()
+        resourceDesc = ResourceDesc.builder()
                 .label(schemaLabel)
                 .fields(resourceFields)
                 .isInterface(true)
                 .clazz(clazz)
                 .classType(ClassType.fromClass(clazz))
+                .childClasses(descendantClasses)
                 .build();
         context.getResourceDescIndex().put(schemaLabel, resourceDesc);
         addResourceClass(schemaLabel, clazz, context);
-        return resourceDesc;
     }
 
     public static String buildSchemaLabel(Class<?> clazz, ReflectorContext context) {
         var schemaLabel = "";
         var className = clazz.getName();
-        if (context.getClassType() == ClassType.Entity) {
+        if (context.getClassType() == ClassType.Entity || clazz.isInterface()) {
             schemaLabel = className.substring(context.getBasePackage().length() + 1);
             var substrLength = 0;
             if (schemaLabel.endsWith("Entity")) {
