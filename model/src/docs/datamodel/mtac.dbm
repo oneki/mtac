@@ -1,0 +1,2688 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+CAUTION: Do not modify this file unless you know what you are doing.
+ Unexpected results may occur if the code is changed deliberately.
+-->
+<dbmodel pgmodeler-ver="1.1.0" use-changelog="false" max-obj-count="46"
+	 last-position="-80,151" last-zoom="1" scene-rect="-80,-40.5,1707.33,2074.22"
+	 default-owner="postgres"
+	 layers="Default"
+	 active-layers="0"
+	 layer-name-colors="#000000"
+	 layer-rect-colors="#b4b4b4"
+	 show-layer-names="false" show-layer-rects="false">
+<database name="registry" is-template="false" allow-conns="true">
+	<role name="postgres"/>
+	<tablespace name="pg_default"/>
+	<appended-sql> <![CDATA[SELECT now();]]> </appended-sql>
+</database>
+
+<schema name="public" layers="0" fill-color="#e1e1e1" name-color="#000000" sql-disabled="true">
+</schema>
+
+<sequence name="schema_inheritance_id_seq" cycle="false" start="1" increment="1" min-value="0" max-value="2147483647" cache="1">
+	<schema name="public"/>
+	<role name="postgres"/>
+</sequence>
+
+<table name="resource_tenant_tree" layers="0" collapse-mode="1" max-obj-count="3" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<position x="60" y="880"/>
+	<column name="ancestor_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="descendant_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="depth" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+</table>
+
+<table name="schema_inheritance" layers="0" collapse-mode="1" max-obj-count="6" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<position x="400" y="860"/>
+	<column name="id" not-null="true" sequence="public.schema_inheritance_id_seq">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="ancestor_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="descendant_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="depth" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="schema_parent_id">
+		<type name="integer" length="0"/>
+	</column>
+	<constraint name="schema_inheritance_pk" type="pk-constr" table="public.schema_inheritance">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<sequence name="field_id_seq" cycle="false" start="1" increment="1" min-value="0" max-value="2147483647" cache="1">
+	<schema name="public"/>
+	<role name="postgres"/>
+</sequence>
+
+<sequence name="action_id_seq" cycle="false" start="1" increment="1" min-value="0" max-value="2147483647" cache="1">
+	<schema name="public"/>
+	<role name="postgres"/>
+</sequence>
+
+<sequence name="role_field_id_seq" cycle="false" start="1" increment="1" min-value="0" max-value="2147483647" cache="1">
+	<schema name="public"/>
+	<role name="postgres"/>
+</sequence>
+
+<sequence name="role_action_id_seq" cycle="false" start="1" increment="1" min-value="0" max-value="2147483647" cache="1">
+	<schema name="public"/>
+	<role name="postgres"/>
+</sequence>
+
+<table name="role_schema" layers="0" collapse-mode="1" max-obj-count="2" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<position x="0" y="600"/>
+	<column name="role_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="schema" not-null="true">
+		<type name="varchar" length="0"/>
+	</column>
+	<constraint name="role_schema_pk" type="pk-constr" table="public.role_schema">
+		<columns names="role_id,schema" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<sequence name="ace_id_seq" cycle="false" start="1" increment="1" min-value="0" max-value="2147483647" cache="1">
+	<schema name="public"/>
+	<role name="postgres"/>
+</sequence>
+
+<table name="resource_ace" layers="0" collapse-mode="1" max-obj-count="6" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<position x="920" y="520"/>
+	<column name="ace_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="identity_id">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="resource_id">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="role_id">
+		<type name="integer" length="0"/>
+	</column>
+	<constraint name="resource_ace_pk" type="pk-constr" table="public.resource_ace">
+		<columns names="ace_id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="resource_tenant_tree_descendant_idx" table="public.resource_tenant_tree"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="descendant_id"/>
+		</idxelement>
+</index>
+
+<index name="schema_inheritance_descendant_idx" table="public.schema_inheritance"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="descendant_id"/>
+		</idxelement>
+</index>
+
+<table name="group_membership" layers="0" collapse-mode="1" max-obj-count="3" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<position x="940" y="740"/>
+	<column name="parent_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="child_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<constraint name="group_membership_pk" type="pk-constr" table="public.group_membership">
+		<columns names="parent_id,child_id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<table name="resource_tag" layers="0" collapse-mode="1" max-obj-count="4" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<position x="20" y="200"/>
+	<column name="resource_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="tag_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<constraint name="resource_tag_pk" type="pk-constr" table="public.resource_tag">
+		<columns names="resource_id,tag_id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="resource_tenant_tree_ascendant_idx" table="public.resource_tenant_tree"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="ancestor_id"/>
+		</idxelement>
+</index>
+
+<index name="schema_inheritance_ascendant_idx" table="public.schema_inheritance"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="ancestor_id"/>
+		</idxelement>
+</index>
+
+<table name="role_tag" layers="0" collapse-mode="1" max-obj-count="2" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<position x="440" y="280"/>
+	<column name="role_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="tag" not-null="true">
+		<type name="varchar" length="0"/>
+	</column>
+	<constraint name="role_tag_pk" type="pk-constr" table="public.role_tag">
+		<columns names="role_id,tag" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="resource_ace_idx" table="public.resource_ace"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="identity_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="resource_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="role_id"/>
+		</idxelement>
+</index>
+
+<table name="ace" layers="0" collapse-mode="1" max-obj-count="6" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<position x="940" y="340"/>
+	<column name="id" not-null="true" sequence="public.ace_id_seq">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="identity_id">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="resource_id">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="role_id">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="source_id">
+		<type name="integer" length="0"/>
+	</column>
+	<constraint name="ace_pk" type="pk-constr" table="public.ace">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<function name="after_delete_resource"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+	DELETE FROM resource_tenant_tree
+	    WHERE descendant_id IN (
+	      SELECT descendant_id FROM resource_tenant_tree WHERE ancestor_id = OLD.id
+	    );
+
+    --------------------------------------------
+    -- Add entry in audit log
+    --------------------------------------------
+	-- INSERT INTO audit_log(resource_id, "before", "user", "created_at", "action")
+    -- SELECT OLD.id, OLD.content ||  jsonb_build_object('label', OLD.label , 'schema', OLD.schema_id, 'tenant', OLD.tenant_id, 'public', OLD.pub, 'link', OLD.link_id), OLD.updated_by, OLD.updated_at, 'delete'; 
+
+    PERFORM pg_notify('resource_channel', 'delete,' || OLD.id || ',' || OLD.tenant_id || ',' || OLD.schema_id || ',' || OLD.label);
+
+    RETURN NULL;
+END;
+]]> </definition>
+</function>
+
+<function name="after_add_or_delete_resource_tag"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="void" length="0"/>
+	</return-type>
+	<parameter name="v_resource_tag">
+		<type name="public.resource_tag" length="0"/>
+	</parameter>
+	<definition> <![CDATA[BEGIN
+	-- check all ace related to resource and sync ace
+	DROP TABLE IF EXISTS temp_after_add_or_delete_resource_tag;
+	CREATE TEMP TABLE temp_after_add_or_delete_resource_tag AS
+	SELECT DISTINCT ace.*
+	FROM ace, resource r
+	WHERE ace.resource_id = v_resource_tag.resource_id;
+	PERFORM sync_resource_aces('temp_after_add_or_delete_resource_tag'::regclass);
+END;]]> </definition>
+</function>
+
+<function name="after_insert_resource_tag"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+	PERFORM after_add_or_delete_resource_tag(NEW);
+	RETURN NULL;
+END;]]> </definition>
+</function>
+
+<function name="after_delete_resource_tag"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+	PERFORM after_add_or_delete_resource_tag(OLD);
+	RETURN NULL;
+END;]]> </definition>
+</function>
+
+<trigger name="after_insert_resource_tag" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="true" del-event="false" upd-event="false" trunc-event="false"
+	 table="public.resource_tag">
+		<function signature="public.after_insert_resource_tag()"/>
+</trigger>
+
+<trigger name="after_delete_resource_tag" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="false" del-event="true" upd-event="false" trunc-event="false"
+	 table="public.resource_tag">
+		<function signature="public.after_delete_resource_tag()"/>
+</trigger>
+
+<function name="after_add_or_delete_role_schema"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="void" length="0"/>
+	</return-type>
+	<parameter name="v_role_schema">
+		<type name="public.role_schema" length="0"/>
+	</parameter>
+	<definition> <![CDATA[BEGIN
+	DROP TABLE IF EXISTS temp_after_add_or_delete_role_schema;
+    CREATE TEMP TABLE temp_after_add_or_delete_role_schema AS
+        SELECT a.*
+        FROM ace a, resource r, resource s
+        WHERE a.resource_id = r.id
+            AND a.role_id = v_role_schema.role_id
+			AND r.schema_id = s.id
+			AND s.label LIKE REPLACE(v_role_schema."schema", '*', '%');
+	PERFORM sync_resource_aces('temp_after_add_or_delete_role_schema'::regclass);
+END;]]> </definition>
+</function>
+
+<function name="after_add_role_schema"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+	PERFORM after_add_or_delete_role_schema(NEW);
+	RETURN NULL;
+END;]]> </definition>
+</function>
+
+<function name="after_delete_role_schema"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+	PERFORM after_add_or_delete_role_schema(OLD);
+	RETURN NULL;
+END;]]> </definition>
+</function>
+
+<trigger name="after_add_role_schema" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="true" del-event="false" upd-event="false" trunc-event="false"
+	 table="public.role_schema">
+		<function signature="public.after_add_role_schema()"/>
+</trigger>
+
+<trigger name="after_delete_role_schema" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="false" del-event="true" upd-event="false" trunc-event="false"
+	 table="public.role_schema">
+		<function signature="public.after_delete_role_schema()"/>
+</trigger>
+
+<function name="after_add_or_delete_role_tag"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="void" length="0"/>
+	</return-type>
+	<parameter name="v_role_tag">
+		<type name="public.role_tag" length="0"/>
+	</parameter>
+	<definition> <![CDATA[BEGIN
+    DROP TABLE IF EXISTS temp_after_add_or_delete_role_tag;
+    CREATE TEMP TABLE temp_after_add_or_delete_role_tag AS
+        SELECT *
+        FROM ace
+        WHERE role_id = v_role_tag.role_id;
+		PERFORM sync_resource_aces('temp_after_add_or_delete_role_tag'::regclass);
+END;]]> </definition>
+</function>
+
+<function name="after_insert_role_tag"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+    PERFORM after_add_or_delete_role_tag(NEW);
+    RETURN NULL;
+END;]]> </definition>
+</function>
+
+<function name="after_delete_role_tag"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+    PERFORM after_add_or_delete_role_tag(OLD);
+    RETURN NULL;
+END;]]> </definition>
+</function>
+
+<trigger name="after_insert_role_tag" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="true" del-event="false" upd-event="false" trunc-event="false"
+	 table="public.role_tag">
+		<function signature="public.after_insert_role_tag()"/>
+</trigger>
+
+<trigger name="after_delete_role_tag" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="false" del-event="true" upd-event="false" trunc-event="false"
+	 table="public.role_tag">
+		<function signature="public.after_delete_role_tag()"/>
+</trigger>
+
+<function name="after_add_or_delete_schema_tag"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="void" length="0"/>
+	</return-type>
+	<parameter name="v_schema_tag">
+		<type name="public.resource_tag" length="0"/>
+	</parameter>
+	<definition> <![CDATA[DECLARE
+	v_count integer;
+BEGIN
+
+	SELECT COUNT(*) INTO v_count FROM "schema" WHERE id = v_schema_tag.resource_id;
+	
+	IF v_count > 0 THEN
+		-- check all ace related to schema and sync ace
+		DROP TABLE IF EXISTS temp_after_insert_schema_tag;
+		CREATE TEMP TABLE temp_after_insert_schema_tag AS
+		SELECT DISTINCT ace.*
+		FROM ace, resource r
+		WHERE ace.resource_id = r.id AND
+					r.schema_id = v_schema_tag.resource_id;
+		PERFORM sync_resource_aces('temp_after_insert_schema_tag'::regclass);
+	END IF;
+
+END;]]> </definition>
+</function>
+
+<function name="after_insert_schema_tag"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+	PERFORM after_add_or_delete_schema_tag(NEW);
+	RETURN NULL;
+END;]]> </definition>
+</function>
+
+<function name="after_delete_schema_tag"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+	PERFORM after_add_or_delete_schema_tag(OLD);
+	RETURN NULL;
+END;]]> </definition>
+</function>
+
+<trigger name="after_insert_schema_tag" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="true" del-event="false" upd-event="false" trunc-event="false"
+	 table="public.resource_tag">
+		<function signature="public.after_insert_schema_tag()"/>
+</trigger>
+
+<trigger name="after_delete_schema_tag" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="false" del-event="true" upd-event="false" trunc-event="false"
+	 table="public.resource_tag">
+		<function signature="public.after_delete_schema_tag()"/>
+</trigger>
+
+<function name="after_insert_ace"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[DECLARE
+    v_count_tenant integer;
+BEGIN
+	
+
+	IF NEW.source_id IS NULL THEN
+	    -- insert a new row for each sub element (of tenant tree)
+	 	-- source_id is the ID of the inserted row
+		INSERT INTO ace(role_id, identity_id, resource_id, source_id)
+		SELECT NEW.role_id, NEW.identity_id, descendant_id, NEW.id
+		FROM resource_tenant_tree WHERE ancestor_id = NEW.resource_id AND depth > 0;
+
+		-- set effective ACE
+
+		DROP TABLE IF EXISTS temp_after_insert_ace;
+	    CREATE TEMP TABLE temp_after_insert_ace AS
+	        SELECT a.*
+	        FROM ace a
+	        WHERE id = NEW.id OR source_id = NEW.id;
+		PERFORM sync_resource_aces('temp_after_insert_ace'::regclass);
+
+	END IF;
+
+	RETURN NULL;
+END;]]> </definition>
+</function>
+
+<trigger name="after_insert_ace" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="true" del-event="false" upd-event="false" trunc-event="false"
+	 table="public.ace">
+		<function signature="public.after_insert_ace()"/>
+</trigger>
+
+<function name="after_insert_field_tag"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+	-- Adding a tag on a field is adding a restriction. 
+	-- We need to remove all role_id that are now denied usage of the field
+	DELETE FROM field_ace fa
+	WHERE fa.field_id = NEW.field_id AND
+				fa.role_id NOT IN (
+					SELECT rt.role_id
+					FROM role_tag rt, field_tag ft, resource t
+					WHERE ft.field_id = NEW.field_id AND
+								ft.tag_id = NEW.tag_id AND
+								ft.tag_id = t.id AND
+								t.label LIKE REPLACE(rt.tag, '*', '%')
+				);
+
+
+	RETURN NULL;
+END;]]> </definition>
+</function>
+
+<function name="after_insert_resource"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+	INSERT INTO resource_tenant_tree(ancestor_id,descendant_id,depth)
+	SELECT ancestor_id, NEW.id, depth + 1
+	FROM resource_tenant_tree WHERE descendant_id = NEW.tenant_id
+	UNION ALL SELECT NEW.id, NEW.id, 0;
+
+    --------------------------------------------
+    -- Insert all  inherited ACE
+    --------------------------------------------   
+     
+    INSERT INTO ace (identity_id, resource_id, role_id, source_id) 
+    SELECT a.identity_id, NEW.id, a.role_id, a.id 
+	FROM ace a
+    WHERE a.source_id is NULL AND 
+         	    a.resource_id IN (
+	            SELECT rtt.ancestor_id FROM resource_tenant_tree rtt
+	            WHERE rtt.descendant_id = NEW.id
+	                AND rtt.depth > 0
+        );  
+
+	DROP TABLE IF EXISTS temp_after_insert_resource;
+    CREATE TEMP TABLE temp_after_insert_resource AS
+        SELECT a.*
+        FROM ace a
+        WHERE resource_id = NEW.id;
+	PERFORM sync_resource_aces('temp_after_insert_resource'::regclass);
+
+    --------------------------------------------
+    -- Manage public resources
+    -- we create a non source ACE with a specific role and the tenant as identity
+    -------------------------------------------- 
+ 	IF NEW.pub IS TRUE THEN
+		PERFORM insert_pub_ace(NEW);
+	END IF;
+
+    --------------------------------------------
+    -- Manage resource type
+    -------------------------------------------- 
+    UPDATE resource SET "type" = (
+	  SELECT (
+		CASE 
+		  WHEN s.label LIKE 'service.%' THEN 1 
+		  WHEN s.label LIKE 'tenant.%' THEN 2 
+		  WHEN s.label LIKE 'provider.%' THEN 3 
+		  WHEN s.label LIKE 'blueprint.%' THEN 5 
+		  WHEN s.label = 'schema' THEN 6 
+          WHEN s.label LIKE 'request.%' THEN 10 
+		  ELSE 4 
+		END	
+	  ) 
+	  FROM resource r, resource s
+	  WHERE r.id = NEW.id AND r.schema_id = s.id
+    ) WHERE id = NEW.id;
+
+    --------------------------------------------
+    -- Add entry in audit log
+    --------------------------------------------
+	-- INSERT INTO audit_log(resource_id, "after", "user", "created_at", "action")
+    -- SELECT NEW.id, NEW.content ||  jsonb_build_object('label', NEW.label , 'schema', NEW.schema_id, 'tenant', NEW.tenant_id, 'public', NEW.pub, 'link', NEW.link_id), NEW.created_by,NEW.created_at, 'create'; 
+
+    PERFORM pg_notify('resource_channel', 'create,' || NEW.id || ',' || NEW.tenant_id || ',' || NEW.schema_id || ',' || NEW.label);
+
+	RETURN NULL;
+END;]]> </definition>
+</function>
+
+<function name="after_update_resource"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+	IF NEW.tenant_id <> OLD.tenant_id OR (NEW.tenant_id is NULL and OLD.tenant_id is NOT NULL)  OR (NEW.tenant_id is NOT NULL and OLD.tenant_id is  NULL)  THEN
+		--------------------------------------------
+		-- Step 1: Disconnect from current ancestors
+		-- Delete all paths that end at descendants in the subtree
+		--------------------------------------------
+		DELETE FROM resource_tenant_tree
+		WHERE descendant_id IN (SELECT descendant_id FROM resource_tenant_tree WHERE ancestor_id = OLD.id)
+		AND ancestor_id NOT IN (SELECT descendant_id FROM resource_tenant_tree WHERE ancestor_id = OLD.id);
+		
+		--------------------------------------------
+		-- Step 2: Mount subtree to new ancestors
+		-- Insert rows matching ancestors of insertion point and descendants of subtree
+		--------------------------------------------
+		INSERT INTO resource_tenant_tree (ancestor_id, descendant_id, depth)
+		SELECT DISTINCT supertree.ancestor_id, subtree.descendant_id, supertree.depth + subtree.depth + 1
+		FROM resource_tenant_tree AS supertree
+		CROSS JOIN resource_tenant_tree AS subtree
+		WHERE subtree.ancestor_id = OLD.id
+		AND supertree.descendant_id = NEW.tenant_id;
+        
+		--------------------------------------------
+		-- Step 3: Remove all inherited ACE
+		--------------------------------------------
+        DELETE FROM ace
+        WHERE resource_id = OLD.id AND source_id is not NULL;
+
+		--------------------------------------------
+		-- Step 4: Insert all new inherited ACE
+		--------------------------------------------        
+        INSERT INTO ace (identity_id, resource_id, role_id, source_id)
+        SELECT DISTINCT a.identity_id, NEW.id, a.role_id, a.id FROM ace a
+        WHERE a.source_id is NULL 
+            AND a.resource_id IN (
+                SELECT rtt.ancestor_id FROM resource_tenant_tree rtt
+                WHERE rtt.descendant_id = NEW.tenant_id
+            );
+
+		--------------------------------------------
+		-- Step 4: Manage pub
+		--------------------------------------------   
+		IF OLD.pub IS TRUE AND NEW.pub IS TRUE THEN
+			-- remove OLD pub ACE
+			PERFORM remove_pub_ace(OLD);
+			-- add NEW pub ACE
+			PERFORM insert_pub_ace(NEW);
+		END IF;
+
+		--------------------------------------------
+		-- Step 5: Sync resource ACE for this resource
+		-------------------------------------------- 
+		DROP TABLE IF EXISTS temp_after_insert_ace;
+	    CREATE TEMP TABLE temp_after_insert_ace AS
+	        SELECT a.*
+	        FROM ace a
+	        WHERE resource_id = NEW.id;
+		PERFORM sync_resource_aces('temp_after_insert_ace'::regclass);
+
+
+    END IF;
+
+	IF NEW.pub <> OLD.pub THEN
+		IF NEW.pub IS TRUE THEN
+		    PERFORM insert_pub_ace(NEW);
+		ELSE
+			PERFORM remove_pub_ace(OLD);
+		END IF;
+	END IF;
+
+    --------------------------------------------
+    -- Add entry in audit log
+    --------------------------------------------
+	-- INSERT INTO audit_log(resource_id, "before", "after", "user", "created_at", "action")
+    -- SELECT 
+	-- 	NEW.id, 
+    --     OLD.content ||  jsonb_build_object('label', OLD.label , 'schema', OLD.schema_id, 'tenant', OLD.tenant_id, 'public', OLD.pub, 'link', OLD.link_id), 
+	-- 	NEW.content ||  jsonb_build_object('label', NEW.label , 'schema', NEW.schema_id, 'tenant', NEW.tenant_id, 'public', NEW.pub, 'link', NEW.link_id), 
+	-- 	NEW.updated_by,
+	-- 	NEW.updated_at, 
+	-- 	'update'; 
+
+
+    PERFORM pg_notify('resource_channel', 'update,' || NEW.id || ',' || NEW.tenant_id || ',' || NEW.schema_id || ',' || NEW.label);
+
+	RETURN NULL;
+
+END;]]> </definition>
+</function>
+
+<function name="after_update_schema_label"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[DECLARE
+	v_count integer;
+BEGIN
+
+	
+	SELECT COUNT(*) INTO v_count FROM "schema" WHERE id = NEW.id;
+	
+	IF v_count > 0 THEN
+		-- get all role having acces to the old schema
+		DROP TABLE IF EXISTS role_schema_old_temp;
+		CREATE TEMP TABLE role_schema_old_temp AS
+			SELECT role_id
+			FROM role_schema
+			WHERE OLD.label LIKE REPLACE("schema", '*', '%');
+
+		UPDATE role_schema SET "schema" = NEW.label
+		WHERE "schema" = OLD.label;
+
+		-- get all role having acces to the new schema
+		DROP TABLE IF EXISTS role_schema_new_temp;
+		CREATE TEMP TABLE role_schema_new_temp AS
+			SELECT role_id
+			FROM role_schema
+			WHERE NEW.label LIKE REPLACE("schema", '*', '%');
+
+		-- get all role having access to the new schema but not the old schema
+		-- we need to check all ace related to these role and check if we need to add a resource_ace
+		PERFORM sync_resource_ace(ace)
+		FROM ace
+		WHERE ace.role_id IN (
+			SELECT rsnt.role_id
+			FROM role_schema_new_temp rsnt
+					  LEFT OUTER JOIN role_schema_old_temp rsot ON rsot.role_id = rsnt.role_id
+			WHERE rsot.role_id IS NULL
+		);
+
+		-- get all role having access to the old schema but not the new schema
+		-- we remove all resource_ace whose resource_id if of type "NEW.label" and role_id is one of the role ID present is old table and not in new table
+		DELETE FROM resource_ace
+		WHERE ace_id IN (
+			SELECT ra.ace_id
+			FROM resource_ace ra, resource r, resource s
+			WHERE ra.resource_id = r.id AND
+                  r.schema_id = s.id AND
+                  s."label" = NEW.label AND
+                  ra.role_id IN (
+                      SELECT rsot.role_id
+                      FROM role_schema_old_temp rsot
+                                LEFT OUTER JOIN role_schema_new_temp rsnt ON rsot.role_id = rsnt.role_id
+                      WHERE rsnt.role_id IS NULL 
+                  )
+		);
+	
+	END IF;
+	
+RETURN NULL;
+END;]]> </definition>
+</function>
+
+<function name="after_update_link_source_label"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+	UPDATE resource SET label = NEW.label, schema_id = NEW.schema_id  WHERE link_id = NEW.id;
+	RETURN NULL;
+END;]]> </definition>
+</function>
+
+<usertype name="effective_ace" configuration="composite">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<typeattrib name="id">
+		<type name="integer" length="0"/>
+	</typeattrib>
+	<typeattrib name="identity_id">
+		<type name="integer" length="0"/>
+	</typeattrib>
+	<typeattrib name="resource_id">
+		<type name="integer" length="0"/>
+	</typeattrib>
+	<typeattrib name="role_id">
+		<type name="integer" length="0"/>
+	</typeattrib>
+	<typeattrib name="source_id">
+		<type name="integer" length="0"/>
+	</typeattrib>
+	<typeattrib name="is_effective">
+		<type name="boolean" length="0"/>
+	</typeattrib>
+</usertype>
+
+<function name="is_effective_ace"
+		window-func="false"
+		returns-setof="true"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="1000">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="public.effective_ace" length="0"/>
+	</return-type>
+	<parameter name="v_table_ace">
+		<type name="regclass" length="0"/>
+	</parameter>
+	<definition> <![CDATA[BEGIN
+    -- we need to calculate effective resource ace (check if the identity has effective access on the object)
+    -- a identity is granted access if all following conditions are met
+    --     - the role has access to the resource schema (table schema role) or to all schema
+    --     - if the schema is protected by security tag(s), the role must have access to at least one of these security tags
+    --     - if the resource is protected by security tag(s), the role must have access to at least one of these security tags
+
+    DROP TABLE IF EXISTS ace_effective_temp;
+	CREATE TEMP TABLE ace_effective_temp OF effective_ace (PRIMARY KEY(id));
+	EXECUTE 'INSERT INTO ace_effective_temp SELECT id, identity_id, resource_id, role_id, source_id, FALSE FROM ' || v_table_ace;
+
+    -- check if security tags match for schema
+    DROP TABLE IF EXISTS schema_tag_temp;
+    CREATE TEMP TABLE schema_tag_temp AS
+        SELECT a.id as ace_id, t."label" as schema_tag_label
+        FROM ace_effective_temp a,
+				  resource r LEFT OUTER JOIN resource_tag st JOIN resource t ON st.tag_id = t.id
+								  ON r.schema_id = st.resource_id
+        WHERE r.id = a.resource_id;
+    
+    DROP TABLE IF EXISTS resource_tag_temp;
+    CREATE TEMP TABLE resource_tag_temp AS
+        SELECT a.id as ace_id, t."label" as resource_tag_label
+        FROM ace_effective_temp a, 
+				  resource r LEFT OUTER JOIN resource_tag rt JOIN resource t ON rt.tag_id = t.id
+								  ON r.id = rt.resource_id
+        WHERE r.id = a.resource_id;
+
+    DROP TABLE IF EXISTS role_tag_temp;
+    CREATE TEMP TABLE role_tag_temp AS
+        SELECT a.id as ace_id, rt."tag" AS role_allowed_tag_label
+        FROM ace_effective_temp a, resource r, role_tag rt
+        WHERE rt.role_id = r.id
+            AND rt.role_id = a.role_id;
+
+	DROP TABLE IF EXISTS temp_result;
+	CREATE TEMP TABLE temp_result AS
+	SELECT a.id
+	FROM  resource r, role_schema sr, resource s,
+			   ace_effective_temp a LEFT OUTER JOIN role_tag_temp rott ON a.id = rott.ace_id
+					    LEFT OUTER JOIN schema_tag_temp stt ON a.id = stt.ace_id
+					    LEFT OUTER JOIN resource_tag_temp rett ON a.id = rett.ace_id
+	WHERE sr.role_id = a.role_id AND
+				r.id = a.resource_id AND 
+        		r.schema_id = s.id AND
+				s.label LIKE REPLACE(sr.schema, '*', '%') AND
+	          (
+	           (stt.schema_tag_label IS NULL AND rett.resource_tag_label IS NULL) OR
+	           (stt.schema_tag_label IS NULL AND rett.resource_tag_label LIKE REPLACE(rott.role_allowed_tag_label, '*', '%')) OR
+	           (rett.resource_tag_label IS NULL AND stt.schema_tag_label LIKE REPLACE(rott.role_allowed_tag_label, '*', '%')) OR
+	           (stt.schema_tag_label LIKE REPLACE(rott.role_allowed_tag_label, '*', '%') AND rett.resource_tag_label LIKE REPLACE(rott.role_allowed_tag_label, '*', '%'))
+	          );
+
+    UPDATE ace_effective_temp a 
+	SET is_effective = TRUE
+	FROM temp_result tr
+	WHERE tr.id = a.id;
+
+    RETURN QUERY SELECT * FROM ace_effective_temp;
+
+END;]]> </definition>
+</function>
+
+<function name="sync_resource_aces"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="void" length="0"/>
+	</return-type>
+	<parameter name="v_table_ace">
+		<type name="regclass" length="0"/>
+	</parameter>
+	<definition> <![CDATA[BEGIN
+    DROP TABLE IF EXISTS resource_ace_effective_temp;
+	CREATE TEMP TABLE resource_ace_effective_temp OF effective_ace (PRIMARY KEY(id));
+	INSERT INTO resource_ace_effective_temp
+	SELECT * FROM is_effective_ace(v_table_ace::regclass);
+	
+
+    INSERT INTO resource_ace(identity_id, resource_id, role_id, ace_id)
+    SELECT identity_id, resource_id, role_id, id
+	FROM resource_ace_effective_temp
+	WHERE is_effective IS TRUE
+    ON CONFLICT ON CONSTRAINT resource_ace_pk DO NOTHING;
+
+	DELETE FROM resource_ace 
+	WHERE ace_id IN (
+		SELECT id FROM resource_ace_effective_temp	
+		WHERE is_effective IS FALSE
+	);
+END;]]> </definition>
+</function>
+
+<function name="sync_resource_ace"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="void" length="0"/>
+	</return-type>
+	<parameter name="v_ace">
+		<type name="public.ace" length="0"/>
+	</parameter>
+	<definition> <![CDATA[BEGIN
+    DROP TABLE IF EXISTS ace_single_temp;
+	CREATE TEMP TABLE ace_single_temp (id integer PRIMARY KEY, identity_id integer, resource_id integer, role_id integer, source_id integer);
+	INSERT INTO ace_single_temp VALUES (v_ace.id, v_ace.identity_id, v_ace.resource_id, v_ace.role_id, v_ace.source_id);
+	
+	PERFORM sync_resource_aces('ace_single_temp'::regclass);
+
+END;]]> </definition>
+</function>
+
+<function name="is_unique"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="integer" length="0"/>
+	</return-type>
+	<parameter name="v_label">
+		<type name="text" length="0"/>
+	</parameter>
+	<parameter name="v_tenant_id">
+		<type name="integer" length="0"/>
+	</parameter>
+	<parameter name="v_schema_id">
+		<type name="integer" length="0"/>
+	</parameter>
+	<parameter name="v_tenant_scope">
+		<type name="text" length="0"/>
+	</parameter>
+	<definition> <![CDATA[DECLARE
+    v_tenant_scope_id integer;
+    v_id integer;
+BEGIN
+	SELECT a.id INTO v_tenant_scope_id
+	FROM resource a, resource s, resource_tenant_tree rtt
+	WHERE 
+		rtt.descendant_id = v_tenant_id 
+		AND rtt.ancestor_id = a.id
+		AND a.schema_id = s.id
+		AND s.label = v_tenant_scope
+	ORDER BY rtt.depth DESC
+	LIMIT 1;
+
+	IF v_tenant_scope_id IS NULL THEN
+		v_tenant_scope_id := v_tenant_id;
+	END IF;
+
+	WITH tenant_tree AS (
+		SELECT td.id as id
+		FROM resource t 
+			JOIN resource_tenant_tree rttd 
+				JOIN resource td
+					JOIN resource sd ON td.schema_id = sd.id AND sd.label LIKE 'tenant.%'
+				ON td.id = rttd.descendant_id
+			ON rttd.ancestor_id = t.id
+		WHERE t.id = v_tenant_scope_id		
+	), schema_tree AS (
+		SELECT v_schema_id as id
+		UNION
+		SELECT sia.ancestor_id as id
+		FROM resource s 
+				JOIN schema_inheritance sia
+				ON sia.descendant_id = s.id AND sia.depth > 0
+		WHERE s.id = v_schema_id
+		UNION
+		SELECT sid.descendant_id as id
+		FROM resource s 
+				JOIN schema_inheritance sid
+				ON sid.ancestor_id = s.id AND sid.depth > 0
+		WHERE s.id = v_schema_id
+	)
+	SELECT DISTINCT r.id into v_id
+	FROM resource r
+			JOIN schema_inheritance si
+				JOIN schema_tree st ON st.id = si.descendant_id OR st.id = si.ancestor_id
+			ON r.schema_id = si.descendant_id OR r.schema_id = si.ancestor_id
+			JOIN resource_tenant_tree rtt 
+				JOIN tenant_tree tt ON tt.id = rtt.descendant_id OR tt.id = rtt.ancestor_id
+			ON r.tenant_id = rtt.descendant_id OR r.tenant_id = rtt.ancestor_id
+	WHERE   r.label = v_label
+	LIMIT 1;
+
+	RETURN v_id;
+
+	
+END;]]> </definition>
+</function>
+
+<function name="after_delete_schema"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+	DELETE FROM schema_inheritance
+	    WHERE ancestor_id  =OLD.id;
+	DELETE FROM schema_inheritance
+	    WHERE descendant_id  =OLD.id;
+	RETURN NULL;
+END;
+]]> </definition>
+</function>
+
+<function name="after_insert_schema"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+	INSERT INTO schema_inheritance(ancestor_id,descendant_id,depth) VALUES(NEW.id, NEW.id, 0);
+	INSERT INTO schema_parent(schema_id, parent_id, "order") 
+		select r.id, (s #>> '{id}')::integer, ROW_NUMBER() OVER()
+		from resource r join json_array_elements((r.content->'parents')::json) s on true
+		where r.id = NEW.id;
+	RETURN NULL;
+END;]]> </definition>
+</function>
+
+<function name="after_insert_schema_parent"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+	-- create the child-parent relation and propagate to all descendant of schema_id
+	INSERT INTO schema_inheritance(ancestor_id,descendant_id,depth, schema_parent_id)
+	SELECT NEW.parent_id, descendant_id, depth + 1, NEW.id
+	FROM schema_inheritance 
+	WHERE ancestor_id = NEW.schema_id;
+
+	-- insert all it's new parent ancestors as own ancestors (with a depth of +1) and do the same for it's descendant
+	INSERT INTO schema_inheritance(ancestor_id,descendant_id,depth, schema_parent_id)
+	SELECT sia.ancestor_id, sid.descendant_id, sia.depth + sid.depth + 1, sia.schema_parent_id
+	FROM schema_inheritance sia, schema_inheritance sid
+	WHERE sia.descendant_id = NEW.parent_id AND sia.depth > 0 AND sid.ancestor_id = NEW.schema_id;
+
+	RETURN NULL;
+END;]]> </definition>
+</function>
+
+<function name="after_delete_schema_parent"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+	-- delete all entries
+	DELETE FROM schema_inheritance WHERE schema_parent_id  =OLD.id;
+	RETURN NULL;
+END;
+]]> </definition>
+</function>
+
+<sequence name="schema_parent_id_seq" cycle="false" start="1" increment="1" min-value="0" max-value="2147483647" cache="1">
+	<schema name="public"/>
+	<role name="postgres"/>
+</sequence>
+
+<sequence name="resource_id_seq" cycle="false" start="1" increment="1" min-value="0" max-value="2147483647" cache="1">
+	<schema name="public"/>
+	<role name="postgres"/>
+</sequence>
+
+<table name="schema_parent" layers="0" collapse-mode="1" max-obj-count="4" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<position x="20" y="400"/>
+	<column name="id" not-null="true" sequence="public.schema_parent_id_seq">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="schema_id">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="parent_id">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="order" default-value="1">
+		<type name="smallint" length="0"/>
+	</column>
+	<constraint name="schema_parent_pk" type="pk-constr" table="public.schema_parent">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="schema_parent_idx" table="public.schema_parent"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="schema_id"/>
+		</idxelement>
+		<idxelement use-sorting="true" nulls-first="false" asc-order="true">
+			<column name="parent_id"/>
+		</idxelement>
+</index>
+
+<table name="resource" layers="0" collapse-mode="1" max-obj-count="15" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<position x="400" y="480"/>
+	<column name="id" not-null="true" sequence="public.resource_id_seq">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="urn" not-null="true">
+		<type name="varchar" length="0"/>
+		<comment> <![CDATA[The ID visible externally. The format of the URL is: urn:<tenant>:<schema>:<label>]]> </comment>
+	</column>
+	<column name="label" not-null="true">
+		<type name="varchar" length="255"/>
+	</column>
+	<column name="pub" default-value="false">
+		<type name="bool" length="0"/>
+	</column>
+	<column name="tenant_id">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="link_id">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="schema_id">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="type" default-value="4">
+		<type name="smallint" length="0"/>
+	</column>
+	<column name="content">
+		<type name="jsonb" length="0"/>
+	</column>
+	<column name="created_at" default-value="now()">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="updated_at">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="created_by">
+		<type name="varchar" length="255"/>
+	</column>
+	<column name="updated_by">
+		<type name="varchar" length="255"/>
+	</column>
+	<constraint name="resource_pk" type="pk-constr" table="public.resource">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+	<constraint name="resource_urn_unique" type="uq-constr" table="public.resource">
+		<columns names="urn" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="resource_label_idx" table="public.resource"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="label"/>
+		</idxelement>
+</index>
+
+<trigger name="after_insert_schema_parent" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="true" del-event="false" upd-event="false" trunc-event="false"
+	 table="public.schema_parent">
+		<function signature="public.after_insert_schema_parent()"/>
+</trigger>
+
+<trigger name="after_delete_schema_parent" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="false" del-event="true" upd-event="false" trunc-event="false"
+	 table="public.schema_parent">
+		<function signature="public.after_delete_schema_parent()"/>
+</trigger>
+
+<index name="resource_tenant_idx" table="public.resource"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="tenant_id"/>
+		</idxelement>
+</index>
+
+<trigger name="after_insert_resource" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="true" del-event="false" upd-event="false" trunc-event="false"
+	 table="public.resource">
+		<function signature="public.after_insert_resource()"/>
+</trigger>
+
+<index name="resource_link_idx" table="public.resource"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="link_id"/>
+		</idxelement>
+</index>
+
+<trigger name="after_update_resource" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="false" del-event="false" upd-event="true" trunc-event="false"
+	 table="public.resource">
+		<function signature="public.after_update_resource()"/>
+</trigger>
+
+<index name="resource_schema_idx" table="public.resource"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="schema_id"/>
+		</idxelement>
+</index>
+
+<trigger name="after_update_schema_label" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="false" del-event="false" upd-event="true" trunc-event="false"
+	 table="public.resource">
+	<condition> <![CDATA[((new.label)::text <> (old.label)::text)]]> </condition>
+		<function signature="public.after_update_schema_label()"/>
+</trigger>
+
+<trigger name="after_delete_resource" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="false" del-event="true" upd-event="false" trunc-event="false"
+	 table="public.resource">
+		<function signature="public.after_delete_resource()"/>
+</trigger>
+
+<trigger name="after_update_link_source_label" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="false" del-event="false" upd-event="true" trunc-event="false"
+	 table="public.resource">
+	<condition> <![CDATA[(((new.label)::text <> (old.label)::text)
+	or (new.schema_id <> old.schema_id))]]> </condition>
+		<function signature="public.after_update_link_source_label()"/>
+</trigger>
+
+<function name="insert_pub_ace"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="void" length="0"/>
+	</return-type>
+	<parameter name="v_resource">
+		<type name="public.resource" length="0"/>
+	</parameter>
+	<definition> <![CDATA[BEGIN
+
+    INSERT INTO ace (identity_id, resource_id, role_id)
+    SELECT v_resource.tenant_id, v_resource.id, r.id
+	FROM resource r, resource s
+    WHERE r.schema_id = s.id AND
+				s.label = 'iam.role' AND
+				r.label = 'Public';
+
+END;]]> </definition>
+</function>
+
+<function name="remove_pub_ace"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="void" length="0"/>
+	</return-type>
+	<parameter name="v_resource">
+		<type name="public.resource" length="0"/>
+	</parameter>
+	<definition> <![CDATA[BEGIN
+
+	DELETE FROM ace
+	WHERE identity_id = v_resource.tenant_id AND
+				resource_id = v_resource.id AND
+				role_id IN (
+				    SELECT r.id
+					FROM resource r, resource s
+				    WHERE r.schema_id = s.id AND
+								s.label = 'security.role' AND
+								r.label = 'Public'
+				);
+
+END;]]> </definition>
+</function>
+
+<index name="resource_content_idx" table="public.resource"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="gin" factor="0">
+		<idxelement use-sorting="false">
+			<column name="content"/>
+		</idxelement>
+</index>
+
+<sequence name="audit_id_seq" cycle="false" start="1" increment="1" min-value="0" max-value="2147483647" cache="1">
+	<schema name="public"/>
+	<role name="postgres"/>
+</sequence>
+
+<index name="ace_exist_idx" table="public.ace"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="resource_id"/>
+		</idxelement>
+		<idxelement use-sorting="true" nulls-first="false" asc-order="true">
+			<column name="identity_id"/>
+		</idxelement>
+		<idxelement use-sorting="true" nulls-first="false" asc-order="true">
+			<column name="role_id"/>
+		</idxelement>
+</index>
+
+<function name="after_update_resource_label"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[DECLARE
+    record RECORD;
+BEGIN
+  -- get all fields whose type is the schema (or inherited schema) of the deleted resource
+  DROP TABLE IF EXISTS temp_resource_fields;
+  CREATE TEMPORARY TABLE temp_resource_fields AS
+  SELECT fs.schema_id as schema_id, 
+         f.label as field_label, 
+         f.multiple as multiple
+  FROM   resource s, 
+         schema_inheritance si, 
+         field f,
+         field_schema fs
+  WHERE  si.descendant_id= OLD.schema_id AND 
+         s.id = si.ancestor_id  AND
+         f.id = fs.field_id AND
+         f.type = s.label;
+
+  -- rename many relationship
+    FOR record IN
+        SELECT * FROM temp_resource_fields
+    LOOP  
+        UPDATE resource r
+        SET    content =jsonb_set(content, ('{' ||r2.field_label  || ',' || r2.pos || ',@l}')::text[],to_jsonb(NEW.label))
+        FROM (
+          SELECT   r.id, ordinality - 1 AS pos, record.field_label as field_label
+          FROM     resource r, jsonb_array_elements(r.content->record.field_label) with ordinality
+          WHERE r.schema_id = record.schema_id
+                AND (value->>'@l')::text = OLD.label
+                AND record.multiple is TRUE
+          ) r2
+        WHERE r2.id = r.id;
+  END LOOP;
+
+  -- rename one relationship
+    FOR record IN
+        SELECT * FROM temp_resource_fields
+    LOOP  
+        UPDATE resource r
+        SET    content = jsonb_set(r.content, ('{' || record.field_label  || ',@l}')::text[], to_jsonb(NEW.label))
+        FROM (
+          SELECT   r.id
+          FROM     resource r, jsonb_each(r.content) fields
+          WHERE r.schema_id = record.schema_id
+			    AND fields.key = record.field_label
+                AND (fields.value->>'@l')::text = OLD.label
+                AND record.multiple is NOT TRUE
+          ) r2
+        WHERE r2.id = r.id;           
+    END LOOP;
+
+  RETURN NULL;
+
+END;]]> </definition>
+</function>
+
+<trigger name="after_update_resource_label" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="false" del-event="false" upd-event="true" trunc-event="false"
+	 table="public.resource">
+	<condition> <![CDATA[((old.label)::text <> (new.label)::text)]]> </condition>
+		<function signature="public.after_update_resource_label()"/>
+</trigger>
+
+<sequence name="audit_log_id_seq" cycle="false" start="1" increment="1" min-value="0" max-value="2147483647" cache="1">
+	<schema name="public"/>
+	<role name="postgres"/>
+</sequence>
+
+<function name="after_insert_group_membership"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+        UPDATE resource r
+        SET content = jsonb_set(r.content, ('{member_of}')::text[], r2.member_of), updated_by = g.updated_by, updated_at = g.updated_at
+        FROM (
+          select c.id as id, json_agg(json_build_object('id', pr.id, 'schema', prs.label, 'label', pr.label))::jsonb as member_of
+          from group_membership gm, resource p, resource pr, resource prs, resource c, resource cr, resource crs
+          WHERE gm.parent_id = p.id AND
+              gm.child_id = c.id AND
+              p.label = pr.label AND
+              pr.schema_id = prs.id AND
+              prs.label = 'iam.identity.group_ref' AND
+              c.label = cr.label AND
+              cr.schema_id = crs.id AND
+              crs.label IN ('iam.identity.group_ref', 'iam.identity.user_ref') AND
+              c.id = NEW.child_id
+          group by c.id
+        ) r2, resource g
+        WHERE r2.id = r.id and g.id = new.parent_id;
+  RETURN NULL;
+
+END;]]> </definition>
+</function>
+
+<function name="after_delete_group_membership"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+        UPDATE resource r
+        SET content = jsonb_set(r.content, ('{member_of}')::text[], r2.member_of), updated_by = g.updated_by, updated_at = g.updated_at
+        FROM (
+          select c.id as id, json_agg(json_build_object('id', pr.id, 'schema', prs.label, 'label', pr.label))::jsonb as member_of
+          from group_membership gm, resource p, resource pr, resource prs, resource c, resource cr, resource crs
+          WHERE gm.parent_id = p.id AND
+              gm.child_id = c.id AND
+              p.label = pr.label AND
+              pr.schema_id = prs.id AND
+              prs.label = 'iam.identity.group_ref' AND
+              c.label = cr.label AND
+              cr.schema_id = crs.id AND
+              crs.label IN ('iam.identity.group_ref', 'iam.identity.user_ref') AND
+              c.id = OLD.child_id
+          group by c.id
+        ) r2, resource g
+        WHERE r2.id = r.id and g.id = OLD.parent_id;            
+  RETURN NULL;
+
+END;]]> </definition>
+</function>
+
+<trigger name="after_insert_group_membership" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="true" del-event="false" upd-event="false" trunc-event="false"
+	 table="public.group_membership">
+		<function signature="public.after_insert_group_membership()"/>
+</trigger>
+
+<trigger name="after_delete_group_membership" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="false" del-event="true" upd-event="false" trunc-event="false"
+	 table="public.group_membership">
+		<function signature="public.after_delete_group_membership()"/>
+</trigger>
+
+<function name="acquire_lock"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="boolean" length="0"/>
+	</return-type>
+	<parameter name="name">
+		<type name="character varying" length="0"/>
+	</parameter>
+	<parameter name="duration" default-value="3600">
+		<type name="integer" length="0"/>
+	</parameter>
+	<definition> <![CDATA[DECLARE 
+  res boolean;
+  ids text[];
+  lock_expired_at timestamp;
+  i text;
+BEGIN
+  /* Init result */
+  res = false;
+ 
+  SELECT string_to_array(name, ',') INTO ids;
+ 
+  FOREACH i IN ARRAY ids LOOP
+    /* Try to acquire the application lock */
+    SELECT expired_at INTO lock_expired_at FROM locks WHERE id = hashtext(i);
+    IF lock_expired_at is NULL THEN  /* first lock or the previous unlock was successful */
+      INSERT INTO locks (id, expired_at) VALUES (hashtext(i), NOW()::timestamp + (duration || ' seconds')::INTERVAL);
+      res = true;
+    ELSIF lock_expired_at < NOW()::timestamp then  /* the previous lock is still present but we hit the timeout -> acquire the lock*/
+      delete from locks where id = hashtext(i);
+      INSERT INTO locks (id, expired_at) VALUES (hashtext(i), NOW()::timestamp + (duration || ' seconds')::INTERVAL);
+      res = true;
+    else
+      RAISE 'Cannot acquire lock';
+    END IF;
+  END LOOP;
+  RETURN res;
+EXCEPTION WHEN OTHERS then
+	return false;
+END]]> </definition>
+</function>
+
+<table name="locks" layers="0" collapse-mode="1" max-obj-count="2" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<position x="1340" y="660"/>
+	<column name="id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="expired_at">
+		<type name="timestamp" length="0"/>
+	</column>
+	<constraint name="locks_pk" type="pk-constr" table="public.locks">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<function name="drop_lock"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="boolean" length="0"/>
+	</return-type>
+	<parameter name="name">
+		<type name="character varying" length="0"/>
+	</parameter>
+	<definition> <![CDATA[DECLARE
+  res boolean;
+  lock_id integer;
+  ids text[];
+  i text;
+BEGIN
+  /* Init result */
+  res = false;
+ 
+  SELECT string_to_array(name, ',') INTO ids;
+ 
+  FOREACH i IN ARRAY ids LOOP
+
+    /* Try to acquire the application lock */
+    SELECT id INTO lock_id FROM locks WHERE id = hashtext(i);
+  
+    IF lock_id is NOT NULL THEN
+      DELETE FROM locks WHERE id = hashtext(i);
+      res = true;
+    END IF;
+  END LOOP;
+
+  RETURN res;
+END
+]]> </definition>
+</function>
+
+<sequence name="catalog_item_id_seq" cycle="false" start="1" increment="1" min-value="0" max-value="2147483647" cache="1">
+	<schema name="public"/>
+	<role name="postgres"/>
+</sequence>
+
+<table name="role_hierarchy" layers="0" collapse-mode="1" max-obj-count="3" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<comment> <![CDATA[Track if a role is contained in another role
+A role contains another role if he have at least
+- access to all schemas of the inner role
+- access to all actions of the inner role
+- access to all fields of the inner role
+- access to all security tags of the inner role]]> </comment>
+	<position x="740" y="180"/>
+	<column name="parent_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="child_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<constraint name="role_hierarchy_pk" type="pk-constr" table="public.role_hierarchy">
+		<columns names="parent_id,child_id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="resource_type_idx" table="public.resource"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="type"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="label"/>
+		</idxelement>
+</index>
+
+<extension name="pg_trgm">
+	<schema name="public"/>
+</extension>
+
+<index name="resource_label_gin_index" table="public.resource"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="gin" factor="0">
+		<idxelement use-sorting="false">
+			<expression> <![CDATA[label gin_trgm_ops]]> </expression>
+		</idxelement>
+</index>
+
+<index name="resource_public_id_idx" table="public.resource"
+	 concurrent="false" unique="true" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="urn"/>
+		</idxelement>
+	<columns names="urn"/>
+</index>
+
+<trigger name="after_insert_schema" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="true" del-event="false" upd-event="false" trunc-event="false"
+	 table="public.resource">
+	<condition> <![CDATA[(new.schema_id = 1)]]> </condition>
+		<function signature="public.after_insert_schema()"/>
+</trigger>
+
+<trigger name="after_delete_schema" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="false" del-event="true" upd-event="false" trunc-event="false"
+	 table="public.resource">
+	<condition> <![CDATA[(old.schema_id = 1)]]> </condition>
+		<function signature="public.after_delete_schema()"/>
+</trigger>
+
+<function name="after_add_or_delete_role"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+	IF OLD.id IS NOT NULL AND OLD.schema_id = 5 THEN
+		delete from role_schema 
+		where role_id = OLD.id;
+	END IF;
+
+    IF NEW.id IS NOT NULL AND NEW.schema_id = 5 THEN
+		insert into role_schema 
+		select r.id, s #>> '{}'
+		from resource r join json_array_elements((r.content->'schemas')::json) s on true
+		where r.id = NEW.id;
+ 	END IF;
+	
+	RETURN NULL;
+END;]]> </definition>
+</function>
+
+<trigger name="after_add_or_delete_role" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="true" del-event="true" upd-event="true" trunc-event="false"
+	 table="public.resource">
+		<function signature="public.after_add_or_delete_role()"/>
+</trigger>
+
+<function name="after_update_schema"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+	DELETE FROM schema_parent
+	WHERE schema_id = OLD.id;
+	INSERT INTO schema_parent(schema_id, parent_id, "order") 
+	select r.id, (s #>> '{id}')::integer, ROW_NUMBER() OVER()
+	from resource r join json_array_elements((r.content->'parents')::json) s on true
+	where r.id = NEW.id;
+	return null;
+END;]]> </definition>
+</function>
+
+<trigger name="after_update_schema" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="false" del-event="false" upd-event="true" trunc-event="false"
+	 table="public.resource">
+	<condition> <![CDATA[(old.schema_id = 1)]]> </condition>
+		<function signature="public.after_update_schema()"/>
+</trigger>
+
+<table name="field" layers="0" collapse-mode="2" max-obj-count="15" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<position x="1180" y="860"/>
+	<column name="id" not-null="true" sequence="public.field_id_seq">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="label" not-null="true">
+		<type name="varchar" length="255"/>
+	</column>
+	<column name="type" not-null="true">
+		<type name="varchar" length="255"/>
+	</column>
+	<column name="owner">
+		<type name="varchar" length="255"/>
+	</column>
+	<column name="peer_id">
+		<type name="integer" length="255"/>
+	</column>
+	<column name="multiple" default-value="false">
+		<type name="bool" length="0"/>
+	</column>
+	<column name="required" default-value="false">
+		<type name="bool" length="0"/>
+	</column>
+	<column name="validators">
+		<type name="jsonb" length="0"/>
+	</column>
+	<column name="default_value">
+		<type name="jsonb" length="0"/>
+	</column>
+	<column name="priv" default-value="false">
+		<type name="boolean" length="0"/>
+	</column>
+	<column name="description">
+		<type name="text" length="255"/>
+	</column>
+	<column name="editable" default-value="false">
+		<type name="bool" length="0"/>
+	</column>
+	<column name="example">
+		<type name="jsonb" length="0"/>
+	</column>
+	<constraint name="field_pk" type="pk-constr" table="public.field">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="field_label_idx" table="public.field"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="label"/>
+		</idxelement>
+</index>
+
+<table name="field_schema" layers="0" collapse-mode="2" max-obj-count="3" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<position x="740" y="860"/>
+	<column name="field_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="schema_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<constraint name="field_schema_pk" type="pk-constr" table="public.field_schema">
+		<columns names="field_id,schema_id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<function name="manage_delete_relationship"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[DECLARE
+    record RECORD;
+BEGIN
+  -- get all fields whose type is the schema (or inherited schema) of the deleted resource
+  DROP TABLE IF EXISTS temp_resource_fields;
+  CREATE TEMPORARY TABLE temp_resource_fields AS
+  SELECT fs.schema_id as schema_id, 
+         f.label as field_label, 
+         f.multiple as multiple
+  FROM   resource s, 
+         schema_inheritance si, 
+         field f,
+         field_schema fs
+  WHERE  si.descendant_id= OLD.schema_id AND 
+         s.id = si.ancestor_id  AND
+         f.id = fs.field_id AND
+         f.type = s.label;
+
+  -- delete many relationship
+  FOR record IN
+      SELECT * FROM temp_resource_fields
+  LOOP  
+      UPDATE resource r
+      SET    content =content #- ('{' ||r2.field_label  || ',' || r2.pos || '}')::text[], updated_by=OLD.updated_by, updated_at=OLD.updated_at
+      FROM (
+        SELECT   r.id, ordinality - 1 AS pos, record.field_label as field_label
+        FROM     resource r, jsonb_array_elements(r.content->record.field_label) with ordinality
+        WHERE r.schema_id = record.schema_id
+              AND (value->>'id')::integer = OLD.id  
+              AND record.multiple is TRUE
+              AND r.content #>> ('{' || record.field_label  || '}')::text[] NOT LIKE '${%}'
+        ) r2
+      WHERE r2.id = r.id;
+  END LOOP;
+
+  -- delete one relationship
+  FOR record IN
+      SELECT * FROM temp_resource_fields
+  LOOP  
+      UPDATE resource r
+      SET    content = jsonb_set(r.content, ('{' || record.field_label  || '}')::text[], 'null'::jsonb), updated_by=OLD.updated_by, updated_at=OLD.updated_at
+      FROM (
+        SELECT   r.id
+        FROM     resource r, jsonb_each(r.content) fields
+        WHERE r.schema_id = record.schema_id
+        AND fields.key = record.field_label
+              AND (fields.value->>'id')::integer = OLD.id  
+              AND record.multiple is NOT TRUE
+        ) r2
+      WHERE r2.id = r.id;           
+  END LOOP;
+  DROP TABLE IF EXISTS temp_resource_fields;
+  RETURN NULL;
+
+END;]]> </definition>
+</function>
+
+<function name="manage_update_relationship"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[DECLARE
+    record RECORD;
+BEGIN
+
+  DROP TABLE IF EXISTS temp_manage_relationship;
+  CREATE TEMPORARY TABLE temp_manage_relationship AS
+  SELECT  NEW.id as id, s.label as schema_label, f.label as field_label, p.label as peer_label, f.multiple as multiple, p.multiple as peer_multiple
+  FROM   resource s,
+        field_schema fs,
+        field f,
+        field p
+  WHERE NEW.schema_id = s.id AND
+        fs.schema_id = NEW.schema_id  AND
+        fs.field_id = f.id AND
+        f.peer_id = p.id;
+        
+  
+  -- delete many relationship
+  FOR record IN
+      SELECT * FROM temp_manage_relationship
+  LOOP  
+      WITH temp_manage_relationship_resource_id AS (
+              SELECT r.id, r.link_id from resource r
+              WHERE  r.id IN (
+                       SELECT (jsonb_array_elements(OLD.content->record.field_label) ->> 'id')::integer WHERE record.multiple IS TRUE AND OLD.content ->> record.field_label is not null
+                       UNION
+                       SELECT (OLD.content->record.field_label->> 'id')::integer WHERE record.multiple IS NOT TRUE AND OLD.content ->> record.field_label is not null
+                     ) AND
+                     r.id not in (
+                       SELECT (jsonb_array_elements(NEW.content->record.field_label) ->> 'id')::integer WHERE record.multiple IS TRUE AND NEW.content ->> record.field_label is not null
+                       UNION
+                       SELECT (NEW.content->record.field_label->> 'id')::integer WHERE record.multiple IS NOT TRUE AND NEW.content ->> record.field_label is not null
+                     )
+              )
+      UPDATE resource r
+      SET    content =content #- ('{' ||r2.peer_label  || ',' || r2.pos || '}')::text[], updated_by=NEW.updated_by
+      FROM (
+        SELECT   r.id, ordinality - 1 AS pos, record.peer_label as peer_label
+        FROM     resource r, jsonb_array_elements(r.content->record.peer_label) with ordinality
+        WHERE r.id IN ( SELECT 
+                          CASE WHEN link_id is null THEN id
+                               ELSE link_id
+                          END
+                        FROM temp_manage_relationship_resource_id)
+              AND (value->>'id')::integer = OLD.id  
+              AND record.peer_multiple is TRUE
+        ) r2
+      WHERE r2.id = r.id;
+  END LOOP;
+
+  -- delete one relationship
+  FOR record IN
+      SELECT * FROM temp_manage_relationship
+  LOOP  
+      WITH temp_manage_relationship_resource_id AS (
+              SELECT r.id, r.link_id from resource r
+              WHERE    r.id IN (
+                        SELECT (jsonb_array_elements(OLD.content->record.field_label) ->> 'id')::integer WHERE record.multiple IS TRUE AND OLD.content ->> record.field_label is not null
+                        UNION
+                        SELECT (OLD.content->record.field_label->> 'id')::integer WHERE record.multiple IS NOT TRUE AND OLD.content ->> record.field_label is not null
+                      ) AND
+                      r.id not in (
+                        SELECT (jsonb_array_elements(NEW.content->record.field_label) ->> 'id')::integer WHERE record.multiple IS TRUE AND NEW.content ->> record.field_label is not null
+                        UNION
+                        SELECT (NEW.content->record.field_label->> 'id')::integer WHERE record.multiple IS NOT TRUE AND NEW.content ->> record.field_label is not null
+                      )
+              )
+      UPDATE resource r
+      SET    content = jsonb_set(r.content, ('{' || record.peer_label  || '}')::text[], 'null'::jsonb), updated_by=NEW.updated_by, updated_at=NEW.updated_at
+      WHERE r.id IN ( SELECT 
+                      CASE WHEN link_id is null THEN id
+                           ELSE link_id
+                      END
+                    FROM temp_manage_relationship_resource_id)
+          AND record.peer_multiple is not TRUE;                
+  END LOOP;
+
+
+  -- add relationship
+  FOR record IN
+      SELECT * FROM temp_manage_relationship
+  LOOP
+      WITH temp_manage_relationship_resource_id AS (
+              SELECT r.id, r.link_id from resource r
+              WHERE r.id IN (
+                  SELECT (jsonb_array_elements(NEW.content->record.field_label) ->> 'id')::integer WHERE record.multiple IS TRUE AND NEW.content ->> record.field_label is not NULL
+                  UNION
+                  SELECT (NEW.content->record.field_label->> 'id')::integer WHERE record.multiple IS NOT TRUE AND NEW.content ->> record.field_label is not NULL
+              )AND
+                  r.id NOT IN (
+                  SELECT (jsonb_array_elements(OLD.content->record.field_label) ->> 'id')::integer WHERE record.multiple IS TRUE AND OLD.content ->> record.field_label is not NULL
+                  UNION
+                  SELECT (OLD.content->record.field_label->> 'id')::integer WHERE record.multiple IS NOT TRUE AND OLD.content ->> record.field_label is not NULL
+              )
+          )    
+      UPDATE   resource r
+      SET        content = (
+                CASE
+                      WHEN r.content->record.peer_label IS NOT NULL AND record.peer_multiple IS TRUE
+                      THEN jsonb_insert(r.content, ('{' || record.peer_label || ', 0}')::text[], json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label )::jsonb)
+                      WHEN r.content->record.peer_label  IS NULL AND record.peer_multiple IS TRUE
+                      THEN jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_array(json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label ))::jsonb)
+                  ELSE jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label )::jsonb)
+                  END
+              ), updated_by=NEW.updated_by, updated_at=NEW.updated_at
+      WHERE   r.id IN ( SELECT 
+                          CASE WHEN link_id is null THEN id
+                               ELSE link_id
+                          END
+                      FROM temp_manage_relationship_resource_id)
+             AND (NOT( r.content ? record.peer_label ) OR NOT r.content->record.peer_label @> ('[{"id": ' || NEW.id ||'}]')::jsonb);
+  END LOOP;
+  DROP TABLE IF EXISTS temp_manage_relationship;
+  RETURN NULL;
+
+END;]]> </definition>
+</function>
+
+<function name="manage_insert_relationship"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[DECLARE
+    record RECORD;
+BEGIN
+
+  DROP TABLE IF EXISTS temp_manage_relationship;
+  CREATE TEMPORARY TABLE temp_manage_relationship AS
+  SELECT  NEW.id as id, s.label as schema_label, f.label as field_label, p.label as peer_label, f.multiple as multiple, p.multiple as peer_multiple
+  FROM   resource s,
+        field_schema fs,
+        field f,
+        field p
+  WHERE NEW.schema_id = s.id AND
+        fs.schema_id = NEW.schema_id  AND
+        fs.field_id = f.id AND
+        f.peer_id = p.id;
+  
+  FOR record IN
+      SELECT * FROM temp_manage_relationship
+  LOOP
+      WITH temp_manage_relationship_resource_id AS (
+              SELECT r.id, r.link_id from resource r
+              WHERE r.id IN (
+                  SELECT (jsonb_array_elements(NEW.content->record.field_label) ->> 'id')::integer WHERE record.multiple IS TRUE AND NEW.content ->> record.field_label is not NULL
+                  UNION
+                  SELECT (NEW.content->record.field_label->> 'id')::integer WHERE record.multiple IS NOT TRUE AND NEW.content ->> record.field_label is not NULL
+              )
+          )
+      UPDATE   resource r
+      SET      content = (
+                    CASE
+                      WHEN r.content->record.peer_label IS NOT NULL AND record.peer_multiple IS TRUE
+                      THEN jsonb_insert(r.content, ('{' || record.peer_label || ', 0}')::text[], json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label )::jsonb)
+                      WHEN r.content->record.peer_label  IS NULL AND record.peer_multiple IS TRUE
+                      THEN jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_array(json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label ))::jsonb)
+                    ELSE jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label )::jsonb)
+                    END
+              ), updated_by=NEW.created_by, updated_at=NEW.created_at
+      WHERE r.id IN ( SELECT 
+                          CASE WHEN link_id is null THEN id
+                               ELSE link_id
+                          END
+                      FROM temp_manage_relationship_resource_id)
+           AND (NOT( r.content ? record.peer_label ) OR NOT r.content->record.peer_label @> ('[{"id": ' || NEW.id ||'}]')::jsonb);                        
+  END LOOP; 
+
+  DROP TABLE IF EXISTS temp_manage_relationship;
+
+  RETURN NULL;
+
+END;]]> </definition>
+</function>
+
+<trigger name="after_insert_resource_content" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="true" del-event="false" upd-event="false" trunc-event="false"
+	 table="public.resource">
+		<function signature="public.manage_insert_relationship()"/>
+</trigger>
+
+<trigger name="after_update_resource_content" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="false" del-event="false" upd-event="true" trunc-event="false"
+	 table="public.resource">
+	<condition> <![CDATA[((new.content <> old.content)
+	and (pg_trigger_depth() < 1))]]> </condition>
+		<function signature="public.manage_update_relationship()"/>
+</trigger>
+
+<trigger name="after_delete_resource_content" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="false" del-event="true" upd-event="false" trunc-event="false"
+	 table="public.resource">
+		<function signature="public.manage_delete_relationship()"/>
+</trigger>
+
+<constraint name="role_schema_role_fk" type="fk-constr" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.role_schema">
+	<columns names="role_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="resource_ace_ace_fk" type="fk-constr" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.ace" table="public.resource_ace">
+	<columns names="ace_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="resource_ace_identity_fk" type="fk-constr" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.resource_ace">
+	<columns names="identity_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="resource_ace_resource_fk" type="fk-constr" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.resource_ace">
+	<columns names="resource_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="resource_ace_role_fk" type="fk-constr" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.resource_ace">
+	<columns names="role_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="group_membership_parent_fk" type="fk-constr" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.group_membership">
+	<columns names="parent_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="group_membership_child_fk" type="fk-constr" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.group_membership">
+	<columns names="child_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="resource_tag_resource_fk" type="fk-constr" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.resource_tag">
+	<columns names="resource_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="resource_tag_tag_fk" type="fk-constr" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.resource_tag">
+	<columns names="tag_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="role_tag_role_fk" type="fk-constr" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.role_tag">
+	<columns names="role_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="ace_role_fk" type="fk-constr" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.ace">
+	<columns names="role_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="ace_identity_fk" type="fk-constr" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.ace">
+	<columns names="identity_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="ace_entity_fk" type="fk-constr" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.ace">
+	<columns names="resource_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="ace_source_fk" type="fk-constr" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.ace" table="public.ace">
+	<columns names="source_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="schema_parent_schema_fk" type="fk-constr" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.schema_parent">
+	<columns names="schema_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="schema_parent_parent_fk" type="fk-constr" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.schema_parent">
+	<columns names="parent_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="resource_link_fk" type="fk-constr" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.resource">
+	<columns names="link_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="resource_tenant_fk" type="fk-constr" comparison-type="MATCH FULL"
+	 upd-action="NO ACTION" del-action="NO ACTION" ref-table="public.resource" table="public.resource">
+	<columns names="tenant_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="resource_schema_fk" type="fk-constr" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.resource">
+	<columns names="schema_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="role_hierarchy_parent_fk" type="fk-constr" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.role_hierarchy">
+	<columns names="parent_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="role_hierarchy_child_fk" type="fk-constr" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.role_hierarchy">
+	<columns names="child_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="field_peer_fk" type="fk-constr" comparison-type="MATCH FULL"
+	 upd-action="NO ACTION" del-action="SET NULL" ref-table="public.field" table="public.field">
+	<columns names="peer_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="field_schema_field_fk" type="fk-constr" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.field" table="public.field_schema">
+	<columns names="field_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="field_schema_resource_fk" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.field_schema">
+	<columns names="schema_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<relationship name="rel_role_schema_resource" type="relfk" layers="0"
+	 src-table="public.role_schema"
+	 dst-table="public.resource" reference-fk="role_schema_role_fk"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_resource_ace_ace" type="relfk" layers="0"
+	 src-table="public.resource_ace"
+	 dst-table="public.ace" reference-fk="resource_ace_ace_fk"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_resource_ace_resource" type="relfk" layers="0"
+	 src-table="public.resource_ace"
+	 dst-table="public.resource" reference-fk="resource_ace_identity_fk"
+	 src-required="false" dst-required="false"/>
+
+<relationship name="rel_resource_ace_resource1" type="relfk" layers="0"
+	 src-table="public.resource_ace"
+	 dst-table="public.resource" reference-fk="resource_ace_resource_fk"
+	 src-required="false" dst-required="false"/>
+
+<relationship name="rel_resource_ace_resource2" type="relfk" layers="0"
+	 src-table="public.resource_ace"
+	 dst-table="public.resource" reference-fk="resource_ace_role_fk"
+	 src-required="false" dst-required="false"/>
+
+<relationship name="rel_group_membership_resource" type="relfk" layers="0"
+	 src-table="public.group_membership"
+	 dst-table="public.resource" reference-fk="group_membership_parent_fk"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_group_membership_resource1" type="relfk" layers="0"
+	 src-table="public.group_membership"
+	 dst-table="public.resource" reference-fk="group_membership_child_fk"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_resource_tag_resource" type="relfk" layers="0"
+	 src-table="public.resource_tag"
+	 dst-table="public.resource" reference-fk="resource_tag_resource_fk"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_resource_tag_resource1" type="relfk" layers="0"
+	 src-table="public.resource_tag"
+	 dst-table="public.resource" reference-fk="resource_tag_tag_fk"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_role_tag_resource" type="relfk" layers="0"
+	 src-table="public.role_tag"
+	 dst-table="public.resource" reference-fk="role_tag_role_fk"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_ace_resource" type="relfk" layers="0"
+	 src-table="public.ace"
+	 dst-table="public.resource" reference-fk="ace_role_fk"
+	 src-required="false" dst-required="false"/>
+
+<relationship name="rel_ace_resource1" type="relfk" layers="0"
+	 src-table="public.ace"
+	 dst-table="public.resource" reference-fk="ace_identity_fk"
+	 src-required="false" dst-required="false"/>
+
+<relationship name="rel_ace_resource2" type="relfk" layers="0"
+	 src-table="public.ace"
+	 dst-table="public.resource" reference-fk="ace_entity_fk"
+	 src-required="false" dst-required="false"/>
+
+<relationship name="rel_ace_ace" type="relfk" layers="0"
+	 src-table="public.ace"
+	 dst-table="public.ace" reference-fk="ace_source_fk"
+	 src-required="false" dst-required="false">
+	<line>
+		<position x="1192.25" y="387.308"/>
+	<position x="1192.25" y="307"/>
+	<position x="1086.17" y="307"/>
+	</line>
+</relationship>
+
+<relationship name="rel_resource_resource" type="relfk" layers="0"
+	 src-table="public.resource"
+	 dst-table="public.resource" reference-fk="resource_link_fk"
+	 src-required="false" dst-required="false">
+	<line>
+		<position x="754.95" y="579.575"/>
+	<position x="754.95" y="447"/>
+	<position x="614.633" y="447"/>
+	</line>
+</relationship>
+
+<relationship name="rel_resource_resource1" type="relfk" layers="0"
+	 src-table="public.resource"
+	 dst-table="public.resource" reference-fk="resource_tenant_fk"
+	 src-required="false" dst-required="false">
+	<line>
+		<position x="778.848" y="603.473"/>
+	<position x="778.848" y="423.102"/>
+	<position x="590.735" y="423.102"/>
+	</line>
+</relationship>
+
+<relationship name="rel_resource_resource2" type="relfk" layers="0"
+	 src-table="public.resource"
+	 dst-table="public.resource" reference-fk="resource_schema_fk"
+	 src-required="false" dst-required="false">
+	<line>
+		<position x="802.746" y="627.371"/>
+	<position x="802.746" y="399.204"/>
+	<position x="566.837" y="399.204"/>
+	</line>
+</relationship>
+
+<relationship name="rel_role_hierarchy_resource" type="relfk" layers="0"
+	 src-table="public.role_hierarchy"
+	 dst-table="public.resource" reference-fk="role_hierarchy_parent_fk"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_role_hierarchy_resource1" type="relfk" layers="0"
+	 src-table="public.role_hierarchy"
+	 dst-table="public.resource" reference-fk="role_hierarchy_child_fk"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_schema_parent_resource" type="relfk" layers="0"
+	 src-table="public.schema_parent"
+	 dst-table="public.resource" reference-fk="schema_parent_schema_fk"
+	 src-required="false" dst-required="false"/>
+
+<relationship name="rel_schema_parent_resource1" type="relfk" layers="0"
+	 src-table="public.schema_parent"
+	 dst-table="public.resource" reference-fk="schema_parent_parent_fk"
+	 src-required="false" dst-required="false"/>
+
+<relationship name="rel_field_field" type="relfk" layers="0"
+	 src-table="public.field"
+	 dst-table="public.field" reference-fk="field_peer_fk"
+	 src-required="false" dst-required="false">
+	<line>
+		<position x="1490.5" y="980.175"/>
+	<position x="1490.5" y="827"/>
+	<position x="1365" y="827"/>
+	</line>
+</relationship>
+
+<relationship name="rel_field_schema_field" type="relfk" layers="0"
+	 src-table="public.field_schema"
+	 dst-table="public.field" reference-fk="field_schema_field_fk"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_field_schema_resource" type="relfk" layers="0"
+	 src-table="public.field_schema"
+	 dst-table="public.resource" reference-fk="field_schema_resource_fk"
+	 src-required="false" dst-required="true"/>
+
+</dbmodel>
