@@ -7,10 +7,10 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import lombok.RequiredArgsConstructor;
-import net.oneki.mtac.service.iam.identity.UserService;
-import net.oneki.mtac.service.security.JwtTokenService;
-import net.oneki.mtac.service.security.PermissionService;
-import net.oneki.mtac.util.exception.BusinessException;
+import net.oneki.mtac.core.service.security.JwtTokenService;
+import net.oneki.mtac.core.service.security.PermissionService;
+import net.oneki.mtac.core.util.exception.BusinessException;
+import net.oneki.mtac.resource.iam.identity.user.UserService;
 
 @RequiredArgsConstructor
 public class PermissionController {

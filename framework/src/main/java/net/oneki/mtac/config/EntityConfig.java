@@ -7,9 +7,9 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
-import net.oneki.mtac.util.cache.Cache;
-import net.oneki.mtac.util.json.EntityMapper;
-import net.oneki.mtac.util.json.EntityModule;
+import net.oneki.mtac.core.util.cache.Cache;
+import net.oneki.mtac.core.util.json.EntityMapper;
+import net.oneki.mtac.core.util.json.EntityModule;
 
 @Configuration
 public class EntityConfig {

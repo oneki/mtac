@@ -11,21 +11,21 @@ import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 import jakarta.annotation.PostConstruct;
-import net.oneki.mtac.model.api.UpsertRequest;
-import net.oneki.mtac.model.entity.Resource;
-import net.oneki.mtac.repository.ResourceRepository;
-import net.oneki.mtac.service.ResourceService;
-import net.oneki.mtac.util.StringUtils;
+import net.oneki.mtac.core.repository.ResourceRepository;
+import net.oneki.mtac.core.util.StringUtils;
+import net.oneki.mtac.resource.Resource;
+import net.oneki.mtac.resource.ResourceService;
+import net.oneki.mtac.resource.UpsertRequest;
 
-public abstract class ResourceController<T extends UpsertRequest, R extends Resource> {
+public abstract class ResourceController<U extends UpsertRequest, R extends Resource, S extends ResourceService<U, R>> {
 
     @Autowired protected ResourceRepository resourceRepository;
-    @Autowired protected ResourceService resourceService;
     @Autowired protected RequestMappingHandlerMapping handlerMapping;
     @Value("${mtac.api.base-path:/api}") private String apiBasePath;
 
-    protected abstract Class<T> getRequestClass();
+    protected abstract Class<U> getRequestClass();
     protected abstract Class<R> getResourceClass();
+    protected abstract S getService();
 
     @PostConstruct
     public void init() throws NoSuchMethodException {
@@ -55,8 +55,8 @@ public abstract class ResourceController<T extends UpsertRequest, R extends Reso
         return resourceRepository.getByLabelOrUrn(labelOrUrn, getResourceClass());
     }
 
-    public R create(@RequestBody T request) {
-        var result = resourceService.create(request, getResourceClass());
+    public R create(@RequestBody U request) {
+        var result = getService().create(request, getResourceClass());
         return result;
     }
 
@@ -72,7 +72,6 @@ public abstract class ResourceController<T extends UpsertRequest, R extends Reso
         if (name.endsWith("Controller")) name = name.substring(0, name.length() - 10);
 
         var path = result + StringUtils.pascalToKebab(English.plural(name));
-        System.out.println("path: " + path);
         return path;
     }
 

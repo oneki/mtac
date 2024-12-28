@@ -12,8 +12,8 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
-import net.oneki.mtac.util.json.UpsertRequestModule;
-import net.oneki.mtac.util.security.SecurityContext;
+import net.oneki.mtac.core.util.json.UpsertRequestModule;
+import net.oneki.mtac.core.util.security.SecurityContext;
 
 @Configuration
 @ComponentScan("net.oneki.mtac")

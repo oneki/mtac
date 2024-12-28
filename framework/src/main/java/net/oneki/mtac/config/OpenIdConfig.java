@@ -8,9 +8,9 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 
 
 import net.oneki.mtac.api.OpenIdController;
-import net.oneki.mtac.service.iam.identity.UserService;
-import net.oneki.mtac.service.security.JwtTokenService;
-import net.oneki.mtac.service.security.PermissionService;
+import net.oneki.mtac.core.service.security.JwtTokenService;
+import net.oneki.mtac.core.service.security.PermissionService;
+import net.oneki.mtac.resource.iam.identity.user.UserService;
 
 @Configuration
 @ConditionalOnProperty(prefix = "mtac.openid.server", name = "enabled", havingValue = "true", matchIfMissing = true)

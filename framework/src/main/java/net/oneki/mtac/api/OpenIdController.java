@@ -13,11 +13,11 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
-import net.oneki.mtac.model.api.openid.JwksResponse;
-import net.oneki.mtac.model.api.openid.LoginRequest;
-import net.oneki.mtac.service.iam.identity.UserService;
-import net.oneki.mtac.service.security.JwtTokenService;
-import net.oneki.mtac.service.security.PermissionService;
+import net.oneki.mtac.core.openid.JwksResponse;
+import net.oneki.mtac.core.openid.LoginRequest;
+import net.oneki.mtac.core.service.security.JwtTokenService;
+import net.oneki.mtac.core.service.security.PermissionService;
+import net.oneki.mtac.resource.iam.identity.user.UserService;
 
 @RequiredArgsConstructor
 public class OpenIdController {

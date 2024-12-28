@@ -31,7 +31,7 @@ VALUES ('urn:root:schema:iam.identity', 'iam.identity', true, 4, null, 1, to_jso
 
 -- Create the schema iam.identity.user
 INSERT INTO resource (urn, label, pub, tenant_id, link_id, schema_id, content, created_at, updated_at, created_by, updated_by)
-VALUES ('urn:root:schema:iam.identity.user', 'iam.identity.user', true, 4, null, 1, to_json('{"name":"User","parents":[{"@l":"iam.identity","id":6,"@s":1,"@t":4}]}'::JSON), NOW(), NOW(), 'root@local', 'root@local');
+VALUES ('urn:root:schema:mtac.iam.identity.user', 'mtac.iam.identity.user', true, 4, null, 1, to_json('{"name":"User","parents":[{"@l":"iam.identity","id":6,"@s":1,"@t":4}]}'::JSON), NOW(), NOW(), 'root@local', 'root@local');
 
 -- Create the schema iam.identity.group
 INSERT INTO resource (urn, label, pub, tenant_id, link_id, schema_id, content, created_at, updated_at, created_by, updated_by)
