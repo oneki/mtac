@@ -7,26 +7,19 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
-import net.oneki.mtac.core.util.introspect.annotation.Entity;
-import net.oneki.mtac.core.util.introspect.annotation.Peer;
+import net.oneki.mtac.resource.UpsertRequest;
 import net.oneki.mtac.resource.iam.identity.Identity;
+
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @SuperBuilder
 @EqualsAndHashCode(callSuper = true)
-@Entity("mtac.iam.identity.group")
-public class Group extends Identity {
-	private String name;
-	private String description;
+public abstract class BaseGroupUpsertRequest<G extends Group> extends UpsertRequest {
+    private String name;
+    private List<G> memberOf;
+    protected List<Identity> members;
 
-	@Peer("memberOf")
-	protected List<Identity> members;
-
-	@Override
-	public String labelize() {
-		return name;
-	}
-
+    public abstract Class<? extends Group> getGroupClass();
 }

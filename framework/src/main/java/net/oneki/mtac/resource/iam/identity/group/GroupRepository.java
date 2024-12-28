@@ -1,4 +1,4 @@
-package net.oneki.mtac.resource.iam.identity;
+package net.oneki.mtac.resource.iam.identity.group;
 
 import java.util.HashMap;
 import java.util.HashSet;

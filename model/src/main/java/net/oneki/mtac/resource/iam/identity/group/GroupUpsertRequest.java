@@ -1,18 +1,17 @@
-package net.oneki.mtac.resource.iam.identity.user;
+package net.oneki.mtac.resource.iam.identity.group;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 import net.oneki.mtac.core.util.introspect.annotation.ApiRequest;
-import net.oneki.mtac.resource.iam.identity.group.Group;
 
 @Data
 @SuperBuilder
 @EqualsAndHashCode(callSuper = true)
-@ApiRequest("req.mtac.iam.identity.user:upsert")
+@ApiRequest("req.mtac.iam.identity.group:upsert")
 @NoArgsConstructor
-public class UserUpsertRequest extends BaseUserUpsertRequest<Group> {
+public class GroupUpsertRequest extends BaseGroupUpsertRequest<Group> {
     
     @Override
     public Class<? extends Group> getGroupClass() {

@@ -1,4 +1,4 @@
-package net.oneki.mtac.resource.iam.identity;
+package net.oneki.mtac.resource.iam.identity.user;
 
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.core.repository.framework.BaseRepository;
 import net.oneki.mtac.core.resource.Ref;
 import net.oneki.mtac.resource.Resource;
+import net.oneki.mtac.resource.iam.identity.group.GroupMembershipRepository;
 import net.oneki.mtac.resource.iam.identity.user.User;
 import net.oneki.mtac.core.util.sql.SqlUtils;
 

@@ -14,9 +14,8 @@ import net.oneki.mtac.core.service.security.JwtTokenService;
 import net.oneki.mtac.core.util.SetUtils;
 import net.oneki.mtac.core.util.exception.BusinessException;
 import net.oneki.mtac.resource.ResourceService;
-import net.oneki.mtac.resource.iam.identity.GroupMembershipRepository;
-import net.oneki.mtac.resource.iam.identity.GroupRepository;
-import net.oneki.mtac.resource.iam.identity.UserRepository;
+import net.oneki.mtac.resource.iam.identity.group.GroupMembershipRepository;
+import net.oneki.mtac.resource.iam.identity.group.GroupRepository;
 
 @Service
 @RequiredArgsConstructor
