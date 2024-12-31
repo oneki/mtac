@@ -175,6 +175,9 @@ public class ResourceService<U extends UpsertRequest, E extends Resource> {
         } else {
             throw new BusinessException("INVALID_ENTITY", "The entity " + resourceEntity + " must have a tenant");
         }
+        if (resourceEntity.getCreatedBy() == null) {
+            resourceEntity.setCreatedBy(securityContext.getUsername());
+        }
         // Verify if the user has the permission to create the resource
         if (!permissionService.hasCreatePermission(resourceEntity.getTenantLabel(),
                 resourceEntity.getSchemaLabel())) {
@@ -182,6 +185,19 @@ public class ResourceService<U extends UpsertRequest, E extends Resource> {
         }
         
         return resourceRepository.create(resourceEntity);
+    }
+
+    public Integer createLink(String sourceUrn, Integer targetTenantId, LinkType linkType, boolean pub) {
+        var sourceEntity = resourceRepository.getByUrn(sourceUrn, Resource.class);
+        if (sourceEntity == null) {
+            throw new ForbiddenException("Failed to create link because source with urn=" + sourceUrn + " was not found");
+        }
+        return createLink(sourceEntity, targetTenantId, linkType, pub);
+    }
+
+    public Integer createLink(Resource sourceEntity, Integer targetTenantId, LinkType linkType, boolean pub) {
+        // Do we need to check permission ?
+        return resourceRepository.createLink(sourceEntity, targetTenantId, linkType, pub, securityContext.getUsername());
     }
 
    /**
@@ -193,7 +209,9 @@ public class ResourceService<U extends UpsertRequest, E extends Resource> {
      * @return void
      */
     public void update(E resourceEntity) {
-
+        if (resourceEntity.getUpdatedBy() == null) {
+            resourceEntity.setUpdatedBy(securityContext.getUsername());
+        }
         // Verify if the user has the permission to update the resource
         if (!permissionService.hasPermission(resourceEntity.getId(), "update")) {
             throw new BusinessException("FORBIDDEN", "Forbidden access");

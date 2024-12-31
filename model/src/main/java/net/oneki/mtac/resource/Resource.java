@@ -68,6 +68,9 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 	@JsonIgnore
 	protected Integer linkId;
 
+	@JsonIgnore
+	protected LinkType linkType;
+
 	/*
 	 * The datetime at which the resource was created
 	 */
@@ -168,6 +171,19 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 
 	public final void setLinkId(Integer linkId) {
 		this.linkId = linkId;
+	}
+
+	public final LinkType getLinkType() {
+		return linkType;
+	}
+
+	public final void setLinkType(LinkType linkType) {
+		this.linkType = linkType;
+	}
+
+	@JsonIgnore
+	public boolean isLinkRef() {
+		return linkId != null && linkType != null && linkType == LinkType.Ref;
 	}
 
 	public final String getUrn() {

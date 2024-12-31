@@ -14,6 +14,7 @@ import net.oneki.mtac.core.security.Acl;
 import net.oneki.mtac.core.util.cache.Cache;
 import net.oneki.mtac.core.util.cache.ResourceRegistry;
 import net.oneki.mtac.core.util.json.JsonUtil;
+import net.oneki.mtac.resource.LinkType;
 import net.oneki.mtac.resource.Resource;
 
 @RequiredArgsConstructor
@@ -27,6 +28,8 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
 
         if (rs.getInt("link_id") == 0) {
             json = rs.getString("content");
+        } else if (rs.getInt("link_type") == LinkType.Ref.ordinal()) {
+                json = rs.getString("{}");
         } else {
             json = rs.getString("link_content");
         }
@@ -130,6 +133,10 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
                 } else {
                     resource.setLinkId(rs.getInt("id"));
                 }
+                break;
+
+            case "link_type":
+                resource.setLinkType(LinkType.values()[rs.getInt(columnName)]);
                 break;
 
             case "tenant_id":

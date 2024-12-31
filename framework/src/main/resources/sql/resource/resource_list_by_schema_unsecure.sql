@@ -23,6 +23,7 @@ SELECT
   r.schema_id,
   r.tenant_id,
   r.link_id,
+      r.link_type,
   r.created_at,
   r.updated_at,
   r.created_by,

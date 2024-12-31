@@ -15,6 +15,7 @@ SELECT
       r.schema_id,
       r.tenant_id,
       r.link_id,
+      r.link_type,
       r.content,
       r.created_at,
       r.updated_at,

@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.core.Constants;
+import net.oneki.mtac.core.framework.Urn;
 import net.oneki.mtac.core.repository.framework.AbstractRepository;
 import net.oneki.mtac.core.util.SetUtils;
 import net.oneki.mtac.core.util.cache.Cache;
@@ -32,6 +33,7 @@ import net.oneki.mtac.core.util.rowmapper.ResourceRowMapper;
 import net.oneki.mtac.core.util.security.SecurityContext;
 import net.oneki.mtac.core.util.security.SecurityUtils;
 import net.oneki.mtac.core.util.sql.SqlUtils;
+import net.oneki.mtac.resource.LinkType;
 import net.oneki.mtac.resource.Resource;
 
 @Repository
@@ -68,6 +70,27 @@ public class ResourceRepository extends AbstractRepository {
         if (keyHolder.getKeyList() != null && keyHolder.getKeyList().size() > 0) {
             resource.setId((Integer) keyHolder.getKeyList().get(0).get("id"));
             return resource;
+        }
+        return null;
+    }
+
+    public Integer createLink(Resource source, Integer targetTenantId, LinkType linkType, boolean pub, String createdBy) {
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        var sql = SqlUtils.getSQL("resource/resource_insert_link.sql");
+        var targetTenantLabel = ResourceRegistry.getTenantLabel(targetTenantId);
+        Map<String, Object> parameters = Map.of(
+            "label", source.getLabel(),
+            "urn", "urn:" + targetTenantLabel + ":" + source.getSchemaLabel() + ":" + source.getLabel(),
+            "pub", pub,
+            "linkId", source.getId(),
+            "linkType", linkType.ordinal(),
+            "tenantId", targetTenantId,
+            "schemaId", source.getSchemaId(),
+            "createdBy", createdBy
+        );
+        jdbcTemplate.update(sql, new MapSqlParameterSource(parameters), keyHolder);
+        if (keyHolder.getKeyList() != null && keyHolder.getKeyList().size() > 0) {
+            return (Integer) keyHolder.getKeyList().get(0).get("id");
         }
         return null;
     }
