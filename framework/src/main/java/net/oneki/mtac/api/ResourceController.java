@@ -49,6 +49,16 @@ public abstract class ResourceController<U extends UpsertRequest, R extends Reso
             this,
             ResourceController.class.getDeclaredMethod("create", UpsertRequest.class)
         );
+
+        // delete
+        handlerMapping.registerMapping(
+            RequestMappingInfo.paths(getApiPath() + "/{urn}")
+                    .methods(RequestMethod.DELETE)
+                    .produces(MediaType.APPLICATION_JSON_VALUE)
+                    .build(),
+            this,
+            ResourceController.class.getDeclaredMethod("deleteByUrn", String.class)
+        );         
     }
 
     public R getByLabelOrUrn(@PathVariable("label_or_urn") String labelOrUrn) {
@@ -58,6 +68,10 @@ public abstract class ResourceController<U extends UpsertRequest, R extends Reso
     public R create(@RequestBody U request) {
         var result = getService().create(request, getResourceClass());
         return result;
+    }
+
+    public void deleteByUrn(@PathVariable("urn") String urn) {
+        getService().deleteByUrn(urn, getResourceClass());
     }
 
     protected String getApiPath() {

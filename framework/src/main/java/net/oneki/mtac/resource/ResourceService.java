@@ -12,6 +12,7 @@ import net.oneki.mtac.core.model.framework.Page;
 import net.oneki.mtac.core.repository.ResourceRepository;
 import net.oneki.mtac.core.service.RelationService;
 import net.oneki.mtac.core.service.security.PermissionService;
+import net.oneki.mtac.core.util.R;
 import net.oneki.mtac.core.util.cache.ResourceRegistry;
 import net.oneki.mtac.core.util.exception.BusinessException;
 import net.oneki.mtac.core.util.exception.ForbiddenException;
@@ -22,7 +23,7 @@ import net.oneki.mtac.core.util.security.SecurityContext;
 
 @Service
 @RequiredArgsConstructor
-public class ResourceService<R extends UpsertRequest, E extends Resource> {
+public class ResourceService<U extends UpsertRequest, E extends Resource> {
     public enum Action {
         Create, Update, Delete
     }
@@ -48,7 +49,7 @@ public class ResourceService<R extends UpsertRequest, E extends Resource> {
      * @param entityClass: The target entity class
      * @return The entity
      */
-    public E toCreateEntity(R request, Class<E> entityClass) {
+    public E toCreateEntity(U request, Class<E> entityClass) {
         try {
             E entity = getMapperService().toEntity(request, entityClass.getDeclaredConstructor().newInstance());
             if (!permissionService.hasCreatePermission(entity.getTenantLabel(),
@@ -90,7 +91,7 @@ public class ResourceService<R extends UpsertRequest, E extends Resource> {
      * @param entityClass: The target entity class
      * @return The entity
      */
-    public E toUpdateEntity(String urn, R request, Class<E> entityClass) {
+    public E toUpdateEntity(String urn, U request, Class<E> entityClass) {
         try {
             var urnRecord = Urn.of(urn);
             E entity = resourceRepository.getByLabel(urnRecord.label(), urnRecord.tenant(), entityClass);
@@ -150,7 +151,7 @@ public class ResourceService<R extends UpsertRequest, E extends Resource> {
     //     return create(resourceEntity);
     // }
 
-    public E create (R request, Class<E> entityClass) {
+    public E create (U request, Class<E> entityClass) {
         E entity = toCreateEntity(request, entityClass);
         return create(entity);
     }
@@ -165,11 +166,21 @@ public class ResourceService<R extends UpsertRequest, E extends Resource> {
      * @return The entity containing the auto generated id
      */
     public E create(E resourceEntity) {
+        if (resourceEntity.getTenantId() != null) {
+            R.inject(resourceEntity, resourceEntity.getTenantId());
+        } else if (resourceEntity.getTenantLabel() != null) {
+            R.inject(resourceEntity, resourceEntity.getTenantLabel());
+        } else if (resourceEntity.getUrn() != null) {
+            R.fillMeta(resourceEntity);
+        } else {
+            throw new BusinessException("INVALID_ENTITY", "The entity " + resourceEntity + " must have a tenant");
+        }
         // Verify if the user has the permission to create the resource
         if (!permissionService.hasCreatePermission(resourceEntity.getTenantLabel(),
                 resourceEntity.getSchemaLabel())) {
             throw new BusinessException("FORBIDDEN", "Forbidden access");
         }
+        
         return resourceRepository.create(resourceEntity);
     }
 
@@ -200,7 +211,18 @@ public class ResourceService<R extends UpsertRequest, E extends Resource> {
      */
     public void deleteById(Integer id, Class<E> entityClass) {
         E entity = resourceRepository.getById(id, entityClass);
+        if (entity == null) {
+            throw new NotFoundException("Resource with id=" + id + " not found");
+        }
         delete(entity);
+    }
+
+    public void deleteByIdUnsecure(Integer id) {
+        resourceRepository.delete(id);
+    }
+
+    public void deleteByIdsUnsecure(List<Integer> ids) {
+        resourceRepository.delete(ids);
     }
 
    /**
@@ -213,6 +235,17 @@ public class ResourceService<R extends UpsertRequest, E extends Resource> {
      */
     public  void deleteByLabelOrUrn(String labelOrUrn, Class<E> entityClass) {
         E entity = resourceRepository.getByLabelOrUrn(labelOrUrn, entityClass);
+        if (entity == null) {
+            throw new NotFoundException("Resource " + labelOrUrn + " not found");
+        }
+        delete(entity);
+    }
+
+    public  void deleteByUrn(String urn, Class<E> entityClass) {
+        E entity = resourceRepository.getByUrn(urn, entityClass);
+        if (entity == null) {
+            throw new NotFoundException("Resource " + urn + " not found");
+        }
         delete(entity);
     }
 
@@ -227,6 +260,9 @@ public class ResourceService<R extends UpsertRequest, E extends Resource> {
      */
     public void deleteByLabel(String tenantLabel, String label, Class<E> entityClass) {
         E entity = resourceRepository.getByLabel(label, tenantLabel, entityClass);
+        if (entity == null) {
+            throw new NotFoundException("Resource " + label + " in tenant " + tenantLabel + " not found");
+        }
         delete(entity);
     }
 
@@ -282,6 +318,15 @@ public class ResourceService<R extends UpsertRequest, E extends Resource> {
         return result;
     }
 
+    public E getByLabelOrUrn(String label, Class<E> resultContentClass) {
+        E result = resourceRepository.getByLabelOrUrn(label, resultContentClass);
+        if (result == null) {
+            throw new BusinessException("NOT_FOUND", "Resource not found");
+        }
+
+        return result;
+    }
+
    /**
      * Get a list of entities
      *
@@ -304,7 +349,7 @@ public class ResourceService<R extends UpsertRequest, E extends Resource> {
     }
 
     @SuppressWarnings("unchecked")
-    public R loadRequestRelations(R upsertRequest)
+    public U loadRequestRelations(U upsertRequest)
             throws IllegalArgumentException, IllegalAccessException {
         var relationFields = ResourceRegistry.getRelations(upsertRequest.getClass());
         for (var relationField : relationFields) {

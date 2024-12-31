@@ -65,6 +65,9 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 	 */
 	protected boolean link;
 
+	@JsonIgnore
+	protected Integer linkId;
+
 	/*
 	 * The datetime at which the resource was created
 	 */
@@ -157,6 +160,14 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 
 	public final void setId(Integer id) {
 		this.id = id;
+	}
+
+	public final Integer getLinkId() {
+		return linkId;
+	}
+
+	public final void setLinkId(Integer linkId) {
+		this.linkId = linkId;
 	}
 
 	public final String getUrn() {
@@ -256,11 +267,11 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 	// }
 
 	public final boolean isLink() {
-		return link;
+		return linkId != null;
 	}
 
 	public final void setLink(boolean link) {
-		this.link = link;
+		throw new RuntimeException("Link can't be set directly. Use setLinkId instead.");
 	}
 
 	public final Instant getCreatedAt() {

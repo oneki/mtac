@@ -25,7 +25,6 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
         var schemaLabel = Cache.getInstance().getSchemaById(rs.getInt("schema_id")).getLabel();
         var clazz = (Class<T>) ResourceRegistry.getClassBySchema(schemaLabel);
 
-
         if (rs.getInt("link_id") == 0) {
             json = rs.getString("content");
         } else {
@@ -38,21 +37,23 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
             try {
                 if (relationField.isMultiple()) {
                     var relations = (List<Resource>) relationField.getField().get(resource);
-                    if (relations == null) continue;
-                    //var relationEntities = new ArrayList<Resource>();
+                    if (relations == null)
+                        continue;
+                    // var relationEntities = new ArrayList<Resource>();
                     for (var relation : relations) {
-                        relation.setUrn(String.format("urn:%s:%s:%s", 
-                            ResourceRegistry.getTenantLabel(relation.getTenantId()), 
-                            ResourceRegistry.getSchemaLabel(relation.getSchemaId()), 
-                            relation.getLabel()));
+                        relation.setUrn(String.format("urn:%s:%s:%s",
+                                ResourceRegistry.getTenantLabel(relation.getTenantId()),
+                                ResourceRegistry.getSchemaLabel(relation.getSchemaId()),
+                                relation.getLabel()));
                     }
-                    //relationField.getField().set(resource, relationEntities);
+                    // relationField.getField().set(resource, relationEntities);
                 } else {
                     var relation = (Resource) relationField.getField().get(resource);
-                    if (relation == null) continue;
-                    relation.setUrn(String.format("urn:%s:%s:%s", 
-                            ResourceRegistry.getTenantLabel(relation.getTenantId()), 
-                            ResourceRegistry.getSchemaLabel(relation.getSchemaId()), 
+                    if (relation == null)
+                        continue;
+                    relation.setUrn(String.format("urn:%s:%s:%s",
+                            ResourceRegistry.getTenantLabel(relation.getTenantId()),
+                            ResourceRegistry.getSchemaLabel(relation.getSchemaId()),
                             relation.getLabel()));
                 }
             } catch (IllegalAccessException e) {
@@ -60,15 +61,14 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
             }
         }
 
-        // resource.setUrn(String.format("%s:%s:%s", tenantLabel, schemaLabel, rs.getString("label")));
+        // resource.setUrn(String.format("%s:%s:%s", tenantLabel, schemaLabel,
+        // rs.getString("label")));
 
         ResultSetMetaData rsmd = rs.getMetaData();
         for (int col = 1; col <= rsmd.getColumnCount(); col++) {
             String columnName = rsmd.getColumnName(col);
             mapColumn(rs, columnName, resource);
         }
-
-
 
         return resource;
     }
@@ -80,17 +80,18 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
         // var schema = Cache.getInstance().getSchemaById(schemaId);
 
         // if (schema == null) {
-        //     schema = resourceRepository.getByIdUnsecure(schemaId, Schema.class);
-        //     if (schema == null) {
-        //         throw new UnexpectedException("SCHEMA_NOT_FOUND", "Schema not found for id " + schemaId);
-        //     }
-        //     Cache.getInstance().addSchema(schema);
+        // schema = resourceRepository.getByIdUnsecure(schemaId, Schema.class);
+        // if (schema == null) {
+        // throw new UnexpectedException("SCHEMA_NOT_FOUND", "Schema not found for id "
+        // + schemaId);
+        // }
+        // Cache.getInstance().addSchema(schema);
         // }
         var isLink = rs.getInt("link_id") != 0;
         switch (columnName) {
             case "id":
                 columnName = isLink ? "link_id" : "id";
-                resource.setId(rs.getInt(columnName));  
+                resource.setId(rs.getInt(columnName));
                 break;
             case "urn":
                 columnName = isLink ? "link_urn" : "urn";
@@ -99,7 +100,7 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
                 resource.setUrn(urn);
                 resource.setTenantLabel(urnRecord.tenant().isEmpty() ? null : urnRecord.tenant());
                 resource.setSchemaLabel(urnRecord.schema());
-                break;                
+                break;
             case "pub":
                 columnName = isLink ? "link_pub" : "pub";
                 resource.setPub(rs.getBoolean(columnName));
@@ -124,23 +125,27 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
                 break;
 
             case "link_id":
-                resource.setLink(!rs.wasNull());
+                if (rs.wasNull()) {
+                    resource.setLinkId(null);
+                } else {
+                    resource.setLinkId(rs.getInt("id"));
+                }
                 break;
-
-            
 
             case "tenant_id":
                 columnName = isLink ? "link_tenant_id" : "tenant_id";
                 var tenantId = rs.getInt(columnName);
                 if (rs.wasNull()) {
                     resource.setTenantId(null);
-                } /*else if (tenantId == Constants.TENANT_ROOT_ID) {
-                    resource.setTenant(Ref.builder()
-                            .id(Constants.TENANT_ROOT_ID)
-                            .label(Constants.TENANT_ROOT_LABEL)
-                            .schema(Constants.TENANT_ROOT_SCHEMA_LABEL)
-                            .build());
-                } */ else {
+                } /*
+                   * else if (tenantId == Constants.TENANT_ROOT_ID) {
+                   * resource.setTenant(Ref.builder()
+                   * .id(Constants.TENANT_ROOT_ID)
+                   * .label(Constants.TENANT_ROOT_LABEL)
+                   * .schema(Constants.TENANT_ROOT_SCHEMA_LABEL)
+                   * .build());
+                   * }
+                   */ else {
                     resource.setTenantId(tenantId);
                 }
 
@@ -151,17 +156,19 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
                 var schemaId = rs.getInt(columnName);
                 if (rs.wasNull()) {
                     resource.setSchemaId(null);
-                } /*else if (tenantId == Constants.TENANT_ROOT_ID) {
-                    resource.setTenant(Ref.builder()
-                            .id(Constants.TENANT_ROOT_ID)
-                            .label(Constants.TENANT_ROOT_LABEL)
-                            .schema(Constants.TENANT_ROOT_SCHEMA_LABEL)
-                            .build());
-                } */ else {
+                } /*
+                   * else if (tenantId == Constants.TENANT_ROOT_ID) {
+                   * resource.setTenant(Ref.builder()
+                   * .id(Constants.TENANT_ROOT_ID)
+                   * .label(Constants.TENANT_ROOT_LABEL)
+                   * .schema(Constants.TENANT_ROOT_SCHEMA_LABEL)
+                   * .build());
+                   * }
+                   */ else {
                     resource.setSchemaId(schemaId);
                 }
 
-                break;                
+                break;
             // case "tags":
             // json = rs.getString(columnName);
             // if (json != null) {

@@ -157,7 +157,7 @@ public class ResourceRepository extends AbstractRepository {
 
     // ------------------------------------------------- GET BY URN
     public <T extends Resource> T getByLabelOrUrn(String labelOrUrn, Class<T> resultContentClass) {
-        if (labelOrUrn.startsWith("urn:")){
+        if (labelOrUrn.startsWith("urn:")) {
             return getByUrn(labelOrUrn, resultContentClass);
         } else {
             return getByUniqueLabel(labelOrUrn, resultContentClass);
@@ -170,7 +170,7 @@ public class ResourceRepository extends AbstractRepository {
 
     public <T extends Resource> T getByUrn(String urn, Class<T> resultContentClass, String sql) {
         return getByUrn(urn, resultContentClass, sql, null);
-    }  
+    }
 
     public <T extends Resource> T getByUrn(String urn, Class<T> resultContentClass, String sql,
             Map<String, Object> args) {
@@ -265,6 +265,40 @@ public class ResourceRepository extends AbstractRepository {
         return result;
     }
 
+    public List<Resource> listByTenant(int tenantId, Query query) {
+        var sql = SqlUtils.getSQL("resource/resource_list_by_tenant.sql");
+        var result = list(tenantId, Resource.class, sql, query);
+        return result;
+    }
+
+    public List<Resource> listByTenant(String tenantLabel, Query query) {
+        var tenantId = Cache.getInstance().getTenantId(tenantLabel);
+        return listByTenant(tenantId, query);
+    }
+
+    public List<Resource> listByTenantUnsecure(int tenantId, Query query) {
+        var sql = SqlUtils.getSQL("resource/resource_list_by_tenant_unsecure.sql");
+        var result = list(tenantId, Resource.class, sql, query);
+        return result;
+    }
+
+    public List<Resource> listByTenantUnsecure(String tenantLabel, Query query) {
+        var tenantId = Cache.getInstance().getTenantId(tenantLabel);
+        return listByTenantUnsecure(tenantId, query);
+    }
+
+    public List<Resource> listAll(Query query) {
+        var sql = SqlUtils.getSQL("resource/resource_list_all.sql");
+        var result = list(null, Resource.class, sql, query);
+        return result;
+    }
+
+    public List<Resource> listAllUnsecure(Query query) {
+        var sql = SqlUtils.getSQL("resource/resource_list_all_unsecure.sql");
+        var result = list(null, Resource.class, sql, query);
+        return result;
+    }
+
     public <T extends Resource> List<T> listByTenantAndType(String tenantLabel,
             Class<T> resultContentClass,
             Query query) {
@@ -276,6 +310,21 @@ public class ResourceRepository extends AbstractRepository {
             Class<T> resultContentClass,
             Query query) {
         var sql = SqlUtils.getSQL("resource/resource_list_by_tenant_and_schema.sql");
+        var result = list(tenantId, resultContentClass, sql, query);
+        return result;
+    }
+
+    public <T extends Resource> List<T> listByTenantAndTypeUnsecure(String tenantLabel,
+            Class<T> resultContentClass,
+            Query query) {
+        var tenantId = Cache.getInstance().getTenantId(tenantLabel);
+        return listByTenantAndTypeUnsecure(tenantId, resultContentClass, query);
+    }
+
+    public <T extends Resource> List<T> listByTenantAndTypeUnsecure(int tenantId,
+            Class<T> resultContentClass,
+            Query query) {
+        var sql = SqlUtils.getSQL("resource/resource_list_by_tenant_and_schema_unsecure.sql");
         var result = list(tenantId, resultContentClass, sql, query);
         return result;
     }
@@ -539,5 +588,4 @@ public class ResourceRepository extends AbstractRepository {
         List<Resource> entities = jdbcTemplate.query(sql, args, new ResourceRowMapper<Resource>());
         return entities;
     }
-
 }
