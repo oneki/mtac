@@ -13,7 +13,7 @@ import net.oneki.mtac.resource.iam.identity.IdentityRef;
 @NoArgsConstructor
 @SuperBuilder
 @EqualsAndHashCode(callSuper = true)
-@Entity("mtac.iam.identity.groupRef")
+@Entity("iam.identity.groupRef")
 public class GroupRef extends IdentityRef {
     protected Group identity;
     

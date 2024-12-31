@@ -13,7 +13,7 @@ import net.oneki.mtac.resource.Resource;
 @NoArgsConstructor
 @SuperBuilder
 @EqualsAndHashCode(callSuper = true)
-@Entity("mtac.iam.identityRef")
+@Entity("iam.identityRef")
 public class IdentityRef extends Resource{
     protected Identity identity;
     

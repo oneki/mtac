@@ -70,16 +70,16 @@ public class ResourceRegistry {
                 .classIndex(classIndex)
                 .schemaIndex(schemaIndex)
                 .resourceDescIndex(resourceDescIndex)
-                .basePackage("net.oneki.mtac.resource")
+                .basePackage(scanBasePackage)
                 .classType(ClassType.Entity)
                 .build();
         scanClasses(reflectorContext);
-        reflectorContext.setBasePackage(scanBasePackage);
-        scanClasses(reflectorContext);
         reflectorContext.setBasePackage("net.oneki.mtac.resource");
+        scanClasses(reflectorContext);
+        reflectorContext.setBasePackage(scanBasePackage);
         reflectorContext.setClassType(ClassType.ApiRequest);
         scanClasses(reflectorContext);
-        reflectorContext.setBasePackage(scanBasePackage);
+        reflectorContext.setBasePackage("net.oneki.mtac.resource");
         scanClasses(reflectorContext);
         var resourceClasses = new HashSet<>(schemaIndex.keySet());
         for (var resourceClass : resourceClasses) {
@@ -251,11 +251,14 @@ public class ResourceRegistry {
     }
 
     public static Integer getTenantId(String tenantLabel) {
-        return instance.getCache().getTenantId(tenantLabel);
+        var tenant = getTenantByLabel(tenantLabel);
+        if (tenant == null)
+            return null;
+        return tenant.getId();
     }
 
     public static String getTenantLabel(Integer tenantId) {
-        var tenant = instance.getCache().getTenantById(tenantId);
+        var tenant = getTenantById(tenantId);
         if (tenant == null)
             return null;
         return tenant.getLabel();
@@ -273,7 +276,14 @@ public class ResourceRegistry {
     }
 
     public static Tenant getTenantByLabel(String tenantLabel) {
-        return instance.getCache().getTenantByLabel(tenantLabel);
+        var result = instance.getCache().getTenantByLabel(tenantLabel);
+        if (result == null) {
+            result = instance.getResourceRepository().getByUniqueLabelUnsecure(tenantLabel, Tenant.class);
+            if (result != null) {
+                instance.getCache().addTenant(result);
+            }
+        }
+        return result;
     }
 
     public static Map<Integer, Schema> getSchemas() {
@@ -380,8 +390,15 @@ public class ResourceRegistry {
     }
 
     private void addResourceClass(String schemaLabel, Class<?> resourceClass) {
-        classIndex.put(schemaLabel, resourceClass);
-        schemaIndex.put(resourceClass, schemaLabel);
+        var clazz = classIndex.get(schemaLabel);
+        if (clazz != null && !clazz.equals(resourceClass) && resourceClass.getName().startsWith("net.oneki.mtac")) {
+            classIndex.put("mtac." + schemaLabel, resourceClass);
+            schemaIndex.put(resourceClass, "mtac." + schemaLabel);
+        } else {
+            classIndex.put(schemaLabel, resourceClass);
+            schemaIndex.put(resourceClass, schemaLabel);
+        }
+
     }
 
     private void addResourceDesc(String schemaLabel, ResourceDesc resourceDesc) {

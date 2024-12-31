@@ -16,7 +16,7 @@ import net.oneki.mtac.resource.iam.identity.Identity;
 @NoArgsConstructor
 @SuperBuilder
 @EqualsAndHashCode(callSuper = true)
-@Entity("mtac.iam.identity.group")
+@Entity("iam.identity.group")
 public class Group extends Identity {
 	private String name;
 	private String description;

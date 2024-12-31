@@ -1,21 +1,22 @@
 package net.oneki.mtac.resource.iam.identity.group;
 
-import net.oneki.mtac.core.util.exception.BusinessException;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import net.oneki.mtac.core.util.R;
 import net.oneki.mtac.resource.ResourceService;
 
 public class GroupService<U extends GroupUpsertRequest, E extends Group> extends ResourceService<U, E>{
+    @Autowired protected DefaultGroupRefService groupRefService;
     
-    public E create(E resourceEntity) {
+    public E create(E resourceEntity, Integer groupRefTenantId) {
         var group = super.create(resourceEntity);
-        var groupRef = GroupRef.builder()
+        if (groupRefTenantId != null) {
+            var groupRef = GroupRef.builder()
             .identity(group)
-            .tenantId(null)
             .build();
-        // Verify if the user has the permission to create the resource
-        if (!permissionService.hasCreatePermission(resourceEntity.getTenantLabel(),
-                resourceEntity.getSchemaLabel())) {
-            throw new BusinessException("FORBIDDEN", "Forbidden access");
+            R.inject(groupRef, groupRefTenantId);
+            groupRefService.create(groupRef);
         }
-        return resourceRepository.create(resourceEntity);
+        return group;
     }
 }

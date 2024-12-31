@@ -148,7 +148,7 @@ public class ResourceRepository extends AbstractRepository {
             args.put("sids", securityContext.getSids());
         }
         try {
-            return jdbcTemplate.queryForObject(sql, args, new ResourceRowMapper<T>(this));
+            return jdbcTemplate.queryForObject(sql, args, new ResourceRowMapper<T>());
         } catch (EmptyResultDataAccessException e) {
             return null;
         }
@@ -189,7 +189,7 @@ public class ResourceRepository extends AbstractRepository {
             args.put("sids", securityContext.getSids());
         }
         try {
-            return jdbcTemplate.queryForObject(sql, args, new ResourceRowMapper<T>(this));
+            return jdbcTemplate.queryForObject(sql, args, new ResourceRowMapper<T>());
         } catch (EmptyResultDataAccessException e) {
             return null;
         }
@@ -249,7 +249,7 @@ public class ResourceRepository extends AbstractRepository {
         }
 
         try {
-            return jdbcTemplate.queryForObject(sql, args, new ResourceRowMapper<T>(this));
+            return jdbcTemplate.queryForObject(sql, args, new ResourceRowMapper<T>());
         } catch (EmptyResultDataAccessException e) {
             return null;
         }
@@ -501,7 +501,7 @@ public class ResourceRepository extends AbstractRepository {
                 .replace("\"<placeholder for dynamic limit />\"", limitSql)
                 .replace("\"<placeholder for dynamic temporary tables />\"", temporaryTablesSql);
 
-        var resources = jdbcTemplate.query(sql, args, new ResourceRowMapper<T>(this));
+        var resources = jdbcTemplate.query(sql, args, new ResourceRowMapper<T>());
 
         return resources;
     }
@@ -525,7 +525,7 @@ public class ResourceRepository extends AbstractRepository {
         if (securityContext != null) {
             args.put("sids", securityContext.getSids());
         }
-        List<Resource> entities = jdbcTemplate.query(sql, args, new ResourceRowMapper<Resource>(this));
+        List<Resource> entities = jdbcTemplate.query(sql, args, new ResourceRowMapper<Resource>());
         return entities;
     }
 
@@ -536,7 +536,7 @@ public class ResourceRepository extends AbstractRepository {
         if (securityContext != null) {
             args.put("sids", securityContext.getSids());
         }
-        List<Resource> entities = jdbcTemplate.query(sql, args, new ResourceRowMapper<Resource>(this));
+        List<Resource> entities = jdbcTemplate.query(sql, args, new ResourceRowMapper<Resource>());
         return entities;
     }
 

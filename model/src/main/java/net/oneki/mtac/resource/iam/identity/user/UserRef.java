@@ -13,7 +13,7 @@ import net.oneki.mtac.resource.iam.identity.IdentityRef;
 @NoArgsConstructor
 @SuperBuilder
 @EqualsAndHashCode(callSuper = true)
-@Entity("mtac.iam.identity.userRef")
+@Entity("iam.identity.userRef")
 public class UserRef extends IdentityRef {
     protected User identity;
     

@@ -8,19 +8,16 @@ import java.util.List;
 import org.springframework.jdbc.core.RowMapper;
 
 import lombok.RequiredArgsConstructor;
-import net.oneki.mtac.core.repository.ResourceRepository;
+import net.oneki.mtac.core.framework.Urn;
 import net.oneki.mtac.core.security.Ace;
 import net.oneki.mtac.core.security.Acl;
 import net.oneki.mtac.core.util.cache.Cache;
 import net.oneki.mtac.core.util.cache.ResourceRegistry;
-import net.oneki.mtac.core.util.exception.UnexpectedException;
 import net.oneki.mtac.core.util.json.JsonUtil;
 import net.oneki.mtac.resource.Resource;
-import net.oneki.mtac.resource.schema.Schema;
 
 @RequiredArgsConstructor
 public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
-    private final ResourceRepository resourceRepository;
 
     @SuppressWarnings("unchecked")
     public T mapRow(ResultSet rs, int rowNum) throws SQLException {
@@ -79,16 +76,16 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
     protected void mapColumn(ResultSet rs, String columnName, T resource)
             throws SQLException {
         String json;
-        var schemaId = rs.getInt("schema_id");
-        var schema = Cache.getInstance().getSchemaById(schemaId);
+        // var schemaId = rs.getInt("schema_id");
+        // var schema = Cache.getInstance().getSchemaById(schemaId);
 
-        if (schema == null) {
-            schema = resourceRepository.getByIdUnsecure(schemaId, Schema.class);
-            if (schema == null) {
-                throw new UnexpectedException("SCHEMA_NOT_FOUND", "Schema not found for id " + schemaId);
-            }
-            Cache.getInstance().addSchema(schema);
-        }
+        // if (schema == null) {
+        //     schema = resourceRepository.getByIdUnsecure(schemaId, Schema.class);
+        //     if (schema == null) {
+        //         throw new UnexpectedException("SCHEMA_NOT_FOUND", "Schema not found for id " + schemaId);
+        //     }
+        //     Cache.getInstance().addSchema(schema);
+        // }
         var isLink = rs.getInt("link_id") != 0;
         switch (columnName) {
             case "id":
@@ -97,7 +94,11 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
                 break;
             case "urn":
                 columnName = isLink ? "link_urn" : "urn";
-                resource.setUrn(rs.getString(columnName));
+                var urn = rs.getString(columnName);
+                var urnRecord = Urn.of(urn);
+                resource.setUrn(urn);
+                resource.setTenantLabel(urnRecord.tenant().isEmpty() ? null : urnRecord.tenant());
+                resource.setSchemaLabel(urnRecord.schema());
                 break;                
             case "pub":
                 columnName = isLink ? "link_pub" : "pub";
@@ -126,34 +127,41 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
                 resource.setLink(!rs.wasNull());
                 break;
 
-            // case "tenant_id":
-            //     columnName = isLink ? "link_tenant_id" : "tenant_id";
-            //     var tenantId = rs.getInt(columnName);
-            //     if (rs.wasNull()) {
-            //         resource.setTenant(null);
-            //     } else if (tenantId == Constants.TENANT_ROOT_ID) {
-            //         resource.setTenant(Ref.builder()
-            //                 .id(Constants.TENANT_ROOT_ID)
-            //                 .label(Constants.TENANT_ROOT_LABEL)
-            //                 .schema(Constants.TENANT_ROOT_SCHEMA_LABEL)
-            //                 .build());
-            //     } else {
-            //         var tenant = Cache.getInstance().getTenantById(tenantId); 
-            //         if (tenant == null) {
-            //             tenant = resourceRepository.getByIdUnsecure(tenantId, TenantEntity.class);
-            //             if (tenant == null) {
-            //                 throw new UnexpectedException("TENANT_NOT_FOUND", "Tenant not found for id " + tenantId);
-            //             }
-            //             Cache.getInstance().addTenant(tenant);
-            //         }
-            //         resource.setTenant(Ref.builder()
-            //                 .id(tenantId)
-            //                 .label(tenant.getLabel())
-            //                 .schema(tenant.getSchema())
-            //                 .build());
-            //     }
+            
 
-            //     break;
+            case "tenant_id":
+                columnName = isLink ? "link_tenant_id" : "tenant_id";
+                var tenantId = rs.getInt(columnName);
+                if (rs.wasNull()) {
+                    resource.setTenantId(null);
+                } /*else if (tenantId == Constants.TENANT_ROOT_ID) {
+                    resource.setTenant(Ref.builder()
+                            .id(Constants.TENANT_ROOT_ID)
+                            .label(Constants.TENANT_ROOT_LABEL)
+                            .schema(Constants.TENANT_ROOT_SCHEMA_LABEL)
+                            .build());
+                } */ else {
+                    resource.setTenantId(tenantId);
+                }
+
+                break;
+
+            case "schema_id":
+                columnName = isLink ? "link_schema_id" : "schema_id";
+                var schemaId = rs.getInt(columnName);
+                if (rs.wasNull()) {
+                    resource.setSchemaId(null);
+                } /*else if (tenantId == Constants.TENANT_ROOT_ID) {
+                    resource.setTenant(Ref.builder()
+                            .id(Constants.TENANT_ROOT_ID)
+                            .label(Constants.TENANT_ROOT_LABEL)
+                            .schema(Constants.TENANT_ROOT_SCHEMA_LABEL)
+                            .build());
+                } */ else {
+                    resource.setSchemaId(schemaId);
+                }
+
+                break;                
             // case "tags":
             // json = rs.getString(columnName);
             // if (json != null) {

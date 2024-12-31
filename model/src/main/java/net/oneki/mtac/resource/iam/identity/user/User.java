@@ -14,7 +14,7 @@ import net.oneki.mtac.resource.iam.identity.Identity;
 @NoArgsConstructor
 @SuperBuilder
 @EqualsAndHashCode(callSuper = true)
-@Entity("mtac.iam.identity.user")
+@Entity("iam.identity.user")
 public class User extends Identity {
     @Secret private String password;
     private String firstName;

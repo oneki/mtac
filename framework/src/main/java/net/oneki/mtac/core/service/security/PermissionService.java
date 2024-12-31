@@ -3,10 +3,13 @@ package net.oneki.mtac.core.service.security;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
+import net.oneki.mtac.core.Constants;
 import net.oneki.mtac.core.repository.ResourceRepository;
+import net.oneki.mtac.core.repository.acl.AceRepository;
 import net.oneki.mtac.core.resource.Ref;
 import net.oneki.mtac.core.security.Acl;
 import net.oneki.mtac.resource.Resource;
+import net.oneki.mtac.resource.iam.Role;
 import net.oneki.mtac.resource.iam.RoleRepository;
 import net.oneki.mtac.core.util.cache.ResourceRegistry;
 import net.oneki.mtac.core.util.exception.BusinessException;
@@ -70,6 +73,27 @@ import net.oneki.mtac.core.util.security.PropertyPath;
 public class PermissionService {
     private final ResourceRepository resourceRepository;
     private final RoleRepository roleRepository;
+    private final AceRepository aceRepository;
+
+    public void addPermission(String roleName, Integer resourceId, Integer identityId) {
+        var role = resourceRepository.getByUniqueLabel(roleName, Role.class);
+        if (role == null) {
+            throw new BusinessException("ROLE_NOT_FOUND", "The role with label " + roleName + " doesn't exist.");
+        }
+        addPermission(role.getId(), resourceId, identityId);
+    }
+
+    public void addPermissionUnsecure(String roleName, Integer resourceId, Integer identityId) {
+        var role = resourceRepository.getByUniqueLabelUnsecure(roleName, Role.class);
+        if (role == null) {
+            throw new BusinessException("ROLE_NOT_FOUND", "The role with label " + roleName + " doesn't exist.");
+        }
+        addPermission(role.getId(), resourceId, identityId);
+    }
+
+    public void addPermission(Integer roleId, Integer resourceId, Integer identityId) {
+        aceRepository.create(roleId, resourceId, identityId);
+    }
 
     public boolean hasPermission(Ref resourceRef, String permission) {
         var resource = resourceRepository.getById(resourceRef.getId(), Resource.class);

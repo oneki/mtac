@@ -15,7 +15,7 @@ import net.oneki.mtac.resource.iam.identity.group.Group;
 @SuperBuilder
 @Data
 @NoArgsConstructor
-@Entity("mtac.iam.identity")
+@Entity("iam.identity")
 @EqualsAndHashCode(callSuper = true)
 public class Identity extends Resource {
     private String email;
