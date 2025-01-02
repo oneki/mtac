@@ -4,7 +4,7 @@ CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
 <dbmodel pgmodeler-ver="1.1.0" use-changelog="false" max-obj-count="46"
-	 last-position="-80,151" last-zoom="1" scene-rect="-80,-40.5,1707.33,2074.22"
+	 last-position="0,150" last-zoom="1" scene-rect="-80,-40.5,1707.33,2074.22"
 	 default-owner="postgres"
 	 layers="Default"
 	 active-layers="0"
@@ -1382,7 +1382,7 @@ END;
 		</idxelement>
 </index>
 
-<table name="resource" layers="0" collapse-mode="1" max-obj-count="15" z-value="0">
+<table name="resource" layers="0" collapse-mode="1" max-obj-count="16" z-value="0">
 	<schema name="public"/>
 	<role name="postgres"/>
 	<position x="400" y="480"/>
@@ -1404,6 +1404,10 @@ END;
 	</column>
 	<column name="link_id">
 		<type name="integer" length="0"/>
+	</column>
+	<column name="link_type" default-value="0">
+		<type name="smallint" length="0"/>
+		<comment> <![CDATA[0=normal,1=ref]]> </comment>
 	</column>
 	<column name="schema_id">
 		<type name="integer" length="0"/>
@@ -2616,7 +2620,7 @@ END;]]> </definition>
 	 dst-table="public.resource" reference-fk="resource_link_fk"
 	 src-required="false" dst-required="false">
 	<line>
-		<position x="754.95" y="579.575"/>
+		<position x="754.95" y="586.108"/>
 	<position x="754.95" y="447"/>
 	<position x="614.633" y="447"/>
 	</line>
@@ -2627,9 +2631,9 @@ END;]]> </definition>
 	 dst-table="public.resource" reference-fk="resource_tenant_fk"
 	 src-required="false" dst-required="false">
 	<line>
-		<position x="778.848" y="603.473"/>
-	<position x="778.848" y="423.102"/>
-	<position x="590.735" y="423.102"/>
+		<position x="780.416" y="611.574"/>
+	<position x="780.416" y="421.534"/>
+	<position x="589.167" y="421.534"/>
 	</line>
 </relationship>
 
@@ -2638,9 +2642,9 @@ END;]]> </definition>
 	 dst-table="public.resource" reference-fk="resource_schema_fk"
 	 src-required="false" dst-required="false">
 	<line>
-		<position x="802.746" y="627.371"/>
-	<position x="802.746" y="399.204"/>
-	<position x="566.837" y="399.204"/>
+		<position x="805.882" y="637.04"/>
+	<position x="805.882" y="396.068"/>
+	<position x="563.701" y="396.068"/>
 	</line>
 </relationship>
 

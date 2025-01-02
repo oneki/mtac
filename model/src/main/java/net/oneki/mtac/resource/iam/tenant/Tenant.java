@@ -19,4 +19,8 @@ public class Tenant extends Resource {
     public String labelize() {
         return name;
     }
+
+    public static String toLabel(String name, String tenantLabel) {
+        return name + "@" + tenantLabel.replace("@", ".");
+    }
 }

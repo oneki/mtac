@@ -13,8 +13,10 @@ import net.oneki.mtac.core.util.json.EntityModule;
 
 @Configuration
 public class EntityConfig {
+
     @Bean(name = "entityMapper")
-    public EntityMapper entityMapper(EntityModule entityModule) {
+    public EntityMapper entityMapper() {
+
         var mapper = EntityMapper.builder()
             .enable(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY)
             .serializationInclusion(Include.NON_NULL)
@@ -24,8 +26,10 @@ public class EntityConfig {
             //     .withSerializerModifier(new EntityToDbSerializerModifier()
             // ))
             .build();
+        var entityModule = new EntityModule(mapper);
         mapper.registerModule(new JavaTimeModule());
         mapper.registerModule(entityModule);
+
         return mapper;
         // return JsonMapper.builder()
         //     .enable(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY)

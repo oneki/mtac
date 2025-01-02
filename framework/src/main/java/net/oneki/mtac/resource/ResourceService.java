@@ -327,8 +327,8 @@ public class ResourceService<U extends UpsertRequest, E extends Resource> {
      * @param resultContentClass: the class of the entity
      * @return the entity
      */
-    public E getByLabel(String tenantLabel, String label, Class<E> resultContentClass) {
-        E result = resourceRepository.getByLabel(tenantLabel, label, resultContentClass);
+    public E getByLabel(String label, String tenantLabel, Class<E> resultContentClass) {
+        E result = resourceRepository.getByLabel(label, tenantLabel, resultContentClass);
         if (result == null) {
             throw new BusinessException("NOT_FOUND", "Resource not found");
         }

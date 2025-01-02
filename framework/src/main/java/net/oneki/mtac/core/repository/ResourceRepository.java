@@ -129,8 +129,8 @@ public class ResourceRepository extends AbstractRepository {
     }
 
     public <T extends Resource> void delete(String tenantLabel, String label, Class<T> resourceClass) {
-        var tenantId = Cache.getInstance().getTenantId(tenantLabel);
-        var schemaId = Cache.getInstance().getSchemaId(ResourceRegistry.getSchemaByClass(resourceClass));
+        var tenantId = ResourceRegistry.getTenantId(tenantLabel);
+        var schemaId = ResourceRegistry.getSchemaId(ResourceRegistry.getSchemaByClass(resourceClass));
         var sql = "DELETE FROM resource WHERE label = :label AND tenant_id = :tenantId AND schema_id = :schemaId";
         var args = new HashMap<String, Object>();
         args.put("label", label);
@@ -258,7 +258,7 @@ public class ResourceRepository extends AbstractRepository {
         args.put("label", label);
         args.put("schemaLabel", schemaLabel);
         if (tenantLabel != null) {
-            var tenantId = Cache.getInstance().getTenantId(tenantLabel);
+            var tenantId = ResourceRegistry.getTenantId(tenantLabel);
             if (tenantId == null) {
                 throw new BusinessException("TENANT_NOT_FOUND", "Tenant not found for label " + tenantLabel);
             }
@@ -295,7 +295,7 @@ public class ResourceRepository extends AbstractRepository {
     }
 
     public List<Resource> listByTenant(String tenantLabel, Query query) {
-        var tenantId = Cache.getInstance().getTenantId(tenantLabel);
+        var tenantId = ResourceRegistry.getTenantId(tenantLabel);
         return listByTenant(tenantId, query);
     }
 
@@ -306,7 +306,7 @@ public class ResourceRepository extends AbstractRepository {
     }
 
     public List<Resource> listByTenantUnsecure(String tenantLabel, Query query) {
-        var tenantId = Cache.getInstance().getTenantId(tenantLabel);
+        var tenantId = ResourceRegistry.getTenantId(tenantLabel);
         return listByTenantUnsecure(tenantId, query);
     }
 
@@ -325,7 +325,7 @@ public class ResourceRepository extends AbstractRepository {
     public <T extends Resource> List<T> listByTenantAndType(String tenantLabel,
             Class<T> resultContentClass,
             Query query) {
-        var tenantId = Cache.getInstance().getTenantId(tenantLabel);
+        var tenantId = ResourceRegistry.getTenantId(tenantLabel);
         return listByTenantAndType(tenantId, resultContentClass, query);
     }
 
@@ -340,7 +340,7 @@ public class ResourceRepository extends AbstractRepository {
     public <T extends Resource> List<T> listByTenantAndTypeUnsecure(String tenantLabel,
             Class<T> resultContentClass,
             Query query) {
-        var tenantId = Cache.getInstance().getTenantId(tenantLabel);
+        var tenantId = ResourceRegistry.getTenantId(tenantLabel);
         return listByTenantAndTypeUnsecure(tenantId, resultContentClass, query);
     }
 

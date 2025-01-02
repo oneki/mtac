@@ -55,7 +55,6 @@ public class RelationDeserializer extends DelegatingDeserializer /* implements C
     @SuppressWarnings("unchecked")
     private Object deserialize(JsonParser parser, DeserializationContext ctxt, JsonToken token, JavaType type)
             throws IOException {
-
         if (token == JsonToken.START_OBJECT) {
             var mapType = ctxt.constructType(HashMap.class);
             JsonDeserializer<Object> deserializer = ctxt.findRootValueDeserializer(mapType);

@@ -13,6 +13,7 @@ import net.oneki.mtac.core.security.Ace;
 import net.oneki.mtac.core.security.Acl;
 import net.oneki.mtac.core.util.cache.Cache;
 import net.oneki.mtac.core.util.cache.ResourceRegistry;
+import net.oneki.mtac.core.util.json.JsonEntityUtil;
 import net.oneki.mtac.core.util.json.JsonUtil;
 import net.oneki.mtac.resource.LinkType;
 import net.oneki.mtac.resource.Resource;
@@ -29,11 +30,11 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
         if (rs.getInt("link_id") == 0) {
             json = rs.getString("content");
         } else if (rs.getInt("link_type") == LinkType.Ref.ordinal()) {
-                json = rs.getString("{}");
+                json = "{}";
         } else {
             json = rs.getString("link_content");
         }
-        var resource = JsonUtil.json2Object(json, clazz);
+        var resource = JsonEntityUtil.json2Object(json, clazz);
         var relationFields = ResourceRegistry.getRelations(clazz);
         for (var relationField : relationFields) {
             relationField.getField().setAccessible(true);
@@ -159,7 +160,6 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
                 break;
 
             case "schema_id":
-                columnName = isLink ? "link_schema_id" : "schema_id";
                 var schemaId = rs.getInt(columnName);
                 if (rs.wasNull()) {
                     resource.setSchemaId(null);

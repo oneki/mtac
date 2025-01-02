@@ -37,7 +37,7 @@ public class ResourceField {
 
     public static boolean isRelation(String type) {
         return !(type.equals("string") || type.equals("number") || type.equals("boolean") || type.equals("date")
-                || type.equals("object"));
+                || type.equals("object") || type.startsWith("req."));
     }
 
     public Object getValue(Object object) {
