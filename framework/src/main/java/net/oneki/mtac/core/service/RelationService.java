@@ -29,6 +29,10 @@ import net.oneki.mtac.core.util.introspect.ResourceField;
 public class RelationService {
 	private final ResourceRepository resourceRepository;
 
+	public <T extends HasSchema> T populateSingleResourceRelations(T resource, Set<String> relationNames) {
+		return populateRelations(List.of(resource), relationNames).get(0);
+	}
+
 	public <T extends HasSchema> List<T> populateRelations(List<T> resources, Set<String> relationNames) {
 		if (resources == null || resources.size() == 0) {
 			return resources;
@@ -67,7 +71,7 @@ public class RelationService {
 	}
 
 	private HasSchema populateRelation(Object resource, ResourceField field, Relations relations, String subRelationName, boolean inList) {
-		if (ResourceUtils.isRef(resource)) {
+		//if (ResourceUtils.isRef(resource)) {
 			switch(resource) {
 				case Resource ref -> {
 					Resource relation = null;
@@ -86,7 +90,7 @@ public class RelationService {
 							populateRelations(List.of(relation), subRelationName, relations);
 						}
 						if (!inList) {
-							field.setValue(resource, relation);
+							field.setValue(resource, field.getValue(relation));
 						}
 						return relation;
 					}
@@ -100,7 +104,7 @@ public class RelationService {
 				}
 				default -> {}
 			}
-		}
+		//}
 		return null;
 	}
 

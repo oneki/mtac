@@ -2,6 +2,7 @@ package net.oneki.mtac.resource;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -21,9 +22,8 @@ import net.oneki.mtac.core.util.introspect.ResourceField;
 import net.oneki.mtac.core.util.query.Query;
 import net.oneki.mtac.core.util.security.SecurityContext;
 
-@Service
 @RequiredArgsConstructor
-public class ResourceService<U extends UpsertRequest, E extends Resource> {
+public abstract class ResourceService<U extends UpsertRequest, E extends Resource> {
     public enum Action {
         Create, Update, Delete
     }
@@ -33,6 +33,9 @@ public class ResourceService<U extends UpsertRequest, E extends Resource> {
     @Autowired protected DefaultMapperService mapperService;
     @Autowired protected SecurityContext securityContext;
     @Autowired protected RelationService relationService;
+
+    public abstract Class<E> getEntityClass();
+    public abstract Class<U> getRequestClass();
 
     /**
      * Base method to convert a create request to an actual resource
@@ -49,7 +52,8 @@ public class ResourceService<U extends UpsertRequest, E extends Resource> {
      * @param entityClass: The target entity class
      * @return The entity
      */
-    public E toCreateEntity(U request, Class<E> entityClass) {
+    public E toCreateEntity(U request) {
+        var entityClass = getEntityClass();
         try {
             E entity = getMapperService().toEntity(request, entityClass.getDeclaredConstructor().newInstance());
             if (!permissionService.hasCreatePermission(entity.getTenantLabel(),
@@ -91,7 +95,8 @@ public class ResourceService<U extends UpsertRequest, E extends Resource> {
      * @param entityClass: The target entity class
      * @return The entity
      */
-    public E toUpdateEntity(String urn, U request, Class<E> entityClass) {
+    public E toUpdateEntity(String urn, U request) {
+        var entityClass = getEntityClass();
         try {
             var urnRecord = Urn.of(urn);
             E entity = resourceRepository.getByLabel(urnRecord.label(), urnRecord.tenant(), entityClass);
@@ -151,8 +156,8 @@ public class ResourceService<U extends UpsertRequest, E extends Resource> {
     //     return create(resourceEntity);
     // }
 
-    public E create (U request, Class<E> entityClass) {
-        E entity = toCreateEntity(request, entityClass);
+    public E create (U request) {
+        E entity = toCreateEntity(request);
         return create(entity);
     }
 
@@ -227,8 +232,8 @@ public class ResourceService<U extends UpsertRequest, E extends Resource> {
      * @param entityClass: the class of the entity
      * @return void
      */
-    public void deleteById(Integer id, Class<E> entityClass) {
-        E entity = resourceRepository.getById(id, entityClass);
+    public void deleteById(Integer id) {
+        E entity = resourceRepository.getById(id, getEntityClass());
         if (entity == null) {
             throw new NotFoundException("Resource with id=" + id + " not found");
         }
@@ -251,16 +256,16 @@ public class ResourceService<U extends UpsertRequest, E extends Resource> {
      * @param entityClass: the class of the entity
      * @return void
      */
-    public  void deleteByLabelOrUrn(String labelOrUrn, Class<E> entityClass) {
-        E entity = resourceRepository.getByLabelOrUrn(labelOrUrn, entityClass);
+    public  void deleteByLabelOrUrn(String labelOrUrn) {
+        E entity = resourceRepository.getByLabelOrUrn(labelOrUrn, getEntityClass());
         if (entity == null) {
             throw new NotFoundException("Resource " + labelOrUrn + " not found");
         }
         delete(entity);
     }
 
-    public  void deleteByUrn(String urn, Class<E> entityClass) {
-        E entity = resourceRepository.getByUrn(urn, entityClass);
+    public  void deleteByUrn(String urn) {
+        E entity = resourceRepository.getByUrn(urn, getEntityClass());
         if (entity == null) {
             throw new NotFoundException("Resource " + urn + " not found");
         }
@@ -276,8 +281,8 @@ public class ResourceService<U extends UpsertRequest, E extends Resource> {
      * @param entityClass: the class of the entity
      * @return void
      */
-    public void deleteByLabel(String tenantLabel, String label, Class<E> entityClass) {
-        E entity = resourceRepository.getByLabel(label, tenantLabel, entityClass);
+    public void deleteByLabel(String tenantLabel, String label) {
+        E entity = resourceRepository.getByLabel(label, tenantLabel, getEntityClass());
         if (entity == null) {
             throw new NotFoundException("Resource " + label + " in tenant " + tenantLabel + " not found");
         }
@@ -310,14 +315,23 @@ public class ResourceService<U extends UpsertRequest, E extends Resource> {
      * @param resultContentClass: the class of the entity
      * @return the entity
      */
-    public E getById(Integer id, Class<E> resultContentClass) {
-        E result = resourceRepository.getById(id, resultContentClass);
+    public E getById(Integer id) {
+        return getById(id, null);
+    }
+
+    public E getById(Integer id, Set<String> relations) {
+        E result = resourceRepository.getById(id, getEntityClass());
         if (result == null) {
             throw new BusinessException("NOT_FOUND", "Resource not found");
         }
 
+        if (relations != null) {
+            relationService.populateSingleResourceRelations(result, relations);
+        }
+
         return result;
     }
+    
 
    /**
      * Get an entity by its tenant, schema, label
@@ -327,19 +341,33 @@ public class ResourceService<U extends UpsertRequest, E extends Resource> {
      * @param resultContentClass: the class of the entity
      * @return the entity
      */
-    public E getByLabel(String label, String tenantLabel, Class<E> resultContentClass) {
-        E result = resourceRepository.getByLabel(label, tenantLabel, resultContentClass);
+    public E getByLabel(String label, String tenantLabel) {
+        return getByLabel(label, tenantLabel, null);
+    }
+    public E getByLabel(String label, String tenantLabel, Set<String> relations) {
+        E result = resourceRepository.getByLabel(label, tenantLabel, getEntityClass());
         if (result == null) {
             throw new BusinessException("NOT_FOUND", "Resource not found");
+        }
+
+        if (relations != null) {
+            relationService.populateSingleResourceRelations(result, relations);
         }
 
         return result;
     }
 
-    public E getByLabelOrUrn(String label, Class<E> resultContentClass) {
-        E result = resourceRepository.getByLabelOrUrn(label, resultContentClass);
+    public E getByLabelOrUrn(String label) {
+        return getByLabelOrUrn(label, null);
+    }
+    public E getByLabelOrUrn(String label, Set<String> relations) {
+        E result = resourceRepository.getByLabelOrUrn(label, getEntityClass());
         if (result == null) {
             throw new BusinessException("NOT_FOUND", "Resource not found");
+        }
+
+        if (relations != null) {
+            relationService.populateSingleResourceRelations(result, relations);
         }
 
         return result;
@@ -352,8 +380,9 @@ public class ResourceService<U extends UpsertRequest, E extends Resource> {
      * @param resultContentClass: the class of the entity
      * @return an entity page
      */
-    public Page<E> list(Query query, Class<E> resultContentClass) {
-        var resources = resourceRepository.listByTenantAndType(query.getTenant(), resultContentClass, query);
+
+    public Page<E> list(Query query) {
+        var resources = resourceRepository.listByTenantAndType(query.getTenant(), getEntityClass(), query);
         var relationNames = query.getRelations();
         if (relationNames != null) {
             relationService.populateRelations(resources, relationNames);

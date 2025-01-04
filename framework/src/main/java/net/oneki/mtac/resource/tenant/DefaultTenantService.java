@@ -34,6 +34,16 @@ public class DefaultTenantService extends ResourceService<UpsertRequest, Tenant>
         deleteByIdsUnsecure(links);
 
         // delete tenant
-        deleteById(tenantId, Tenant.class);
+        deleteById(tenantId);
+    }
+
+    @Override
+    public Class<Tenant> getEntityClass() {
+        return Tenant.class;
+    }
+
+    @Override
+    public Class<UpsertRequest> getRequestClass() {
+        return UpsertRequest.class;
     }
 }

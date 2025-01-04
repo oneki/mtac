@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ser.BeanSerializerModifier;
 
 import net.oneki.mtac.core.resource.Ref;
 import net.oneki.mtac.core.util.cache.ResourceRegistry;
+import net.oneki.mtac.core.util.json.view.External;
 
 public class EntityToDbSerializerModifier extends BeanSerializerModifier {
 
@@ -29,7 +30,7 @@ public class EntityToDbSerializerModifier extends BeanSerializerModifier {
             var it = beanProperties.iterator();
             while (it.hasNext()) {
                 BeanPropertyWriter writer = it.next();
-                if (skipFields.contains(writer.getName())) {
+                if (skipFields.contains(writer.getName()) || JsonUtil.hasView(writer.getViews(), External.class)) {
                     it.remove();
                 }
             } 

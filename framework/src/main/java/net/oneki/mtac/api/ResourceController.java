@@ -66,12 +66,12 @@ public abstract class ResourceController<U extends UpsertRequest, R extends Reso
     }
 
     public R create(@RequestBody U request) {
-        var result = getService().create(request, getResourceClass());
+        var result = getService().create(request);
         return result;
     }
 
     public void deleteByUrn(@PathVariable("urn") String urn) {
-        getService().deleteByUrn(urn, getResourceClass());
+        getService().deleteByUrn(urn);
     }
 
     protected String getApiPath() {

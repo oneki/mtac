@@ -17,7 +17,7 @@ import net.oneki.mtac.resource.ResourceService;
 import net.oneki.mtac.resource.iam.identity.group.GroupMembershipRepository;
 import net.oneki.mtac.resource.iam.identity.group.GroupRepository;
 
-@Service
+@Service("mtacUserService")
 @RequiredArgsConstructor
 public class UserService extends ResourceService<UserUpsertRequest, User> {
   private final UserRepository userRepository;
@@ -27,6 +27,16 @@ public class UserService extends ResourceService<UserUpsertRequest, User> {
   private final TenantRepository tenantRepository;
   private final JwtTokenService tokenService;
   private final ResourceRepository resourceRepository;
+
+  @Override
+  public Class<User> getEntityClass() {
+    return User.class;
+  }
+
+  @Override
+  public Class<UserUpsertRequest> getRequestClass() {
+    return UserUpsertRequest.class;
+  }
 
   public User getByLabel(String tenantLabel, String userLabel) {
     return resourceRepository.getByLabel(userLabel, tenantLabel, User.class);
@@ -52,7 +62,7 @@ public class UserService extends ResourceService<UserUpsertRequest, User> {
   }
 
   public User create(UserUpsertRequest request) {
-    var userEntity = toCreateEntity(request, User.class);
+    var userEntity = toCreateEntity(request);
     if (userEntity.getPassword() == null) {
       throw new BusinessException("INVALID_PASSWORD", "Password cannot be blank");
     }
@@ -62,7 +72,7 @@ public class UserService extends ResourceService<UserUpsertRequest, User> {
   }
 
   public User update(String urn, UserUpsertRequest request) {
-    var userEntity = toUpdateEntity(urn, request, User.class);
+    var userEntity = toUpdateEntity(urn, request);
     if (request.getPassword() != null) {
       userEntity.setPassword(passwordEncoder.encode(request.getPassword()));
     }

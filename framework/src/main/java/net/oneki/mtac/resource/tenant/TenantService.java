@@ -13,7 +13,7 @@ import net.oneki.mtac.resource.UpsertRequest;
 import net.oneki.mtac.resource.iam.tenant.Tenant;
 
 @Service
-public class TenantService<U extends UpsertRequest, E extends Tenant> extends ResourceService<U, E> {
+public abstract class TenantService<U extends UpsertRequest, E extends Tenant> extends ResourceService<U, E> {
     @Autowired protected ResourceRepository resourceRepository;
 
     @Override

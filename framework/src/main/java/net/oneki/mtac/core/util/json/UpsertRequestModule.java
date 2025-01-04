@@ -17,8 +17,9 @@ import com.fasterxml.jackson.databind.ser.BeanPropertyWriter;
 import com.fasterxml.jackson.databind.ser.BeanSerializerModifier;
 
 import net.oneki.mtac.core.resource.Ref;
+import net.oneki.mtac.core.util.json.view.Internal;
+import net.oneki.mtac.resource.DefaultResourceService;
 import net.oneki.mtac.resource.Resource;
-import net.oneki.mtac.resource.ResourceService;
 import net.oneki.mtac.resource.UpsertRequest;
 
 @Component
@@ -27,7 +28,7 @@ public class UpsertRequestModule extends SimpleModule {
     // private final static Set<String> metadataFields = Set.of("createdAt", "updatedAt", "createdBy", "updatedBy", "urn");
     // private final static MetadataNameTransformer metadataNameTransformer = new MetadataNameTransformer();
     @Autowired
-    public UpsertRequestModule(ResourceService resourceService) {
+    public UpsertRequestModule(DefaultResourceService resourceService) {
         super();
         setDeserializerModifier(new BeanDeserializerModifier() {
             @Override
@@ -63,7 +64,7 @@ public class UpsertRequestModule extends SimpleModule {
                         Ref.class.isAssignableFrom(beanDesc.getBeanClass())) {
                     var result = new ArrayList<BeanPropertyWriter>();
                     for (BeanPropertyWriter writer : beanProperties) {
-                        if (skipFields.contains(writer.getName())) {
+                        if (skipFields.contains(writer.getName()) || JsonUtil.hasView(writer.getViews(), Internal.class)) {
                             continue;
                         // } else if (metadataFields.contains(writer.getName())) {
                         //     result.add(writer.rename(metadataNameTransformer));

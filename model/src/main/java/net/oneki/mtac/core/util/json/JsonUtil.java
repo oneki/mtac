@@ -33,6 +33,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import net.oneki.mtac.core.util.ByteUtil;
+import net.oneki.mtac.core.util.json.view.Internal;
 
 /**
  * JsonUtil
@@ -198,6 +199,14 @@ public class JsonUtil {
         writer.writeValue(os, obj);
     }
 
-    
+    public static boolean hasView(Class<?>[] views, Class<?> view) {
+        if (views == null) return false;
+        for (var candidate : views) {
+            if (candidate.equals(view)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
 }

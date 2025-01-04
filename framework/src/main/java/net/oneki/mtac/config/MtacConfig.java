@@ -21,7 +21,7 @@ public class MtacConfig {
     @Bean
     @Primary
     public ObjectMapper mapper(UpsertRequestModule upsertRequestModule) {
-        return JsonMapper.builder()
+        var mapper =  JsonMapper.builder()
                 .enable(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY)
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
                 .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
@@ -29,6 +29,7 @@ public class MtacConfig {
                 .addModule(upsertRequestModule)
                 .addModule(new JavaTimeModule())
                 .build();
+        return mapper;
     }
 
     @Bean

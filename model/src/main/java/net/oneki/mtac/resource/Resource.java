@@ -22,7 +22,7 @@ import net.oneki.mtac.core.security.Acl;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-@SuperBuilder
+@SuperBuilder(toBuilder=true)
 public abstract class Resource implements HasLabel, HasId, HasSchema {
 	/*
 	 * Internal id of the resource. Auto generated during the first insertion in the DB
