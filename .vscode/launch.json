@@ -1,0 +1,14 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "[Local] MTAC Tester",
+            "request": "launch",
+            "mainClass": "net.oneki.mtac.test.TestApplication",
+            "projectName": "mtac-test",
+            "env": {
+                "JAVA_TOOL_OPTIONS": "-Dspring.profiles.active=local -Xms256m -Xmx512m"
+            }
+        }
+    ]
+}

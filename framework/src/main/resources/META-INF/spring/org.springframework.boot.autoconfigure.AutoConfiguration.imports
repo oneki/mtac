@@ -1,4 +1,3 @@
-net.oneki.mtac.config.MtacConfig
-net.oneki.mtac.config.EntityConfig
-net.oneki.mtac.config.IssuerConfig
-net.oneki.mtac.config.OpenIdConfig
+net.oneki.mtac.framework.config.FrameworkConfig
+net.oneki.mtac.framework.config.IssuerConfig
+net.oneki.mtac.framework.config.EntityConfig

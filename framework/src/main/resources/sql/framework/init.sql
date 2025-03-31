@@ -9,9 +9,9 @@
 -- 
 -- object: registry | type: DATABASE --
 -- DROP DATABASE IF EXISTS registry;
-CREATE DATABASE registry
-	TABLESPACE = pg_default
-	OWNER = postgres;
+-- CREATE DATABASE registry
+-- 	TABLESPACE = pg_default
+-- 	OWNER = postgres;
 -- ddl-end --
 
 -- Appended SQL commands --
@@ -1373,11 +1373,12 @@ USING btree
 -- DROP TABLE IF EXISTS public.resource CASCADE;
 CREATE TABLE public.resource (
 	id integer NOT NULL DEFAULT nextval('public.resource_id_seq'::regclass),
-	urn uuid NOT NULL,
+	urn varchar NOT NULL,
 	label varchar(255) NOT NULL,
 	pub bool DEFAULT false,
 	tenant_id integer,
 	link_id integer,
+	link_type smallint DEFAULT 0,
 	schema_id integer,
 	type smallint DEFAULT 4,
 	content jsonb,
@@ -1385,10 +1386,13 @@ CREATE TABLE public.resource (
 	updated_at timestamp with time zone,
 	created_by varchar(255),
 	updated_by varchar(255),
-	CONSTRAINT resource_pk PRIMARY KEY (id)
+	CONSTRAINT resource_pk PRIMARY KEY (id),
+	CONSTRAINT resource_urn_unique UNIQUE (urn)
 );
 -- ddl-end --
-COMMENT ON COLUMN public.resource.urn IS E'The ID visible externally. This is a UUID to improve the security';
+COMMENT ON COLUMN public.resource.urn IS E'The ID visible externally. The format of the URL is: urn:<tenant>:<schema>:<label>';
+-- ddl-end --
+COMMENT ON COLUMN public.resource.link_type IS E'0=normal,1=ref';
 -- ddl-end --
 ALTER TABLE public.resource OWNER TO postgres;
 -- ddl-end --
@@ -1620,12 +1624,12 @@ BEGIN
         SELECT * FROM temp_resource_fields
     LOOP  
         UPDATE resource r
-        SET    content =jsonb_set(content, ('{' ||r2.field_label  || ',' || r2.pos || ',label}')::text[],to_jsonb(NEW.label))
+        SET    content =jsonb_set(content, ('{' ||r2.field_label  || ',' || r2.pos || ',@l}')::text[],to_jsonb(NEW.label))
         FROM (
           SELECT   r.id, ordinality - 1 AS pos, record.field_label as field_label
           FROM     resource r, jsonb_array_elements(r.content->record.field_label) with ordinality
           WHERE r.schema_id = record.schema_id
-                AND (value->>'label')::text = OLD.label
+                AND (value->>'@l')::text = OLD.label
                 AND record.multiple is TRUE
           ) r2
         WHERE r2.id = r.id;
@@ -1636,13 +1640,13 @@ BEGIN
         SELECT * FROM temp_resource_fields
     LOOP  
         UPDATE resource r
-        SET    content = jsonb_set(r.content, ('{' || record.field_label  || ',label}')::text[], to_jsonb(NEW.label))
+        SET    content = jsonb_set(r.content, ('{' || record.field_label  || ',@l}')::text[], to_jsonb(NEW.label))
         FROM (
           SELECT   r.id
           FROM     resource r, jsonb_each(r.content) fields
           WHERE r.schema_id = record.schema_id
 			    AND fields.key = record.field_label
-                AND (fields.value->>'label')::text = OLD.label
+                AND (fields.value->>'@l')::text = OLD.label
                 AND record.multiple is NOT TRUE
           ) r2
         WHERE r2.id = r.id;           
@@ -1919,13 +1923,13 @@ WITH SCHEMA public;
 CREATE INDEX resource_label_gin_index ON public.resource
 USING gin
 (
-	(label gin_trgm_ops)
+	label gin_trgm_ops
 );
 -- ddl-end --
 
--- object: resource_urn_idx | type: INDEX --
--- DROP INDEX IF EXISTS public.resource_urn_idx CASCADE;
-CREATE UNIQUE INDEX resource_urn_idx ON public.resource
+-- object: resource_public_id_idx | type: INDEX --
+-- DROP INDEX IF EXISTS public.resource_public_id_idx CASCADE;
+CREATE UNIQUE INDEX resource_public_id_idx ON public.resource
 USING btree
 (
 	urn
@@ -2251,10 +2255,10 @@ BEGIN
       SET        content = (
                 CASE
                       WHEN r.content->record.peer_label IS NOT NULL AND record.peer_multiple IS TRUE
-                      THEN jsonb_insert(r.content, ('{' || record.peer_label || ', 0}')::text[], json_build_object('id', NEW.id, 'publicId', NEW.urn, 'schema', record.schema_label, 'label', NEW.label )::jsonb)
+                      THEN jsonb_insert(r.content, ('{' || record.peer_label || ', 0}')::text[], json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label )::jsonb)
                       WHEN r.content->record.peer_label  IS NULL AND record.peer_multiple IS TRUE
-                      THEN jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_array(json_build_object('id', NEW.id, 'publicId', NEW.urn, 'schema',record.schema_label, 'label', NEW.label ))::jsonb)
-                  ELSE jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_object('id', NEW.id, 'publicId', NEW.urn, 'schema',record.schema_label, 'label', NEW.label )::jsonb)
+                      THEN jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_array(json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label ))::jsonb)
+                  ELSE jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label )::jsonb)
                   END
               ), updated_by=NEW.updated_by, updated_at=NEW.updated_at
       WHERE   r.id IN ( SELECT 
@@ -2315,10 +2319,10 @@ BEGIN
       SET      content = (
                     CASE
                       WHEN r.content->record.peer_label IS NOT NULL AND record.peer_multiple IS TRUE
-                      THEN jsonb_insert(r.content, ('{' || record.peer_label || ', 0}')::text[], json_build_object('id', NEW.id, 'publicId', NEW.urn, 'schema', record.schema_label, 'label', NEW.label )::jsonb)
+                      THEN jsonb_insert(r.content, ('{' || record.peer_label || ', 0}')::text[], json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label )::jsonb)
                       WHEN r.content->record.peer_label  IS NULL AND record.peer_multiple IS TRUE
-                      THEN jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_array(json_build_object('id', NEW.id, 'publicId', NEW.urn, 'schema',record.schema_label, 'label', NEW.label ))::jsonb)
-                    ELSE jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_object('id', NEW.id, 'publicId', NEW.urn, 'schema',record.schema_label, 'label', NEW.label )::jsonb)
+                      THEN jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_array(json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label ))::jsonb)
+                    ELSE jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label )::jsonb)
                     END
               ), updated_by=NEW.created_by, updated_at=NEW.created_at
       WHERE r.id IN ( SELECT 
