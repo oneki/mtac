@@ -1,4 +1,4 @@
-package net.oneki.mtac.core.cache;
+package net.oneki.mtac.framework.cache;
 
 import java.util.List;
 import java.util.Map;
@@ -9,7 +9,6 @@ import org.springframework.stereotype.Component;
 import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
-import net.oneki.mtac.framework.cache.ResourceRegistry;
 import net.oneki.mtac.framework.query.Query;
 import net.oneki.mtac.framework.repository.InitRepository;
 import net.oneki.mtac.framework.repository.ResourceRepository;

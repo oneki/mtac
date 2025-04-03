@@ -2,17 +2,10 @@ package net.oneki.mtac.core.repository;
 
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.dao.EmptyResultDataAccessException;
-import org.springframework.jdbc.core.SingleColumnRowMapper;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.SqlParameterSource;
-import org.springframework.jdbc.support.GeneratedKeyHolder;
-import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -98,7 +91,7 @@ public class ResourceRepository extends AbstractRepository {
 
     // ------------------------------------------------- UPDATE
 
-    public <T extends Resource> Mono<Void> update(T resource) {
+    public <T extends Resource> Mono<T> update(T resource) {
 
         Map<String, Object> parameters = SqlUtils.getPropertySqlParameters(resource);
         try {
@@ -114,7 +107,7 @@ public class ResourceRepository extends AbstractRepository {
                             .bindValues(parameters)
                             .fetch()
                             .first()
-                            .then();
+                            .then(Mono.just(resource));
                 });
     }
 

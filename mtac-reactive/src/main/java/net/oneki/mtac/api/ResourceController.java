@@ -16,6 +16,7 @@ import net.oneki.mtac.model.core.util.StringUtils;
 import net.oneki.mtac.model.resource.Resource;
 import net.oneki.mtac.model.resource.UpsertRequest;
 import net.oneki.mtac.resource.ResourceService;
+import reactor.core.publisher.Mono;
 
 public abstract class ResourceController<U extends UpsertRequest, R extends Resource, S extends ResourceService<U, R>> {
 
@@ -61,7 +62,7 @@ public abstract class ResourceController<U extends UpsertRequest, R extends Reso
         );         
     }
 
-    public R getByLabelOrUrn(@PathVariable("label_or_urn") String labelOrUrn) {
+    public Mono<R> getByLabelOrUrn(@PathVariable("label_or_urn") String labelOrUrn) {
         return resourceRepository.getByLabelOrUrn(labelOrUrn, getResourceClass());
     }
 

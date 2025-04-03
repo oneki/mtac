@@ -14,6 +14,7 @@ import net.oneki.mtac.model.core.util.security.PropertyPath;
 import net.oneki.mtac.model.resource.Resource;
 import net.oneki.mtac.model.resource.iam.Role;
 import net.oneki.mtac.resource.iam.RoleRepository;
+import reactor.core.publisher.Mono;
 
 @Service
 @RequiredArgsConstructor
@@ -75,36 +76,36 @@ public class PermissionService {
     private final RoleRepository roleRepository;
     private final AceRepository aceRepository;
 
-    public void addPermission(String roleName, Integer resourceId, Integer identityId) {
+    public Mono<Void> addPermission(String roleName, Integer resourceId, Integer identityId) {
         var role = resourceRepository.getByUniqueLabel(roleName, Role.class);
         if (role == null) {
             throw new BusinessException("ROLE_NOT_FOUND", "The role with label " + roleName + " doesn't exist.");
         }
-        addPermission(role.getId(), resourceId, identityId);
+        return addPermission(role.block().getId(), resourceId, identityId);
     }
 
-    public void addPermissionUnsecure(String roleName, Integer resourceId, Integer identityId) {
+    public Mono<Void> addPermissionUnsecure(String roleName, Integer resourceId, Integer identityId) {
         var role = resourceRepository.getByUniqueLabelUnsecure(roleName, Role.class);
         if (role == null) {
             throw new BusinessException("ROLE_NOT_FOUND", "The role with label " + roleName + " doesn't exist.");
         }
-        addPermission(role.getId(), resourceId, identityId);
+        return addPermission(role.block().getId(), resourceId, identityId);
     }
 
-    public void addPermission(Integer roleId, Integer resourceId, Integer identityId) {
-        aceRepository.create(roleId, resourceId, identityId);
+    public Mono<Void> addPermission(Integer roleId, Integer resourceId, Integer identityId) {
+        return aceRepository.create(roleId, resourceId, identityId);
     }
 
-    public boolean hasPermission(Ref resourceRef, String permission) {
+    public Mono<Boolean> hasPermission(Ref resourceRef, String permission) {
         var resource = resourceRepository.getById(resourceRef.getId(), Resource.class);
         return hasPermission(resource, permission);
     }
 
-    public boolean hasPermission(String label, String tenantLabel, String schemaLabel, String permission) {
+    public Mono<Boolean> hasPermission(String label, String tenantLabel, String schemaLabel, String permission) {
         return hasPermission(label, tenantLabel, Resource.class, permission);
     }
 
-    public boolean hasPermission(String label, String tenantLabel, Class<? extends Resource> resourceClass,
+    public Mono<Boolean> hasPermission(String label, String tenantLabel, Class<? extends Resource> resourceClass,
             String permission) {
         var resource = resourceRepository.getByLabel(label, tenantLabel, resourceClass);
         return hasPermission(resource, permission);
@@ -114,7 +115,7 @@ public class PermissionService {
      * Check if the current user has the given permission on the given resource
      * Example of permission: "create", "reboot_cp"
      */
-    public boolean hasPermission(int resourceId, String permission) {
+    public Mono<Boolean> hasPermission(int resourceId, String permission) {
         // getById checks if the resource exists and if the user has access to it based
         // on the type of the resource (= coarse grain)
         // Example: Does the user has access to the resource "company1" of type
@@ -123,24 +124,31 @@ public class PermissionService {
         return hasPermission(resource, permission);
     }
 
-    public boolean hasPermission(Resource resource, String permission) {
+    public Mono<Boolean> hasPermission(Mono<? extends Resource> resource, String permission) {
         if (resource == null) {
-            return false;
+            return Mono.just(false);
         }
 
         // Now that we have access to the resource, we need to check what permission we
         // have on this resource
         // Example: Does the user has the permission "update" on the resource "company1"
         // of type "tenant.company"?
-        return hasPermissionByPath(resource.getAcl(), resource.getSchemaLabel(), permission);
+        return resource
+                .map(res -> {
+                    if (res.getAcl() == null) {
+                        return false;
+                    }
+                    return hasPermissionByPath(res.getAcl(), res.getSchemaLabel(), permission);
+                })
+                .switchIfEmpty(Mono.just(false));
     }
 
-    public boolean hasCreatePermission(String tenantLabel, Class<? extends Resource> resourceToCreateClass) {
+    public Mono<Boolean> hasCreatePermission(String tenantLabel, Class<? extends Resource> resourceToCreateClass) {
         var tenantId = ResourceRegistry.getTenantId(tenantLabel);
         return hasCreatePermission(tenantId, resourceToCreateClass);
     }
 
-    public boolean hasCreatePermission(String tenantLabel, String schemaLabel) {
+    public Mono<Boolean> hasCreatePermission(String tenantLabel, String schemaLabel) {
         var tenantId = ResourceRegistry.getTenantId(tenantLabel);
         return hasCreatePermission(tenantId, schemaLabel);
     }
@@ -157,12 +165,12 @@ public class PermissionService {
      * @param schemaLabel
      * @return
      */
-    public boolean hasCreatePermission(Integer tenantId, Class<? extends Resource> resourceToCreateClass) {
+    public Mono<Boolean> hasCreatePermission(Integer tenantId, Class<? extends Resource> resourceToCreateClass) {
         var schemaLabel = ResourceRegistry.getSchemaByClass(resourceToCreateClass);
         return hasCreatePermission(tenantId, schemaLabel);
     }
 
-    public boolean hasCreatePermission(Integer tenantId, String schemaLabel) {
+    public Mono<Boolean> hasCreatePermission(Integer tenantId, String schemaLabel) {
         if (schemaLabel == null) {
             throw new BusinessException("SCHEMA_NOT_FOUND",
                     "The schema with label " + schemaLabel + " doesnt't exist.");
@@ -175,7 +183,8 @@ public class PermissionService {
         var roles = roleRepository.listTenantRoles(tenantId);
         var permission = new PropertyPath(schemaLabel, "create"); // Example: "tenant.company|create"
 
-        for (var role : roles) {
+        return roles.any(role -> {
+            // Check if the role has the permission
             var propertyPaths = PropertyPath.of(role.getActions());
             if (propertyPaths != null) {
                 for (var propertyPath : propertyPaths) {
@@ -184,9 +193,8 @@ public class PermissionService {
                     }
                 }
             }
-        }
-
-        return false;
+            return false;
+        }).switchIfEmpty(Mono.just(false));
     }
 
     private boolean hasPermissionByPath(Acl acl, String schemaLabel, String permission) {

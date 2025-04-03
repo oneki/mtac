@@ -1,14 +1,8 @@
 package net.oneki.mtac.core.repository.framework;
 
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
-import javax.sql.DataSource;
-
-import org.springframework.jdbc.core.SingleColumnRowMapper;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,8 +10,7 @@ import net.oneki.mtac.model.core.resource.Ref;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-public abstract class AbstractJoinRepository<L extends Ref, R extends Ref> {
-	protected DatabaseClient db;
+public abstract class AbstractJoinRepository<L extends Ref, R extends Ref> extends AbstractRepository {
 	protected String insertSQL;
 	protected String deleteSQL;
 	protected String deleteSQLByLeft;
@@ -31,9 +24,7 @@ public abstract class AbstractJoinRepository<L extends Ref, R extends Ref> {
 
 	protected abstract String getTableName();
 
-	public AbstractJoinRepository(DatabaseClient db) {
-		this.db = db;
-	}
+
 
 	public Mono<Long> create(L leftEntity, R rightEntity) {
 		return db.sql(getInsertSql())
@@ -124,7 +115,7 @@ public abstract class AbstractJoinRepository<L extends Ref, R extends Ref> {
 	@Transactional
 	public Mono<Void> updateByLeft(L leftEntity, Set<R> rightEntities) {
 		var currentRightEntitiesId = listByLeft(leftEntity).block();
-		Flux.fromIterable(rightEntities)
+		return Flux.fromIterable(rightEntities)
 				.filter(rightEntity -> {
 					if (currentRightEntitiesId.contains(rightEntity.getId())) {
 						// nothing to do, we just remove the Id from the Set
@@ -140,10 +131,6 @@ public abstract class AbstractJoinRepository<L extends Ref, R extends Ref> {
 						// remove deprecated rightEntities
 						Flux.fromIterable(currentRightEntitiesId)
 								.flatMap(id -> delete(leftEntity, id)))
-				.then();
-
-		return Flux.fromIterable(currentRightEntitiesId)
-				.flatMap(id -> delete(leftEntity, id))
 				.then();
 	}
 
@@ -174,11 +161,11 @@ public abstract class AbstractJoinRepository<L extends Ref, R extends Ref> {
 	}
 
 	@Transactional
-	public void updateByRight(R rightEntity, Set<L> leftEntities) {
+	public Mono<Void> updateByRight(R rightEntity, Set<L> leftEntities) {
 		// same as updateByLeft but for rightEntity
 		// Set all current right Entities Id related to leftEntity
 		var currentLeftEntitiesId = listByRight(rightEntity).block();
-		Flux.fromIterable(leftEntities)
+		return Flux.fromIterable(leftEntities)
 				.filter(leftEntity -> {
 					if (currentLeftEntitiesId.contains(leftEntity.getId())) {
 						// nothing to do, we just remove the Id from the Set

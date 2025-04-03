@@ -25,6 +25,7 @@ import net.oneki.mtac.model.framework.Page;
 import net.oneki.mtac.model.resource.LinkType;
 import net.oneki.mtac.model.resource.Resource;
 import net.oneki.mtac.model.resource.UpsertRequest;
+import reactor.core.publisher.Mono;
 
 @RequiredArgsConstructor
 public abstract class ResourceService<U extends UpsertRequest, E extends Resource> {
@@ -56,28 +57,29 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
      * @param entityClass: The target entity class
      * @return The entity
      */
-    public E toCreateEntity(U request) {
+    public Mono<E> toCreateEntity(U request) {
         var entityClass = getEntityClass();
         try {
-            E entity = getMapperService().toEntity(request, entityClass.getDeclaredConstructor().newInstance());
-            if (!permissionService.hasCreatePermission(entity.getTenantLabel(),
-                    entity.getSchemaLabel())) {
-                throw new ForbiddenException(
-                        "The creation of the entity " + entityClass.getSimpleName() + " with label " + entity.getLabel()
-                                + " in tenant " + entity.getTenantLabel() + " is forbidden for user "
-                                + securityContext.getUsername());
-            }
-            entity.labelize();
+            final E entity = getMapperService().toEntity(request, entityClass.getDeclaredConstructor().newInstance());
+            return permissionService.hasCreatePermission(entity.getTenantLabel(), entity.getSchemaLabel())
+                .map(hasPermission -> {
+                    if (!hasPermission) {
+                        throw new ForbiddenException(
+                                "The creation of the entity " + entityClass.getSimpleName() + " with label " + entity.getLabel()
+                                        + " in tenant " + entity.getTenantLabel() + " is forbidden for user "
+                                        + securityContext.getUsername());
+                    }
+                    entity.labelize();
 
-            // check uniqueness
-            var uniqueInScope = ResourceRegistry.getUniqueInScope(entityClass);
-            if (!resourceRepository.isUnique(entity.getLabel(), entity.getTenantLabel(), entityClass, uniqueInScope)) {
-                throw new BusinessException("RESOURCE_ALREADY_EXISTS",
-                        "Resource with label " + entity.getLabel() + " already exists");
-            }
-            return entity;
-        } catch (BusinessException e) {
-            throw e;
+                    // check uniqueness
+                    var uniqueInScope = ResourceRegistry.getUniqueInScope(entityClass);
+                    if (!resourceRepository.isUnique(entity.getLabel(), entity.getTenantLabel(), entityClass, uniqueInScope)) {
+                        throw new BusinessException("RESOURCE_ALREADY_EXISTS",
+                                "Resource with label " + entity.getLabel() + " already exists");
+                    }
+                    return entity;
+                });
+            
         } catch (Exception e) {
             throw new BusinessException("INTERNAL_ERROR",
                     "Error creating entity " + entityClass.getSimpleName() + ": " + e.getMessage(), e);
@@ -99,25 +101,27 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
      * @param entityClass: The target entity class
      * @return The entity
      */
-    public E toUpdateEntity(String urn, U request) {
+    public Mono<E> toUpdateEntity(String urn, U request) {
         var entityClass = getEntityClass();
         try {
             var urnRecord = Urn.of(urn);
-            E entity = resourceRepository.getByLabel(urnRecord.label(), urnRecord.tenant(), entityClass);
-            if (entity == null) {
-                throw new NotFoundException(
-                        "Cannot find resource with tenant" + urnRecord.tenant() + ", schema " + entityClass.getSimpleName()
-                                + " and label " + urnRecord.label());
-            }
-
-            entity = getMapperService().toEntity(request, entity);
-            if (!permissionService.hasPermission(entity, "update")) {
-                throw new ForbiddenException(
-                        "The update of the entity " + entityClass.getSimpleName() + " with label " + entity.getLabel()
-                                + " in tenant " + entity.getTenantLabel() + " is forbidden for user "
-                                + securityContext.getUsername());
-            }
-            return entity;
+            return resourceRepository.getByLabel(urnRecord.label(), urnRecord.tenant(), entityClass)
+                .switchIfEmpty(Mono.error(new NotFoundException("Cannot find resource with tenant" + urnRecord.tenant() + ", schema " + entityClass.getSimpleName()
+                                + " and label " + urnRecord.label())))
+                .flatMap(entity -> { 
+                    final var result = getMapperService().toEntity(request, entity);
+                    return permissionService.hasPermission(Mono.just(result), "update")
+                        .map(hasPermission -> {
+                            if (!hasPermission) {
+                                throw new ForbiddenException(
+                                        "The update of the entity " + entityClass.getSimpleName() + " with label " + urnRecord.label()
+                                                + " in tenant " + urnRecord.tenant() + " is forbidden for user "
+                                                + securityContext.getUsername());
+                            }
+                            return result;
+                        });
+                });
+            
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
@@ -160,9 +164,11 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
     //     return create(resourceEntity);
     // }
 
-    public E create (U request) {
-        E entity = toCreateEntity(request);
-        return create(entity);
+    public Mono<E> create (U request) {
+        return toCreateEntity(request)
+            .flatMap(entity -> {
+                return create(entity);
+            });
     }
 
    /**
@@ -174,7 +180,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
      * @param resourceEntity: The entity to persist
      * @return The entity containing the auto generated id
      */
-    public E create(E resourceEntity) {
+    public Mono<E> create(E resourceEntity) {
         if (resourceEntity.getTenantId() != null) {
             R.inject(resourceEntity, resourceEntity.getTenantId());
         } else if (resourceEntity.getTenantLabel() != null) {
@@ -345,10 +351,10 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
      * @param resultContentClass: the class of the entity
      * @return the entity
      */
-    public E getByLabel(String label, String tenantLabel) {
+    public Mono<E> getByLabel(String label, String tenantLabel) {
         return getByLabel(label, tenantLabel, null);
     }
-    public E getByLabel(String label, String tenantLabel, Set<String> relations) {
+    public Mono<E> getByLabel(String label, String tenantLabel, Set<String> relations) {
         E result = resourceRepository.getByLabel(label, tenantLabel, getEntityClass());
         if (result == null) {
             throw new BusinessException("NOT_FOUND", "Resource not found");
@@ -361,10 +367,10 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
         return result;
     }
 
-    public E getByLabelOrUrn(String label) {
+    public Mono<E> getByLabelOrUrn(String label) {
         return getByLabelOrUrn(label, null);
     }
-    public E getByLabelOrUrn(String label, Set<String> relations) {
+    public Mono<E> getByLabelOrUrn(String label, Set<String> relations) {
         E result = resourceRepository.getByLabelOrUrn(label, getEntityClass());
         if (result == null) {
             throw new BusinessException("NOT_FOUND", "Resource not found");

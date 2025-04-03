@@ -1,24 +1,27 @@
 package net.oneki.mtac.resource.iam.identity.group;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
-import org.springframework.jdbc.core.SingleColumnRowMapper;
 import org.springframework.stereotype.Repository;
 
 import net.oneki.mtac.core.repository.framework.AbstractRepository;
-import net.oneki.mtac.framework.util.sql.SqlUtils;
+import net.oneki.mtac.core.util.sql.ReactiveSqlUtils;
+import reactor.core.publisher.Mono;
 
 @Repository
 public class GroupRepository extends AbstractRepository {
 
-    public Set<Integer> listNestedGroupSidsUnsecure(Set<Integer> groupSids) {
-        String sql = SqlUtils.getSQL("group/group_sids.sql");
-        Map<String, Object> args = new HashMap<>();
-        args.put("groupIds", groupSids);
-        return new HashSet<>(jdbcTemplate.query(sql, args, new SingleColumnRowMapper<Integer>()));
+    public Mono<Set<Integer>> listNestedGroupSidsUnsecure(Set<Integer> groupSids) {
+        return ReactiveSqlUtils.getReactiveSQL("group/group_sids.sql")
+            .flatMapMany(sql -> {
+                return db.sql(sql)
+                    .bind("groupIds", groupSids)
+                    .fetch()
+                    .all()
+                    .map(row -> (Integer) row.get("group_id")); 
+            })
+            .collect(Collectors.toSet());
 
     }
 }

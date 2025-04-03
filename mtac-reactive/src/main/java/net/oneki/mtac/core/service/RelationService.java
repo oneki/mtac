@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.core.repository.ResourceRepository;
+import net.oneki.mtac.core.util.ReactiveUtils;
 import net.oneki.mtac.framework.cache.ResourceRegistry;
 import net.oneki.mtac.framework.introspect.ResourceField;
 import net.oneki.mtac.framework.util.resource.ResourceUtils;
@@ -23,14 +24,25 @@ import net.oneki.mtac.model.framework.RelationLabel;
 import net.oneki.mtac.model.framework.RelationRefs;
 import net.oneki.mtac.model.framework.Relations;
 import net.oneki.mtac.model.resource.Resource;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @Service
 @RequiredArgsConstructor
 public class RelationService {
 	private final ResourceRepository resourceRepository;
 
+	public <T extends HasSchema> Mono<T> populateSingleResourceRelations(Mono<T> resource, Set<String> relationNames) {
+		return Mono.just(populateRelations(List.of(resource.block()), relationNames).get(0));
+	}
+
 	public <T extends HasSchema> T populateSingleResourceRelations(T resource, Set<String> relationNames) {
 		return populateRelations(List.of(resource), relationNames).get(0);
+	}
+
+	public <T extends HasSchema> Flux<T> populateRelations(Flux<T> resources, Set<String> relationNames) {
+		var result = populateRelations(resources.collectList().block(), relationNames);
+		return Flux.fromIterable(result);
 	}
 
 	public <T extends HasSchema> List<T> populateRelations(List<T> resources, Set<String> relationNames) {
@@ -144,7 +156,7 @@ public class RelationService {
 			var relations = new ArrayList<Resource>();
 
 			if (relationsRefs.getIds().size() > 0) {
-				var relationsById = resourceRepository.listbyIds(new HashSet<>(relationsRefs.getIds()));
+				var relationsById = resourceRepository.listbyIds(new HashSet<>(relationsRefs.getIds())).collectList().block();
 				for (Resource relation : relationsById) {
 					result.putId(relation.getId(), relation);
 					// if (relation.getLinkId() != null && result.getResourceEntityById(relation.getLinkId()) == null) {
@@ -156,7 +168,7 @@ public class RelationService {
 
 			for (var relationRef : relationsRefs.getLabels()) {
 				
-				var relation = resourceRepository.getByLabel(relationRef.getLabel(), relationRef.getTenantLabel(), relationRef.getSchema());
+				var relation = resourceRepository.getByLabel(relationRef.getLabel(), relationRef.getTenantLabel(), relationRef.getSchema()).block();
 				if (relation != null) {
 					result.putLabel(relationRef, relation);
 					relations.add(relation);

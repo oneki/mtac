@@ -8,42 +8,52 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.core.repository.framework.BaseRepository;
+import net.oneki.mtac.core.util.sql.ReactiveSqlUtils;
 import net.oneki.mtac.framework.util.sql.SqlUtils;
 import net.oneki.mtac.model.core.resource.Ref;
 import net.oneki.mtac.model.resource.Resource;
 import net.oneki.mtac.model.resource.iam.identity.user.User;
 import net.oneki.mtac.resource.iam.identity.group.GroupMembershipRepository;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @Repository
 @RequiredArgsConstructor
 public class UserRepository extends BaseRepository<User> {
     protected final GroupMembershipRepository groupMembershipRepository;
     
-    public User getUserUnsecure(String username) {
-        var sql = SqlUtils.getSQL("user/user_get_by_label_unsecure.sql");
+    public Mono<User> getUserUnsecure(String username) {
+        var sql = ReactiveSqlUtils.getReactiveSQL("user/user_get_by_label_unsecure.sql");
         return resourceRepository.getByLabel(username, null, User.class, sql);
     }
 
     // Create a new user
     @Transactional
-    public User create(User userEntity) {
-        final var result =  resourceRepository.create(userEntity);
-        userEntity.getMemberOf().forEach(group -> {
-            groupMembershipRepository.create(group.toRef(), userEntity.toRef());
-        });
-
-        return result;
+    public Mono<User> create(User userEntity) {
+        return resourceRepository.create(userEntity)
+            .doOnNext(user -> {
+                Flux.fromIterable(userEntity.getMemberOf())
+                    .flatMap(group -> {
+                        return groupMembershipRepository.create(group.toRef(), userEntity.toRef());
+                    })
+                    .subscribe();
+            });
     }
 
     // update user
-    public User update(User userEntity) {
-        var groups = userEntity.getMemberOf();
-        resourceRepository.update(userEntity);
-        if (groups != null) {
-            Set<Ref> groupsRef = groups.stream().map(Resource::toRef).collect(Collectors.toSet());
-            groupMembershipRepository.updateByRight(userEntity.toRef(), groupsRef);
-        }
-        return userEntity;
+    public Mono<User> update(User userEntity) {
+        final var groups = userEntity.getMemberOf();
+        final var groupsRef = groups.stream().map(Resource::toRef).collect(Collectors.toSet());
+        return resourceRepository.update(userEntity)
+            .doOnNext(user -> {
+                if (groups != null) {
+                    Flux.fromIterable(groups)
+                        .flatMap(group -> {
+                            return groupMembershipRepository.updateByRight(userEntity.toRef(), groupsRef);
+                        })
+                        .subscribe();
+                }
+            });
     }
 
     @Override

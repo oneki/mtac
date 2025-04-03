@@ -11,6 +11,7 @@ import net.oneki.mtac.core.service.security.PermissionService;
 import net.oneki.mtac.framework.service.JwtTokenService;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
 import net.oneki.mtac.resource.iam.identity.user.UserService;
+import reactor.core.publisher.Mono;
 
 @RequiredArgsConstructor
 public class PermissionController {
@@ -20,7 +21,7 @@ public class PermissionController {
     protected final PermissionService permissionService;
     
     @RequestMapping(value = "/permissions/id/{resourceId}", method = RequestMethod.HEAD)
-    public ResponseEntity<Void> hasPermission(
+    public Mono<ResponseEntity<Void>> hasPermission(
         @PathVariable Integer resourceId, 
         @RequestParam(required = true) String permission
     ) {
@@ -28,15 +29,18 @@ public class PermissionController {
             throw new BusinessException("INVALID_PERMISSION", "The permission create is not supported by this API. Use /create-permissions instead");
         }
 
-        if (permissionService.hasPermission(resourceId, permission)) {
-            return ResponseEntity.ok().build();
-        } else {
-            return ResponseEntity.status(403).build();
-        }
+        return permissionService.hasPermission(resourceId, permission)
+            .map(hasPermission -> {
+                if (hasPermission) {
+                    return ResponseEntity.ok().build();
+                } else {
+                    return ResponseEntity.status(403).build();
+                }
+            });
     }
 
     @RequestMapping(value = "/permissions/label/{tenantLabel}/{schemaLabel}/{resourceLabel}", method = RequestMethod.HEAD)
-    public ResponseEntity<Void> hasPermission(
+    public Mono<ResponseEntity<Void>> hasPermission(
         @PathVariable String tenantLabel,
         @PathVariable String schemaLabel, 
         @PathVariable String resourceLabel, 
@@ -46,34 +50,43 @@ public class PermissionController {
             throw new BusinessException("INVALID_PERMISSION", "The permission create is not supported by this API. Use /create-permissions instead");
         }
 
-        if (permissionService.hasPermission(resourceLabel, tenantLabel, schemaLabel, permission)) {
-            return ResponseEntity.ok().build();
-        } else {
-            return ResponseEntity.status(403).build();
-        }
+        return permissionService.hasPermission(resourceLabel, tenantLabel, schemaLabel, permission)
+            .map(hasPermission -> {
+                if (hasPermission) {
+                    return ResponseEntity.ok().build();
+                } else {
+                    return ResponseEntity.status(403).build();
+                }
+            });
     }
 
     @RequestMapping(value = "/create-permissions/id/{tenantId}", method = RequestMethod.HEAD)
-    public ResponseEntity<Void> hasCreatePermission(
+    public Mono<ResponseEntity<Void>> hasCreatePermission(
         @PathVariable Integer tenantId, 
         @RequestParam(required = true) String schemaLabel
     ) {
-        if (permissionService.hasCreatePermission(tenantId, schemaLabel)) {
-            return ResponseEntity.ok().build();
-        } else {
-            return ResponseEntity.status(403).build();
-        }
+        return permissionService.hasCreatePermission(tenantId, schemaLabel)
+            .map(hasPermission -> {
+                if (hasPermission) {
+                    return ResponseEntity.ok().build();
+                } else {
+                    return ResponseEntity.status(403).build();
+                }
+            });
     }
 
     @RequestMapping(value = "/create-permissions/label/{tenantLabel}", method = RequestMethod.HEAD)
-    public ResponseEntity<Void> hasCreatePermission(
+    public Mono<ResponseEntity<Void>> hasCreatePermission(
         @PathVariable String tenantLabel, 
         @RequestParam(required = true) String schemaLabel
     ) {
-        if (permissionService.hasCreatePermission(tenantLabel, schemaLabel)) {
-            return ResponseEntity.ok().build();
-        } else {
-            return ResponseEntity.status(403).build();
-        }
+        return permissionService.hasCreatePermission(tenantLabel, schemaLabel)
+            .map(hasPermission -> {
+                if (hasPermission) {
+                    return ResponseEntity.ok().build();
+                } else {
+                    return ResponseEntity.status(403).build();
+                }
+            });
     }
 }

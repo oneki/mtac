@@ -1,6 +1,5 @@
 package net.oneki.mtac.core.repository;
 
-import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.stereotype.Repository;
 
 import net.oneki.mtac.core.repository.framework.AbstractJoinRepository;
@@ -9,10 +8,6 @@ import net.oneki.mtac.model.core.resource.Ref;
 
 @Repository
 public class FieldSchemaRepository extends AbstractJoinRepository<Ref, Ref> {
-
-	public FieldSchemaRepository(DatabaseClient db) {
-		super(db);
-	}
 
 	@Override
 	protected String getLeftName() {

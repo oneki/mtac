@@ -19,6 +19,7 @@ import net.oneki.mtac.model.resource.iam.identity.user.UserUpsertRequest;
 import net.oneki.mtac.resource.ResourceService;
 import net.oneki.mtac.resource.iam.identity.group.GroupMembershipRepository;
 import net.oneki.mtac.resource.iam.identity.group.GroupRepository;
+import reactor.core.publisher.Mono;
 
 @Service("mtacUserService")
 @RequiredArgsConstructor
@@ -42,60 +43,72 @@ public class UserService extends ResourceService<UserUpsertRequest, User> {
     return UserUpsertRequest.class;
   }
 
-  public User getByLabel(String tenantLabel, String userLabel) {
+  public Mono<User> getByLabel(String tenantLabel, String userLabel) {
     return resourceRepository.getByLabel(userLabel, tenantLabel, User.class);
   }
 
-  public Map<String, Object> login(String username, String password) {
+  public Mono<Map<String, Object>> login(String username, String password) {
     if (password == null || password.equals("")) {
       throw new BusinessException("INVALID_PASSWORD", "Password cannot be blank");
     }
 
-    var user = userRepository.getUserUnsecure(username);
-    if (user == null || !passwordEncoder.matches(password, user.getPassword())) {
-      throw new BusinessException("INVALID_CREDENTIALS", "User/Password incorrect");
-    }
-    Set<Integer> sids = SetUtils.of(user.getId());
-    sids.addAll(listGroupSids(user));
-    var tenantSids = tenantRepository.listUserTenantSidsUnsecure(sids);
+    return userRepository.getUserUnsecure(username)
+        .switchIfEmpty(Mono.error(new BusinessException("INVALID_CREDENTIALS", "User/Password incorrect")))
+        .map(user -> {
+          if (user == null) {
+            throw new BusinessException("INVALID_CREDENTIALS", "User/Password incorrect");
+          }
+          Set<Integer> sids = SetUtils.of(user.getId());
+          sids.addAll(listGroupSids(user));
+          var tenantSids = tenantRepository.listUserTenantSidsUnsecure(sids);
 
-    return tokenService.generateExpiringToken(Map.of(
-        "sub", user.getLabel(),
-        "tenantSids", tenantSids,
-        "sids", sids));
-  }
-
-  public Map<String, Object> userinfo() {
-    var user = getByLabelOrUrn(securityContext.getUsername());
-    return Map.of(
-      "email", user.getEmail(),
-      "firstName", user.getFirstName(), 
-      "lastName", user.getLastName()
-    );
-  }
-
-  public User create(UserUpsertRequest request) {
-    var userEntity = toCreateEntity(request);
-    if (userEntity.getPassword() == null) {
-      throw new BusinessException("INVALID_PASSWORD", "Password cannot be blank");
-    }
-    userEntity.setPassword(passwordEncoder.encode(userEntity.getPassword()));
-    return userRepository.create(userEntity);
+          return tokenService.generateExpiringToken(Map.of(
+              "sub", user.getLabel(),
+              "tenantSids", tenantSids,
+              "sids", sids));
+        });
 
   }
 
-  public User update(String urn, UserUpsertRequest request) {
-    var userEntity = toUpdateEntity(urn, request);
-    if (request.getPassword() != null) {
-      userEntity.setPassword(passwordEncoder.encode(request.getPassword()));
-    }
-    return userRepository.update(userEntity);
+  public Mono<Map<String, Object>> userinfo() {
+    return getByLabelOrUrn(securityContext.getUsername())
+      .map(user -> {
+        return Map.of(
+            "email", user.getEmail(),
+            "firstName", user.getFirstName(),
+            "lastName", user.getLastName());
+      });
+  }
+
+  public Mono<User> create(UserUpsertRequest request) {
+    return toCreateEntity(request)
+        .doOnNext(user -> {
+          if (user.getPassword() == null) {
+            throw new BusinessException("INVALID_PASSWORD", "Password cannot be blank");
+          }
+        })
+        .flatMap(user -> {
+          user.setPassword(passwordEncoder.encode(user.getPassword()));
+          return userRepository.create(user);
+        });
+  }
+
+  public Mono<User> update(String urn, UserUpsertRequest request) {
+    return toUpdateEntity(urn, request)
+        .doOnNext(user -> {
+          if (request.getPassword() != null) {
+            user.setPassword(passwordEncoder.encode(request.getPassword()));
+          }
+        })
+        .flatMap(user -> {
+          return userRepository.update(user);
+        });
   }
 
   public Set<Integer> listGroupSids(@NonNull User user) {
-    Set<Integer> groupSids = groupMembershipRepository.listByRight(user.toRef());
+    Set<Integer> groupSids = groupMembershipRepository.listByRight(user.toRef()).block();
     if (groupSids.size() > 0) {
-      var nestedGroupSids = groupRepository.listNestedGroupSidsUnsecure(groupSids);
+      var nestedGroupSids = groupRepository.listNestedGroupSidsUnsecure(groupSids).block();
       groupSids.addAll(nestedGroupSids);
     }
     return groupSids;
