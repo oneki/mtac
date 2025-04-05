@@ -16,6 +16,7 @@ import net.oneki.mtac.framework.service.JwtTokenService;
 import net.oneki.mtac.model.core.openid.JwksResponse;
 import net.oneki.mtac.model.core.openid.LoginRequest;
 import net.oneki.mtac.resource.iam.identity.user.UserService;
+import reactor.core.publisher.Mono;
 
 @RequiredArgsConstructor
 public class OpenIdController {
@@ -73,17 +74,17 @@ public class OpenIdController {
 
     }
 
-    public Map<String, Object> auth(@RequestBody LoginRequest request) throws Exception {
+    public Mono<Map<String, Object>> auth(@RequestBody LoginRequest request) throws Exception {
         return userService.login(request.getClient_id(), request.getClient_secret());
     }
 
-    public Map<String, Object> auth(@RequestParam(value = "client_id", required = true) String client_id,
+    public Mono<Map<String, Object>> auth(@RequestParam(value = "client_id", required = true) String client_id,
             @RequestParam(value = "client_secret", required = true) String client_secret,
             @RequestParam(value = "grant_type", required = false) String grant_type) throws Exception {
         return userService.login(client_id, client_secret);
     }
 
-    public Map<String, Object> userinfo() throws Exception {
+    public Mono<Map<String, Object>> userinfo() throws Exception {
         return userService.userinfo();
     }
 

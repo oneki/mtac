@@ -11,30 +11,34 @@ import net.oneki.mtac.model.core.util.exception.BusinessException;
 import net.oneki.mtac.model.resource.UpsertRequest;
 import net.oneki.mtac.model.resource.iam.tenant.Tenant;
 import net.oneki.mtac.resource.ResourceService;
+import reactor.core.publisher.Mono;
 
 @Service
 @RequiredArgsConstructor
 public class DefaultTenantService extends ResourceService<UpsertRequest, Tenant> {
     private final ResourceRepository resourceRepository;
 
-    public void deleteTenant(Integer tenantId) {
-        var resources = resourceRepository.listByTenantUnsecure(tenantId, Query.builder()
-            .forceTenant(true) // we don't want to retrieve resource with pub=true
-            .build()
-        );
-        var links = resources.stream()
-            .filter(r -> r.isLink())
-            .map(r -> r.getLinkId())
-            .collect(Collectors.toList());
-        if (resources.size() >= links.size()) {
-            throw new BusinessException("BSN_TENANT_NOT_EMPTY", "Can't delete tenant with id:" + tenantId + " because it's not empty");
-        }
-
-        // unlink resources
-        deleteByIdsUnsecure(links);
-
-        // delete tenant
-        deleteById(tenantId);
+    public Mono<Void> deleteTenant(Integer tenantId) {
+       return resourceRepository.listByTenantUnsecure(tenantId, Query.builder()
+                .forceTenant(true) // we don't want to retrieve resource with pub=true
+                .build()
+            )
+            .collectList()
+            .map(resources -> {
+                var links = resources.stream()
+                    .filter(r -> r.isLink())
+                    .map(r -> r.getLinkId())
+                    .collect(Collectors.toList());
+                if (resources.size() >= links.size()) {
+                    throw new BusinessException("BSN_TENANT_NOT_EMPTY", "Can't delete tenant with id:" + tenantId + " because it's not empty");
+                }
+                return links;
+            })
+            .flatMap(links -> {
+                // unlink resources
+                return deleteByIdsUnsecure(links);
+            })
+            .then(deleteById(tenantId));
     }
 
     @Override

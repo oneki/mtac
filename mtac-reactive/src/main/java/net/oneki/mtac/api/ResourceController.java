@@ -66,13 +66,13 @@ public abstract class ResourceController<U extends UpsertRequest, R extends Reso
         return resourceRepository.getByLabelOrUrn(labelOrUrn, getResourceClass());
     }
 
-    public R create(@RequestBody U request) {
+    public Mono<R> create(@RequestBody U request) {
         var result = getService().create(request);
         return result;
     }
 
-    public void deleteByUrn(@PathVariable("urn") String urn) {
-        getService().deleteByUrn(urn);
+    public Mono<Void> deleteByUrn(@PathVariable("urn") String urn) {
+        return getService().deleteByUrn(urn);
     }
 
     protected String getApiPath() {
