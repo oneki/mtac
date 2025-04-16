@@ -4,7 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.api.ResourceController;
-import net.oneki.mtac.core.repository.ResourceRepository;
+import net.oneki.mtac.core.repository.ResourceReactiveRepository;
 import net.oneki.mtac.core.service.RelationService;
 import net.oneki.mtac.model.resource.iam.identity.user.User;
 import net.oneki.mtac.model.resource.iam.identity.user.UserUpsertRequest;
@@ -12,7 +12,7 @@ import net.oneki.mtac.model.resource.iam.identity.user.UserUpsertRequest;
 @RequiredArgsConstructor
 public class DefaultUserController extends ResourceController<UserUpsertRequest, User, UserService> {
     @Autowired private UserService userService;
-    private final ResourceRepository resourceRepository;
+    private final ResourceReactiveRepository resourceRepository;
     private final RelationService relationService;
     // private final UserRepository userRepository;
 

@@ -9,6 +9,16 @@
             "env": {
                 "JAVA_TOOL_OPTIONS": "-Dspring.profiles.active=local -Xms256m -Xmx512m"
             }
+        },
+        {
+            "type": "java",
+            "name": "[Local] MTAC Reactive Tester",
+            "request": "launch",
+            "mainClass": "net.oneki.mtac.reactive.test.MtacReativeTestApplication",
+            "projectName": "mtac-reactive-test",
+            "env": {
+                "JAVA_TOOL_OPTIONS": "-Dspring.profiles.active=local -Xms256m -Xmx512m"
+            }
         }
     ]
 }

@@ -7,12 +7,6 @@
 -- Database creation must be performed outside a multi lined SQL file. 
 -- These commands were put in this file only as a convenience.
 -- 
--- object: registry | type: DATABASE --
--- DROP DATABASE IF EXISTS registry;
--- CREATE DATABASE registry
--- 	TABLESPACE = pg_default
--- 	OWNER = postgres;
--- ddl-end --
 
 -- Appended SQL commands --
 SELECT now();
@@ -1624,12 +1618,12 @@ BEGIN
         SELECT * FROM temp_resource_fields
     LOOP  
         UPDATE resource r
-        SET    content =jsonb_set(content, ('{' ||r2.field_label  || ',' || r2.pos || ',@l}')::text[],to_jsonb(NEW.label))
+        SET    content =jsonb_set(content, ('{' ||r2.field_label  || ',' || r2.pos || ',$l}')::text[],to_jsonb(NEW.label))
         FROM (
           SELECT   r.id, ordinality - 1 AS pos, record.field_label as field_label
           FROM     resource r, jsonb_array_elements(r.content->record.field_label) with ordinality
           WHERE r.schema_id = record.schema_id
-                AND (value->>'@l')::text = OLD.label
+                AND (value->>'$l')::text = OLD.label
                 AND record.multiple is TRUE
           ) r2
         WHERE r2.id = r.id;
@@ -1640,13 +1634,13 @@ BEGIN
         SELECT * FROM temp_resource_fields
     LOOP  
         UPDATE resource r
-        SET    content = jsonb_set(r.content, ('{' || record.field_label  || ',@l}')::text[], to_jsonb(NEW.label))
+        SET    content = jsonb_set(r.content, ('{' || record.field_label  || ',$l}')::text[], to_jsonb(NEW.label))
         FROM (
           SELECT   r.id
           FROM     resource r, jsonb_each(r.content) fields
           WHERE r.schema_id = record.schema_id
 			    AND fields.key = record.field_label
-                AND (fields.value->>'@l')::text = OLD.label
+                AND (fields.value->>'$l')::text = OLD.label
                 AND record.multiple is NOT TRUE
           ) r2
         WHERE r2.id = r.id;           
@@ -2255,10 +2249,10 @@ BEGIN
       SET        content = (
                 CASE
                       WHEN r.content->record.peer_label IS NOT NULL AND record.peer_multiple IS TRUE
-                      THEN jsonb_insert(r.content, ('{' || record.peer_label || ', 0}')::text[], json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label )::jsonb)
+                      THEN jsonb_insert(r.content, ('{' || record.peer_label || ', 0}')::text[], json_build_object('id', NEW.id, '$s', NEW.schema_id, '$t', NEW.tenant_id, '$l', NEW.label )::jsonb)
                       WHEN r.content->record.peer_label  IS NULL AND record.peer_multiple IS TRUE
-                      THEN jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_array(json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label ))::jsonb)
-                  ELSE jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label )::jsonb)
+                      THEN jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_array(json_build_object('id', NEW.id, '$s', NEW.schema_id, '$t', NEW.tenant_id, '$l', NEW.label ))::jsonb)
+                  ELSE jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_object('id', NEW.id, '$s', NEW.schema_id, '$t', NEW.tenant_id, '$l', NEW.label )::jsonb)
                   END
               ), updated_by=NEW.updated_by, updated_at=NEW.updated_at
       WHERE   r.id IN ( SELECT 
@@ -2319,10 +2313,10 @@ BEGIN
       SET      content = (
                     CASE
                       WHEN r.content->record.peer_label IS NOT NULL AND record.peer_multiple IS TRUE
-                      THEN jsonb_insert(r.content, ('{' || record.peer_label || ', 0}')::text[], json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label )::jsonb)
+                      THEN jsonb_insert(r.content, ('{' || record.peer_label || ', 0}')::text[], json_build_object('id', NEW.id, '$s', NEW.schema_id, '$t', NEW.tenant_id, '$l', NEW.label )::jsonb)
                       WHEN r.content->record.peer_label  IS NULL AND record.peer_multiple IS TRUE
-                      THEN jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_array(json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label ))::jsonb)
-                    ELSE jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label )::jsonb)
+                      THEN jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_array(json_build_object('id', NEW.id, '$s', NEW.schema_id, '$t', NEW.tenant_id, '$l', NEW.label ))::jsonb)
+                    ELSE jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_object('id', NEW.id, '$s', NEW.schema_id, '$t', NEW.tenant_id, '$l', NEW.label )::jsonb)
                     END
               ), updated_by=NEW.created_by, updated_at=NEW.created_at
       WHERE r.id IN ( SELECT 

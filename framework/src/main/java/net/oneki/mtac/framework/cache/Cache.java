@@ -10,8 +10,8 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 import net.oneki.mtac.model.core.Constants;
+import net.oneki.mtac.model.resource.Tenant;
 import net.oneki.mtac.model.resource.iam.Role;
-import net.oneki.mtac.model.resource.iam.tenant.Tenant;
 import net.oneki.mtac.model.resource.schema.Schema;
 
 public class Cache {

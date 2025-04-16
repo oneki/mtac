@@ -1,5 +1,6 @@
 package net.oneki.mtac.core.repository;
 
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Repository;
 
 import net.oneki.mtac.core.repository.framework.AbstractJoinRepository;
@@ -7,7 +8,7 @@ import net.oneki.mtac.model.core.resource.Ref;
 
 
 @Repository
-public class FieldSchemaRepository extends AbstractJoinRepository<Ref, Ref> {
+public class FieldSchemaReactiveRepository extends AbstractJoinRepository<Ref, Ref> {
 
 	@Override
 	protected String getLeftName() {

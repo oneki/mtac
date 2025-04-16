@@ -14,8 +14,8 @@ import net.oneki.mtac.framework.repository.InitRepository;
 import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.framework.repository.SchemaDbSynchronizer;
 import net.oneki.mtac.framework.repository.SchemaRepository;
+import net.oneki.mtac.model.resource.Tenant;
 import net.oneki.mtac.model.resource.iam.Role;
-import net.oneki.mtac.model.resource.iam.tenant.Tenant;
 import net.oneki.mtac.model.resource.schema.Schema;
 
 @Data

@@ -12,8 +12,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
-import net.oneki.mtac.core.repository.ResourceRepository;
-import net.oneki.mtac.core.util.ReactiveUtils;
+import net.oneki.mtac.core.repository.ResourceReactiveRepository;
 import net.oneki.mtac.framework.cache.ResourceRegistry;
 import net.oneki.mtac.framework.introspect.ResourceField;
 import net.oneki.mtac.framework.util.resource.ResourceUtils;
@@ -30,7 +29,7 @@ import reactor.core.publisher.Mono;
 @Service
 @RequiredArgsConstructor
 public class RelationService {
-	private final ResourceRepository resourceRepository;
+	private final ResourceReactiveRepository resourceRepository;
 
 	public <T extends HasSchema> Mono<T> populateSingleResourceRelations(Mono<T> resource, Set<String> relationNames) {
 		return Mono.just(populateRelations(List.of(resource.block()), relationNames).get(0));

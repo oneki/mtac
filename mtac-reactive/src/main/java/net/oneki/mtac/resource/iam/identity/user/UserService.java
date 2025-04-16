@@ -8,8 +8,8 @@ import org.springframework.stereotype.Service;
 
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
-import net.oneki.mtac.core.repository.ResourceRepository;
-import net.oneki.mtac.core.repository.TenantRepository;
+import net.oneki.mtac.core.repository.ResourceReactiveRepository;
+import net.oneki.mtac.core.repository.TenantReactiveRepository;
 import net.oneki.mtac.framework.service.JwtTokenService;
 import net.oneki.mtac.model.core.util.SetUtils;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
@@ -28,9 +28,9 @@ public class UserService extends ResourceService<UserUpsertRequest, User> {
   private final PasswordEncoder passwordEncoder;
   private final GroupMembershipRepository groupMembershipRepository;
   private final GroupRepository groupRepository;
-  private final TenantRepository tenantRepository;
+  private final TenantReactiveRepository tenantRepository;
   private final JwtTokenService tokenService;
-  private final ResourceRepository resourceRepository;
+  private final ResourceReactiveRepository resourceRepository;
   private final SecurityContext securityContext;
 
   @Override

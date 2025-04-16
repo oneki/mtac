@@ -3,8 +3,8 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="1.1.0" use-changelog="false" max-obj-count="46"
-	 last-position="0,150" last-zoom="1" scene-rect="-80,-40.5,1707.33,2074.22"
+<dbmodel pgmodeler-ver="1.1.0" use-changelog="false" max-obj-count="49"
+	 last-position="0,149" last-zoom="1" scene-rect="-80,-40.5,1707.33,2074.22"
 	 default-owner="postgres"
 	 layers="Default"
 	 active-layers="0"
@@ -1644,12 +1644,12 @@ BEGIN
         SELECT * FROM temp_resource_fields
     LOOP  
         UPDATE resource r
-        SET    content =jsonb_set(content, ('{' ||r2.field_label  || ',' || r2.pos || ',@l}')::text[],to_jsonb(NEW.label))
+        SET    content =jsonb_set(content, ('{' ||r2.field_label  || ',' || r2.pos || ',$l}')::text[],to_jsonb(NEW.label))
         FROM (
           SELECT   r.id, ordinality - 1 AS pos, record.field_label as field_label
           FROM     resource r, jsonb_array_elements(r.content->record.field_label) with ordinality
           WHERE r.schema_id = record.schema_id
-                AND (value->>'@l')::text = OLD.label
+                AND (value->>'$l')::text = OLD.label
                 AND record.multiple is TRUE
           ) r2
         WHERE r2.id = r.id;
@@ -1660,13 +1660,13 @@ BEGIN
         SELECT * FROM temp_resource_fields
     LOOP  
         UPDATE resource r
-        SET    content = jsonb_set(r.content, ('{' || record.field_label  || ',@l}')::text[], to_jsonb(NEW.label))
+        SET    content = jsonb_set(r.content, ('{' || record.field_label  || ',$l}')::text[], to_jsonb(NEW.label))
         FROM (
           SELECT   r.id
           FROM     resource r, jsonb_each(r.content) fields
           WHERE r.schema_id = record.schema_id
 			    AND fields.key = record.field_label
-                AND (fields.value->>'@l')::text = OLD.label
+                AND (fields.value->>'$l')::text = OLD.label
                 AND record.multiple is NOT TRUE
           ) r2
         WHERE r2.id = r.id;           
@@ -2289,10 +2289,10 @@ BEGIN
       SET        content = (
                 CASE
                       WHEN r.content->record.peer_label IS NOT NULL AND record.peer_multiple IS TRUE
-                      THEN jsonb_insert(r.content, ('{' || record.peer_label || ', 0}')::text[], json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label )::jsonb)
+                      THEN jsonb_insert(r.content, ('{' || record.peer_label || ', 0}')::text[], json_build_object('id', NEW.id, '$s', NEW.schema_id, '$t', NEW.tenant_id, '$l', NEW.label )::jsonb)
                       WHEN r.content->record.peer_label  IS NULL AND record.peer_multiple IS TRUE
-                      THEN jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_array(json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label ))::jsonb)
-                  ELSE jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label )::jsonb)
+                      THEN jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_array(json_build_object('id', NEW.id, '$s', NEW.schema_id, '$t', NEW.tenant_id, '$l', NEW.label ))::jsonb)
+                  ELSE jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_object('id', NEW.id, '$s', NEW.schema_id, '$t', NEW.tenant_id, '$l', NEW.label )::jsonb)
                   END
               ), updated_by=NEW.updated_by, updated_at=NEW.updated_at
       WHERE   r.id IN ( SELECT 
@@ -2354,10 +2354,10 @@ BEGIN
       SET      content = (
                     CASE
                       WHEN r.content->record.peer_label IS NOT NULL AND record.peer_multiple IS TRUE
-                      THEN jsonb_insert(r.content, ('{' || record.peer_label || ', 0}')::text[], json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label )::jsonb)
+                      THEN jsonb_insert(r.content, ('{' || record.peer_label || ', 0}')::text[], json_build_object('id', NEW.id, '$s', NEW.schema_id, '$t', NEW.tenant_id, '$l', NEW.label )::jsonb)
                       WHEN r.content->record.peer_label  IS NULL AND record.peer_multiple IS TRUE
-                      THEN jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_array(json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label ))::jsonb)
-                    ELSE jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_object('id', NEW.id, '@s', NEW.schema_id, '@t', NEW.tenant_id, '@l', NEW.label )::jsonb)
+                      THEN jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_array(json_build_object('id', NEW.id, '$s', NEW.schema_id, '$t', NEW.tenant_id, '$l', NEW.label ))::jsonb)
+                    ELSE jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_object('id', NEW.id, '$s', NEW.schema_id, '$t', NEW.tenant_id, '$l', NEW.label )::jsonb)
                     END
               ), updated_by=NEW.created_by, updated_at=NEW.created_at
       WHERE r.id IN ( SELECT 
@@ -2393,6 +2393,81 @@ END;]]> </definition>
 	 ins-event="false" del-event="true" upd-event="false" trunc-event="false"
 	 table="public.resource">
 		<function signature="public.manage_delete_relationship()"/>
+</trigger>
+
+<table name="token" layers="0" collapse-mode="2" max-obj-count="4" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<position x="360" y="1120"/>
+	<column name="jti" not-null="true">
+		<type name="uuid" length="0"/>
+	</column>
+	<column name="sub" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="token" not-null="true">
+		<type name="jsonb" length="0"/>
+	</column>
+	<column name="expire_at" not-null="true">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<constraint name="token_pk" type="pk-constr" table="public.token">
+		<columns names="jti" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<function name="after_insert_token"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+    PERFORM pg_notify('token_channel', 'create,' || NEW.jti);
+	RETURN NULL;
+END;]]> </definition>
+</function>
+
+<function name="after_delete_token"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+    PERFORM pg_notify('token_channel', 'delete,' || OLD.jti);
+	RETURN NULL;
+END;]]> </definition>
+</function>
+
+<trigger name="after_insert_token" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="true" del-event="false" upd-event="false" trunc-event="false"
+	 table="public.token">
+		<function signature="public.after_insert_token()"/>
+</trigger>
+
+<trigger name="after_delete_token" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="false" del-event="true" upd-event="false" trunc-event="false"
+	 table="public.token">
+		<function signature="public.after_delete_token()"/>
 </trigger>
 
 <constraint name="role_schema_role_fk" type="fk-constr" comparison-type="MATCH FULL"

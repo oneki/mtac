@@ -26,7 +26,7 @@ import net.oneki.mtac.resource.DefaultResourceService;
 
 @Component
 public class UpsertRequestModule extends SimpleModule {
-    private final static Set<String> skipFields = Set.of("id", "@pub", "acl", "link", "@l", "@t", "@s");
+    private final static Set<String> skipFields = Set.of("id", "$pub", "acl", "link", "$l", "$t", "$s");
     // private final static Set<String> metadataFields = Set.of("createdAt", "updatedAt", "createdBy", "updatedBy", "urn");
     // private final static MetadataNameTransformer metadataNameTransformer = new MetadataNameTransformer();
     @Autowired

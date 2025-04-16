@@ -13,35 +13,50 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
+import net.oneki.mtac.framework.cache.TokenRegistry;
 import net.oneki.mtac.framework.config.IssuerConfig.IssuersProperties;
 import net.oneki.mtac.framework.config.IssuerConfig.IssuersProperties.IssuerProperties;
+import net.oneki.mtac.framework.repository.TokenRepository;
 import net.oneki.mtac.model.core.util.security.JwtAuthoritiesExtractor;
-
+import net.oneki.mtac.resource.iam.identity.user.UserService;
 
 public abstract class MultiTenantResourceServerConfig extends BaseResourceServerConfig {
-    @Autowired IssuersProperties issuersProperties;
+    @Autowired
+    IssuersProperties issuersProperties;
 
-    @Autowired private ApplicationContext appContext;
-    
-    protected void resourceServer(final HttpSecurity http) throws Exception {
-        JwtIssuerAuthenticationManagerResolver resolver = new JwtIssuerAuthenticationManagerResolver(new TrustedIssuerJwtAuthenticationManagerResolver(issuersProperties, getJwtAuthoritiesExtractor(), appContext));
+    @Autowired
+    private ApplicationContext appContext;
+
+
+    protected void resourceServer(final HttpSecurity http, UserService userService) throws Exception {
+        JwtIssuerAuthenticationManagerResolver resolver = new JwtIssuerAuthenticationManagerResolver(
+                new TrustedIssuerJwtAuthenticationManagerResolver(issuersProperties, getJwtAuthoritiesExtractor(),
+                        appContext, tokenRegistry, tokenRepository, userService));
         http.oauth2ResourceServer().authenticationManagerResolver(resolver);
     }
 
     public static class TrustedIssuerJwtAuthenticationManagerResolver
-        implements AuthenticationManagerResolver<String> {
+            implements AuthenticationManagerResolver<String> {
 
         private final Map<String, AuthenticationManager> authenticationManagers = new ConcurrentHashMap<>();
         private final Map<String, IssuerProperties> trustedIssuers;
         private final JwtAuthoritiesExtractor jwtAuthoritiesExtractor;
         private final ApplicationContext appContext;
+        private final TokenRegistry tokenRegistry;
+        private final TokenRepository tokenRepository;
+        private final UserService userService;
 
-        public TrustedIssuerJwtAuthenticationManagerResolver(IssuersProperties issuersProperties, JwtAuthoritiesExtractor jwtAuthoritiesExtractor, ApplicationContext appContext) {
+        public TrustedIssuerJwtAuthenticationManagerResolver(IssuersProperties issuersProperties,
+                JwtAuthoritiesExtractor jwtAuthoritiesExtractor, ApplicationContext appContext, TokenRegistry tokenRegistry, TokenRepository tokenRepository,
+                UserService userService) {
+            this.tokenRegistry = tokenRegistry;
+            this.tokenRepository = tokenRepository;
+            this.userService = userService;
             this.trustedIssuers = new HashMap<>();
             if (issuersProperties != null) {
                 Map<String, IssuerProperties> trustedIssuers = issuersProperties.getTrustedIssuers();
                 if (trustedIssuers != null) {
-                    for(IssuerProperties issuer : trustedIssuers.values()) {
+                    for (IssuerProperties issuer : trustedIssuers.values()) {
                         this.trustedIssuers.put(issuer.getIssuerUri(), issuer);
                     }
                 }
@@ -61,10 +76,12 @@ public abstract class MultiTenantResourceServerConfig extends BaseResourceServer
                 } else {
                     jwtDecoder = NimbusJwtDecoder.withJwkSetUri(trustedIssuer.getJwkSetUri()).build();
                 }
-                return this.authenticationManagers.computeIfAbsent(issuer, k -> new JwtAuthenticationManager(jwtAuthoritiesExtractor, jwtDecoder));
+                return this.authenticationManagers.computeIfAbsent(issuer,
+                        k -> new JwtAuthenticationManager(jwtAuthoritiesExtractor, jwtDecoder, tokenRegistry,
+                                tokenRepository, userService));
             }
             return null;
         }
-    } 
-  
+    }
+
 }

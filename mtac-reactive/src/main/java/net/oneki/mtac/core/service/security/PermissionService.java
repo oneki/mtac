@@ -3,7 +3,7 @@ package net.oneki.mtac.core.service.security;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
-import net.oneki.mtac.core.repository.ResourceRepository;
+import net.oneki.mtac.core.repository.ResourceReactiveRepository;
 import net.oneki.mtac.core.repository.acl.AceRepository;
 import net.oneki.mtac.framework.cache.ResourceRegistry;
 import net.oneki.mtac.model.core.Constants;
@@ -72,7 +72,7 @@ import reactor.core.publisher.Mono;
 // - If we want to create an Asset, instead of doing a getResource on a specific asset
 // we do a getResource on the resourceGroup in which we want to create the asset
 public class PermissionService {
-    private final ResourceRepository resourceRepository;
+    private final ResourceReactiveRepository resourceRepository;
     private final RoleRepository roleRepository;
     private final AceRepository aceRepository;
 

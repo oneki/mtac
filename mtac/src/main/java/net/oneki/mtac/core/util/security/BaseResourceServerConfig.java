@@ -25,10 +25,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import net.oneki.mtac.framework.cache.TokenRegistry;
+import net.oneki.mtac.framework.repository.TokenRepository;
 import net.oneki.mtac.model.core.util.json.JsonUtil;
 import net.oneki.mtac.model.core.util.security.DefaultJwtAuthoritiesExtractor;
 import net.oneki.mtac.model.core.util.security.JwtAuthoritiesExtractor;
 import net.oneki.mtac.model.core.util.security.SecurityContext;
+import net.oneki.mtac.resource.iam.identity.user.UserService;
 import net.oneki.mtac.model.core.util.security.DefaultJwtAuthoritiesExtractor.AuthorityKey;
 
 /**
@@ -51,9 +54,14 @@ public abstract class BaseResourceServerConfig {
     @Autowired(required = false)
     SecurityContext securityContext;
 
+    @Autowired
+    protected TokenRegistry tokenRegistry;
+    @Autowired
+    protected TokenRepository tokenRepository;
+
     @Bean
     @Order(SecurityProperties.BASIC_AUTH_ORDER)
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http, UserService userService) throws Exception {
         http.exceptionHandling(c -> {
             c.accessDeniedHandler((request, response, accessDeniedException) -> {
                 handleException(request, response, accessDeniedException);
@@ -90,14 +98,14 @@ public abstract class BaseResourceServerConfig {
         //     .frameOptions()
         //     .sameOrigin();
         
-        resourceServer(http);
+        resourceServer(http, userService);
         return http.build();
     }
 
-    protected void resourceServer(final HttpSecurity http) throws Exception {
+    protected void resourceServer(final HttpSecurity http, UserService userService) throws Exception {
         http.oauth2ResourceServer(o -> {
             o.jwt(j -> {
-               j.authenticationManager(getAuthenticationManager());
+               j.authenticationManager(getAuthenticationManager(userService));
             });
         });
         // http.oauth2ResourceServer()
@@ -207,8 +215,8 @@ public abstract class BaseResourceServerConfig {
         );
     }
 
-    protected AuthenticationManager getAuthenticationManager() {
-        return new JwtAuthenticationManager(getJwtAuthoritiesExtractor(), jwtDecoder);
+    protected AuthenticationManager getAuthenticationManager(UserService userService) {
+        return new JwtAuthenticationManager(getJwtAuthoritiesExtractor(), jwtDecoder, tokenRegistry, tokenRepository, userService);
     }
 
     protected List<RequestMatcher> getPublicMatchers() {

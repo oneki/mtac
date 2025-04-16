@@ -15,8 +15,8 @@ import net.oneki.mtac.model.core.util.json.view.External;
 
 public class EntityToDbSerializerModifier extends BeanSerializerModifier {
 
-    private final static Set<String> skipFields = Set.of("id", "@l", "@s", "@t", "@createdAt", "@createdBy",
-            "@updatedAt", "@updatedBy", "@pub", "link", "acl", "@urn");
+    private final static Set<String> skipFields = Set.of("id", "$l", "$s", "$t", "$createdAt", "$createdBy",
+            "$updatedAt", "$updatedBy", "$pub", "link", "acl", "$urn");
 
     @Override
     public List<BeanPropertyWriter> changeProperties(

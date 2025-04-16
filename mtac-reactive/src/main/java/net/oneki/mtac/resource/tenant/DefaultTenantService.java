@@ -5,18 +5,18 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
-import net.oneki.mtac.core.repository.ResourceRepository;
+import net.oneki.mtac.core.repository.ResourceReactiveRepository;
 import net.oneki.mtac.framework.query.Query;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
+import net.oneki.mtac.model.resource.Tenant;
 import net.oneki.mtac.model.resource.UpsertRequest;
-import net.oneki.mtac.model.resource.iam.tenant.Tenant;
 import net.oneki.mtac.resource.ResourceService;
 import reactor.core.publisher.Mono;
 
 @Service
 @RequiredArgsConstructor
 public class DefaultTenantService extends ResourceService<UpsertRequest, Tenant> {
-    private final ResourceRepository resourceRepository;
+    private final ResourceReactiveRepository resourceRepository;
 
     public Mono<Void> deleteTenant(Integer tenantId) {
        return resourceRepository.listByTenantUnsecure(tenantId, Query.builder()

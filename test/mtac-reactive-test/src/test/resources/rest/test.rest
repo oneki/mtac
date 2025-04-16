@@ -1,0 +1,66 @@
+@authToken = {{login.response.body.$.access_token}}
+@rootPassword = {{$processEnv MFE_ROOT_PASSWORD}}
+
+### TEST
+GET http://localhost:8080/test
+
+### LOGIN
+# @name login
+POST http://localhost:8080/api/oauth2/token
+Content-Type: application/json
+
+{
+    "client_id": "test@local",
+    "client_secret": "test123"
+}
+
+### JWKS
+GET http://localhost:8080/api/.well-known/jwks.json
+
+### AUTHENTICATED URL
+GET http://localhost:8080/api/whoami
+Authorization: Bearer {{authToken}}
+
+### LIST ALL USERS
+GET http://localhost:8080/api/users
+Authorization: Bearer {{authToken}}
+
+### GET USER BY ID
+GET http://localhost:8080/api/users/12
+Authorization: Bearer {{authToken}}
+
+### GET USER BY LABEL
+GET http://localhost:8080/api/users/root@local
+Authorization: Bearer {{authToken}}
+
+### CHECK PERMISSION BY ID
+HEAD http://localhost:8080/api/permissions/id/12?permission=reset_password
+Authorization: Bearer {{authToken}}
+
+### CHECK PERMISSION BY LABEL
+HEAD http://localhost:8080/api/permissions/label/root/iam.identity.user/bruno.franki@gmail.com?permission=reset_password
+Authorization: Bearer {{authToken}}
+
+### CHECK CREATE PERMISSION
+HEAD http://localhost:8080/api/create-permissions/id/4?schemaLabel=tenant.company
+Authorization: Bearer {{authToken}}
+
+### CREATE COMPANY
+POST http://localhost:8080/api/tenants/root/companies
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+    "label": "deplasse3.be",
+    "content": {
+        "name": {
+            "en": "Deplasse3",
+            "fr": "Deplasse3"
+        },
+        "companyNumber": "BCE124G2FD"
+    }
+}
+
+### LIST COMPANIES
+GET http://localhost:8080/api/tenants/root/companies
+Authorization: Bearer {{authToken}}

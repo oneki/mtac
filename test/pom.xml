@@ -17,6 +17,7 @@
 
   <modules>
     <module>mtac-test</module>
+    <module>mtac-reactive-test</module>
   </modules>
 
   <properties>

@@ -8,7 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
-import net.oneki.mtac.core.repository.ResourceRepository;
+import net.oneki.mtac.core.repository.ResourceReactiveRepository;
 import net.oneki.mtac.core.service.RelationService;
 import net.oneki.mtac.core.service.security.PermissionService;
 import net.oneki.mtac.framework.cache.ResourceRegistry;
@@ -34,7 +34,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
     }
 
     @Autowired
-    protected ResourceRepository resourceRepository;
+    protected ResourceReactiveRepository resourceRepository;
     @Autowired
     protected PermissionService permissionService;
     @Autowired

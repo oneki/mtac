@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.core.service.RelationService;
@@ -374,6 +373,14 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
             relationService.populateSingleResourceRelations(result, relations);
         }
 
+        return result;
+    }
+
+    public E getByLabelOrUrnUnsecure(String label) {
+        E result = resourceRepository.getByLabelOrUrnUnsecure(label, getEntityClass());
+        if (result == null) {
+            throw new BusinessException("NOT_FOUND", "Resource not found");
+        }
         return result;
     }
 

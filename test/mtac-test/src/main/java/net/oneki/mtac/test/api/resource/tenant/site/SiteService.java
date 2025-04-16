@@ -4,7 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import net.oneki.mtac.model.core.util.exception.NotFoundException;
-import  net.oneki.mtac.model.resource.iam.tenant.Tenant;
+import net.oneki.mtac.model.resource.Tenant;
 import net.oneki.mtac.resource.iam.identity.group.DefaultGroupService;
 import net.oneki.mtac.resource.tenant.TenantService;
 import net.oneki.mtac.test.api.resource.tenant.rg.ResourceGroup;

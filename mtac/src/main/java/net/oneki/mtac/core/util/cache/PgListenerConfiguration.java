@@ -1,5 +1,7 @@
 package net.oneki.mtac.core.util.cache;
 
+import java.util.Set;
+
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,10 +17,13 @@ public class PgListenerConfiguration {
     @Bean
     CommandLineRunner startListener(PgNotifierService notifier, PgNotificationConsumer handler) {
         return (args) -> {
-            log.info("Starting postgres listener thread...");
-            Runnable listener = notifier.createNotificationHandler(handler);
-            Thread t = new Thread(listener, "postgres-listener");
-            t.start();
+            log.info("Starting postgres listener threads...");
+
+            Runnable listener = notifier.createHandler(handler, Set.of(
+                    PgNotifierService.TOKEN_CHANNEL, PgNotifierService.RESOURCE_CHANNEL));
+            Thread listenerThread = new Thread(listener, "pg-listener");
+            listenerThread.start();
         };
     }
+       
 }

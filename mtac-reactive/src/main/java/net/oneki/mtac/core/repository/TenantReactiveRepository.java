@@ -9,7 +9,7 @@ import net.oneki.mtac.core.util.sql.ReactiveSqlUtils;
 import reactor.core.publisher.Flux;
 
 @Repository
-public class TenantRepository extends AbstractRepository {
+public class TenantReactiveRepository extends AbstractRepository {
 
     public Flux<Integer> listUserTenantSidsUnsecure(Set<Integer> userSids) {
         return ReactiveSqlUtils.getReactiveSQL("tenant/tenant_get_by_user_unsecure.sql")

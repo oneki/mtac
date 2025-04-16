@@ -1,0 +1,61 @@
+# env: prd
+# cpo:
+#   # If CPO URL is set, it means we need to
+#   # forward the requests / reponses to the CPO
+#   url: ws://localhost:8082/ocpp16
+server:
+  port: 8080
+logging:
+  pattern:
+    console: "[%level] %msg [%logger{0}]%n"
+spring:
+  main:
+    banner-mode: "off"
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: jdbc:postgresql://localhost:5432/mtac-reactive-test?currentSchema=public
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver    
+  r2dbc:
+    url: r2dbc:postgresql://localhost:5432/mtac-reactive-test?currentSchema=public
+    username: postgres
+    password: postgres   
+  # security:
+  #   oauth2:
+  #     resourceserver:
+  #       jwt:
+  #         issuer-uri: https://cognito-idp.eu-west-1.amazonaws.com/eu-west-1_HvxAH2tVO # the value of the attribute "iss" in the JWT token
+  #         jwk-set-uri: https://cognito-idp.eu-west-1.amazonaws.com/eu-west-1_HvxAH2tVO/.well-known/jwks.json # JWK describes the public key used to sign the JWT token
+  #     client:
+  #       registration:
+  #         default:
+  #           authorization-grant-type: client_credentials # authorization_code | client_credentials | password
+  #           client-id: clientid
+  #           client-secret: clientsecret
+  #           client-authentication-method: post
+  #       provider:
+  #         default:
+  #           token-uri: https://login.dev.flora.insure/oauth2/token 
+security:
+  trusted-issuers:    
+    local:
+      issuer-uri: mfe # the value of the attribute "iss" in the JWT token
+      jwk-set-uri: http://localhost:8080/api/.well-known/jwks.json # JWK describes the public key used to sign the JWT token
+    jwt-generator:
+      enabled: true # Server can now generate JWT token
+jwt: 
+  issuer: mfe
+  expiration-sec: 86400
+  clock-skew-sec: 300
+  secret: test
+  keystore:
+    path: /jks/local.jks
+    key: 
+      alias: sign
+mtac:
+  scan:
+    package: net.oneki.mtac.reactive.test
+    

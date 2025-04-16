@@ -28,7 +28,7 @@ import net.oneki.mtac.model.core.util.introspect.annotation.ApiRequest;
 import net.oneki.mtac.model.core.util.introspect.annotation.Entity;
 import net.oneki.mtac.model.resource.Resource;
 import net.oneki.mtac.model.resource.ResourceRequest;
-import net.oneki.mtac.model.resource.iam.tenant.Tenant;
+import net.oneki.mtac.model.resource.Tenant;
 import net.oneki.mtac.model.resource.schema.Schema;
 
 @Data

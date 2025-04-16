@@ -14,11 +14,11 @@ import lombok.NoArgsConstructor;
 public class Ref {
     private Integer id;
 
-    @JsonProperty("@t")
+    @JsonProperty("$t")
     private Integer tenant;
-    @JsonProperty("@l")
+    @JsonProperty("$l")
     private String label;
-    @JsonProperty("@s")
+    @JsonProperty("$s")
     private Integer schema;
 
     public Ref(Integer id) {

@@ -20,6 +20,7 @@ import net.oneki.mtac.model.resource.Resource;
 import net.oneki.mtac.model.resource.schema.Schema;
 
 @RequiredArgsConstructor
+@Component
 public class SchemaDbSynchronizer {
     private final ResourceRepository resourceRepository;
     private final FieldRepository fieldRepository;

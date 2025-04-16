@@ -2,6 +2,7 @@ package net.oneki.mtac.resource.iam.identity.user;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -13,6 +14,7 @@ import net.oneki.mtac.framework.repository.TenantRepository;
 import net.oneki.mtac.framework.service.JwtTokenService;
 import net.oneki.mtac.model.core.util.SetUtils;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
+import net.oneki.mtac.model.core.util.security.Claims;
 import net.oneki.mtac.model.core.util.security.SecurityContext;
 import net.oneki.mtac.model.resource.iam.identity.user.User;
 import net.oneki.mtac.model.resource.iam.identity.user.UserUpsertRequest;
@@ -60,18 +62,24 @@ public class UserService extends ResourceService<UserUpsertRequest, User> {
     var tenantSids = tenantRepository.listUserTenantSidsUnsecure(sids);
 
     return tokenService.generateExpiringToken(Map.of(
+      "jti", UUID.randomUUID().toString(),
         "sub", user.getLabel(),
         "tenantSids", tenantSids,
         "sids", sids));
   }
 
-  public Map<String, Object> userinfo() {
-    var user = getByLabelOrUrn(securityContext.getUsername());
-    return Map.of(
-      "email", user.getEmail(),
-      "firstName", user.getFirstName(), 
-      "lastName", user.getLastName()
-    );
+  public Claims userinfo() {
+    return userinfo(securityContext.getUsername());
+  }
+
+  public Claims userinfo(String sub) {
+    var user = getByLabelOrUrnUnsecure(sub);
+    var claims = new Claims();
+    claims.put("email", user.getEmail());
+    claims.put("firstName", user.getFirstName());
+    claims.put("lastName", user.getLastName());
+    // TODO ajouter tenantRoles
+    return claims;
   }
 
   public User create(UserUpsertRequest request) {

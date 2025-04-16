@@ -2,6 +2,7 @@ package net.oneki.mtac.framework.cache;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -10,8 +11,10 @@ import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.oneki.mtac.framework.repository.TokenRepository;
 import net.oneki.mtac.model.core.Constants;
-import net.oneki.mtac.model.resource.iam.tenant.Tenant;
+import net.oneki.mtac.model.core.security.UserInfo;
+import net.oneki.mtac.model.resource.Tenant;
 import net.oneki.mtac.model.resource.schema.Schema;
 
 
@@ -19,6 +22,8 @@ import net.oneki.mtac.model.resource.schema.Schema;
 @Slf4j
 @RequiredArgsConstructor
 public class PgNotificationConsumer implements Consumer<PGNotification> {
+    private final TokenRegistry tokenRegistry;
+    private final TokenRepository tokenRepository;
 
     @Override
     public void accept(PGNotification message) {
@@ -77,6 +82,27 @@ public class PgNotificationConsumer implements Consumer<PGNotification> {
 
                     }
                 }
+            } else if (message.getName().equals(PgNotifierService.TOKEN_CHANNEL)) {
+                String value = message.getParameter();
+                if (value != null) {
+                    var tokens = value.split(",");
+                    var action = tokens[0];
+                    var jti = tokens[1];
+                    switch (action) {
+                        case "delete":
+                            log.info("Delete token id={} from cache", jti);
+                            tokenRegistry.remove(jti);
+                            break;
+                        case "create":
+                            log.info("Add token id={} to cache", jti);
+                            var claims = tokenRepository.getToken(jti);
+                            if (claims != null) {
+                                tokenRegistry.put(jti, claims);
+                            }
+                            break;
+                    }
+                }
+
             }
         } catch (Exception e) {
             if (message != null) {

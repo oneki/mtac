@@ -1,0 +1,130 @@
+@authToken = {{login.response.body.$.access_token}}
+@authTokenNormal = {{loginNormal.response.body.$.access_token}}
+@rootPassword = {{$processEnv MFE_ROOT_PASSWORD}}
+
+
+### LOGIN
+# @name login
+POST http://localhost:8080/api/oauth2/token
+Content-Type: application/json
+
+{
+    "client_id": "root@local",
+    "client_secret": "{{rootPassword}}"
+}
+
+### LOGIN normal user
+# @name loginNormal
+POST http://localhost:8080/api/oauth2/token
+Content-Type: application/json
+
+{
+    "client_id": "test@local",
+    "client_secret": "test123"
+}
+
+
+### CREATE USER
+POST http://localhost:8080/api/users
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+    "tenant": "root",
+    "firstName": "Super",
+    "lastName": "Tester",
+    "password": "test123",
+    "email": "super-tester@local",
+    "idTag": "12345",
+    "memberOf": ["urn:root:iam.identity.group:super-admins"]
+}
+
+### CREATE USER 2
+POST http://localhost:8080/api/users
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+    "tenant": "root",
+    "firstName": "Bruno",
+    "lastName": "Franki",
+    "password": "test",
+    "email": "bruno.franki6@gmail.com",
+    "idTag": "12345",
+    "memberOf": [{
+      "@urn": "urn:root:iam.identity.group:super-admins"
+    }]
+}
+
+
+### UPDATE USER
+PUT http://localhost:8080/api/users
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+    "tenant": "root",
+    "label": "bruno3.franki3@gmail.com",
+    "firstName": "Bruno3",
+    "lastName": "Franki3",
+    "email": "bruno3.franki3@gmail.com",
+    "memberOf": ["super-admins"]
+}
+
+### GET USER
+GET http://localhost:8080/api/users/urn:root:iam.identity.user:root@local
+Authorization: Bearer {{authToken}}
+
+### GET USER
+GET http://localhost:8080/api/users/urn:root:iam.identity.user:bruno.franki@gmail.com
+Authorization: Bearer {{authToken}}
+
+
+### GET USER with normal access
+GET http://localhost:8080/api/users/root/bruno3.franki3@gmail.com
+Authorization: Bearer {{authTokenNormal}}
+
+### DELETE USER
+DELETE http://localhost:8080/api/users/root/bruno3.franki3@gmail.com
+Authorization: Bearer {{authToken}}
+
+### LIST USERS
+GET http://localhost:8080/api/users?tenant=root&filter=label eq olivier.franki@gmail.com
+Authorization: Bearer {{authToken}}
+
+### LIST USERS2
+GET http://localhost:8080/api/users?tenant=root&filter=memberOf.name eq 'Super Administrator'
+Authorization: Bearer {{authToken}}
+
+### RELATIONS
+GET http://localhost:8080/api/users?tenant=root&?relations=memberOf.members
+Authorization: Bearer {{authToken}}
+
+### POPULATE RELATIONS
+POST http://localhost:8080/api/user/relations/memberOf
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "@createdAt": "2024-08-18T08:50:50.514020Z",
+  "createdBy": "root@local",
+  "email": "bruno3.franki3@gmail.com",
+  "firstName": "Bruno3",
+  "label": "bruno3.franki3@gmail.com",
+  "lastName": "Franki3",
+  "memberOf": [
+    {
+      "label": "super-admins",
+      "publicId": "076a75e4-40dc-49b0-9ca4-3c27fb8307da",
+      "schema": "iam.identity.group"
+    }
+  ],
+  "password": "$2a$10$KN2qBuFKAEpZF/6Uvm6cBevQ9zIiDCt/r.4NRKEDtzyOdF1lSDcF6",
+  "publicId": "6843fdb5-f717-4440-9b2e-cd88575c7611",
+  "schema": "iam.identity.user",
+  "tenant": {
+    "label": "root",
+    "schema": "tenant.root"
+  },
+  "updatedAt": "2024-08-19T07:08:49.130856Z"
+}

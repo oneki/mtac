@@ -11,7 +11,7 @@ import org.springframework.web.reactive.result.method.RequestMappingInfo;
 import org.springframework.web.reactive.result.method.annotation.RequestMappingHandlerMapping;
 
 import jakarta.annotation.PostConstruct;
-import net.oneki.mtac.core.repository.ResourceRepository;
+import net.oneki.mtac.core.repository.ResourceReactiveRepository;
 import net.oneki.mtac.model.core.util.StringUtils;
 import net.oneki.mtac.model.resource.Resource;
 import net.oneki.mtac.model.resource.UpsertRequest;
@@ -20,7 +20,7 @@ import reactor.core.publisher.Mono;
 
 public abstract class ResourceController<U extends UpsertRequest, R extends Resource, S extends ResourceService<U, R>> {
 
-    @Autowired protected ResourceRepository resourceRepository;
+    @Autowired protected ResourceReactiveRepository resourceRepository;
     @Autowired protected RequestMappingHandlerMapping handlerMapping;
     @Value("${mtac.api.base-path:/api}") private String apiBasePath;
 

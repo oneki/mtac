@@ -184,8 +184,21 @@ public class ResourceRepository extends AbstractRepository {
         }
     }
 
+    public <T extends Resource> T getByLabelOrUrnUnsecure(String labelOrUrn, Class<T> resultContentClass) {
+        if (labelOrUrn.startsWith("urn:")) {
+            return getByUrnUnsecure(labelOrUrn, resultContentClass);
+        } else {
+            return getByUniqueLabelUnsecure(labelOrUrn, resultContentClass);
+        }
+    }
+    
     public <T extends Resource> T getByUrn(String urn, Class<T> resultContentClass) {
         return getByUrn(urn, resultContentClass, null, null);
+    }
+
+    public <T extends Resource> T getByUrnUnsecure(String urn, Class<T> resultContentClass) {
+        var sql = SqlUtils.getSQL("resource/resource_get_by_urn_unsecure.sql");
+        return getByUrn(urn, resultContentClass, sql, null);
     }
 
     public <T extends Resource> T getByUrn(String urn, Class<T> resultContentClass, String sql) {

@@ -8,8 +8,8 @@ import org.springframework.stereotype.Service;
 import net.oneki.mtac.framework.query.Query;
 import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
+import net.oneki.mtac.model.resource.Tenant;
 import net.oneki.mtac.model.resource.UpsertRequest;
-import net.oneki.mtac.model.resource.iam.tenant.Tenant;
 import net.oneki.mtac.resource.ResourceService;
 
 @Service

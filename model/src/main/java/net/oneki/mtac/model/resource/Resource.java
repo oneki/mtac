@@ -30,11 +30,11 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 	 */
 	protected Integer id;
 
-	@JsonProperty("@s")
+	@JsonProperty("$s")
 	protected Integer schemaId;
-	@JsonProperty("@t")
+	@JsonProperty("$t")
 	protected Integer tenantId;
-	@JsonProperty("@l")
+	@JsonProperty("$l")
 	protected String label;
 
 	@JsonIgnore
@@ -51,13 +51,13 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 	 *
 	 * Example: urn:root:iam.identity.user:olivier.franki@gmail.com
 	 */
-	@JsonProperty("@urn")
+	@JsonProperty("$urn")
 	protected String urn;
 
 	/*
 	 * A public resource is visible by any sub-tenant
 	 */
-	@JsonProperty("@pub")
+	@JsonProperty("$pub")
 	protected boolean pub;
 
 	/*
@@ -74,25 +74,25 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 	/*
 	 * The datetime at which the resource was created
 	 */
-	@JsonProperty("@createdAt")
+	@JsonProperty("$createdAt")
 	protected Instant createdAt;
 
 	/*
 	 * The datetime at which the resource was last updated
 	 */
-	@JsonProperty("@updatedAt")
+	@JsonProperty("$updatedAt")
 	protected Instant updatedAt;
 
 	/*
 	 * The email of the creator of the resource
 	 */
-	@JsonProperty("@createdBy")
+	@JsonProperty("$createdBy")
 	protected String createdBy;
 
 	/*
 	 * The email of the last updater of the resource
 	 */
-	@JsonProperty("@updatedBy")
+	@JsonProperty("$updatedBy")
 	protected String updatedBy;
 
 	/*

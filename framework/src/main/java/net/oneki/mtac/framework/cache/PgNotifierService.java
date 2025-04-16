@@ -1,6 +1,7 @@
 package net.oneki.mtac.framework.cache;
 
 import java.sql.Connection;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import org.postgresql.PGConnection;
@@ -17,6 +18,7 @@ import net.oneki.mtac.model.resource.Resource;
 @RequiredArgsConstructor
 public class PgNotifierService {
     public static final String RESOURCE_CHANNEL = "resource_channel";
+    public static final String TOKEN_CHANNEL = "token_channel";
     private final JdbcTemplate tpl;
 
     @Transactional
@@ -36,31 +38,52 @@ public class PgNotifierService {
         tpl.execute("NOTIFY " + RESOURCE_CHANNEL + ", 'delete," + resourceId + "'");
     }
 
-    public Runnable createNotificationHandler(Consumer<PGNotification> consumer) {
+    public Runnable createHandler(Consumer<PGNotification> consumer, Set<String> channels) {
 
         return () -> {
-            try {
-                tpl.execute((Connection c) -> {
-                    log.info("notificationHandler: sending LISTEN RESOURCE_CHANNEL command...");
-                    c.createStatement().execute("LISTEN " + RESOURCE_CHANNEL);
-
-                    PGConnection pgconn = c.unwrap(PGConnection.class);
-
-                    while (!Thread.currentThread().isInterrupted()) {
-                        PGNotification[] nts = pgconn.getNotifications(2000);
-                        if (nts == null || nts.length == 0) {
-                            continue;
+            var result = 1;
+            do {
+                try {
+                    result = tpl.execute((Connection c) -> {
+                        for (var channel: channels) {
+                            log.info("notificationHandler: sending LISTEN " + channel + " command...");
+                            c.createStatement().execute("LISTEN " + channel);
                         }
 
-                        for (PGNotification nt : nts) {
-                            consumer.accept(nt);
+                        PGConnection pgconn = c.unwrap(PGConnection.class);
+
+                        while(!Thread.currentThread().isInterrupted()) {
+                            try {
+                                PGNotification[] nts = pgconn.getNotifications(2000);
+                                if ( nts == null || nts.length == 0 ) {
+                                    continue;
+                                }
+
+                                for( PGNotification nt : nts) {
+                                    consumer.accept(nt);
+                                }
+                            } catch (Exception e) {
+                                try {
+                                    Thread.sleep(5000);
+                                    return 1;
+                                } catch (InterruptedException exp) {
+                                    return 0;
+                                }
+                            }
                         }
+
+                        return 0;
+                    });
+                } catch (Exception e) {
+                    try {
+                        Thread.sleep(5000);
+                        result = 1;
+                    } catch (InterruptedException exp) {
+                        result = 0;
                     }
+                }
 
-                    return 0;
-                });
-            } catch (DataAccessResourceFailureException e) {
-            }
+            } while (result > 0);
         };
     }
 }

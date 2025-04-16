@@ -12,7 +12,7 @@ VALUES ('urn:root:schema:tenant', 'tenant', true, null, null, 1, to_json('{"name
 
 -- Create le schema tenant.root
 INSERT INTO resource (urn, label, pub, tenant_id, link_id, schema_id, content, created_at, updated_at, created_by, updated_by)
-VALUES ('urn:root:schema:tenant.root', 'tenant.root', true, null, null, 1, to_json('{"name":"root","parents":[{"@l":"tenant","id":2,"@s":1,"@t":4}]}'::JSON), NOW(), NOW(), 'root@local', 'root@local');
+VALUES ('urn:root:schema:tenant.root', 'tenant.root', true, null, null, 1, to_json('{"name":"root","parents":[{"$l":"tenant","id":2,"$s":1,"$t":4}]}'::JSON), NOW(), NOW(), 'root@local', 'root@local');
 
 -- Create the tenant root
 INSERT INTO resource (urn, label, pub, tenant_id, link_id, schema_id, content, created_at, updated_at, created_by, updated_by)
@@ -31,11 +31,11 @@ VALUES ('urn:root:schema:iam.identity', 'iam.identity', true, 4, null, 1, to_jso
 
 -- Create the schema iam.identity.user
 INSERT INTO resource (urn, label, pub, tenant_id, link_id, schema_id, content, created_at, updated_at, created_by, updated_by)
-VALUES ('urn:root:schema:iam.identity.user', 'iam.identity.user', true, 4, null, 1, to_json('{"name":"User","parents":[{"@l":"iam.identity","id":6,"@s":1,"@t":4}]}'::JSON), NOW(), NOW(), 'root@local', 'root@local');
+VALUES ('urn:root:schema:iam.identity.user', 'iam.identity.user', true, 4, null, 1, to_json('{"name":"User","parents":[{"$l":"iam.identity","id":6,"$s":1,"$t":4}]}'::JSON), NOW(), NOW(), 'root@local', 'root@local');
 
 -- Create the schema iam.identity.group
 INSERT INTO resource (urn, label, pub, tenant_id, link_id, schema_id, content, created_at, updated_at, created_by, updated_by)
-VALUES ('urn:root:schema:iam.identity.group', 'iam.identity.group', true, 4, null, 1, to_json('{"name":"Group","parents":[{"@l":"iam.identity","id":6,"@s":1,"@t":4}]}'::JSON), NOW(), NOW(), 'root@local', 'root@local');
+VALUES ('urn:root:schema:iam.identity.group', 'iam.identity.group', true, 4, null, 1, to_json('{"name":"Group","parents":[{"$l":"iam.identity","id":6,"$s":1,"$t":4}]}'::JSON), NOW(), NOW(), 'root@local', 'root@local');
 
 -- Create the user root@local
 INSERT INTO resource (urn, label, pub, tenant_id, link_id, schema_id, content, created_at, updated_at, created_by, updated_by)

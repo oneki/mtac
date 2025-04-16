@@ -33,7 +33,7 @@ import reactor.core.publisher.Mono;
 
 @Repository
 @RequiredArgsConstructor
-public class ResourceRepository extends AbstractRepository {
+public class ResourceReactiveRepository extends AbstractRepository {
     private final SecurityContext securityContext;
     @Qualifier("entityMapper")
     private final EntityMapper entityMapper;

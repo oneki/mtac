@@ -11,5 +11,4 @@ import org.springframework.context.annotation.Configuration;
     @ComponentScan("net.oneki.mtac.framework.service")
 })
 public class FrameworkConfig {
-    
 }

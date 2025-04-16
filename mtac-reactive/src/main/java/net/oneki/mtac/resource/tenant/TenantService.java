@@ -5,17 +5,17 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import net.oneki.mtac.core.repository.ResourceRepository;
+import net.oneki.mtac.core.repository.ResourceReactiveRepository;
 import net.oneki.mtac.framework.query.Query;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
+import net.oneki.mtac.model.resource.Tenant;
 import net.oneki.mtac.model.resource.UpsertRequest;
-import net.oneki.mtac.model.resource.iam.tenant.Tenant;
 import net.oneki.mtac.resource.ResourceService;
 import reactor.core.publisher.Mono;
 
 @Service
 public abstract class TenantService<U extends UpsertRequest, E extends Tenant> extends ResourceService<U, E> {
-    @Autowired protected ResourceRepository resourceRepository;
+    @Autowired protected ResourceReactiveRepository resourceRepository;
 
     @Override
     public Mono<Void> delete(E tenant) {
