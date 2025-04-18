@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.framework.query.Query;
 import net.oneki.mtac.framework.repository.InitRepository;
 import net.oneki.mtac.framework.repository.ResourceRepository;
+import net.oneki.mtac.framework.repository.ResourceTenantTreeRepository;
 import net.oneki.mtac.framework.repository.SchemaDbSynchronizer;
 import net.oneki.mtac.framework.repository.SchemaRepository;
 import net.oneki.mtac.model.resource.Tenant;
@@ -26,6 +27,7 @@ public class ResourceRegistryInitializer {
     protected final SchemaRepository schemaRepository;
     protected final SchemaDbSynchronizer schemaDbSynchronizer;
     protected final InitRepository initRepository;
+    protected final ResourceTenantTreeRepository resourceTenantTreeRepository;
 
     @Value("${mtac.scan.package}")
     private String scanBasePackage;
@@ -48,6 +50,8 @@ public class ResourceRegistryInitializer {
         List<Role> roles = resourceRepository.listByTypeUnsecure(Role.class,
                 Query.fromRest(Map.of("sortBy", "id"), Role.class));
         cache.setRoles(roles);
+
+        cache.setTenantAncestors(resourceTenantTreeRepository.listTenantAncestors());
 
     }
 }

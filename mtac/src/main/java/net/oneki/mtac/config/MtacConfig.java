@@ -12,7 +12,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
-import net.oneki.mtac.core.util.json.UpsertRequestModule;
+import net.oneki.mtac.core.util.json.DtoModule;
 import net.oneki.mtac.model.core.util.security.SecurityContext;
 
 @Configuration
@@ -20,7 +20,7 @@ import net.oneki.mtac.model.core.util.security.SecurityContext;
 public class MtacConfig {
     @Bean
     @Primary
-    public ObjectMapper mapper(UpsertRequestModule upsertRequestModule) {
+    public ObjectMapper mapper(DtoModule upsertRequestModule) {
         var mapper =  JsonMapper.builder()
                 .enable(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY)
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)

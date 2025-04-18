@@ -28,7 +28,7 @@ public class ResourceField {
     private boolean multiple; // true if it's an array
     private Field field; // the field itself
     private Field collectionField; // only present if multiple = true
-    private boolean secret; // true if the field is marked as a secret
+    private SecretDesc secret; // true if the field is marked as a secret
     private String peer; // the peer of the field. Example: "memberOf" for field "members"
 
     public boolean isRelation() {
@@ -58,5 +58,9 @@ public class ResourceField {
             throw new UnexpectedException("ILLEGAL_ACCESS",
                     "Error while accessing field " + label + " in " + object.getClass().getSimpleName(), e);
         }
+    }
+
+    public boolean isSecret() {
+        return secret != null;
     }
 }

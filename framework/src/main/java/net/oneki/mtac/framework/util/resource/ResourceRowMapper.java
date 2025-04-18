@@ -19,6 +19,7 @@ import net.oneki.mtac.model.resource.Resource;
 
 @RequiredArgsConstructor
 public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
+    private final JsonEntityMapper jsonEntityMapper;
 
     @SuppressWarnings("unchecked")
     public T mapRow(ResultSet rs, int rowNum) throws SQLException {
@@ -33,7 +34,7 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
         } else {
             json = rs.getString("link_content");
         }
-        var resource = JsonEntityMapper.json2Object(json, clazz);
+        var resource = jsonEntityMapper.json2Object(json, clazz);
         var relationFields = ResourceRegistry.getRelations(clazz);
         for (var relationField : relationFields) {
             relationField.getField().setAccessible(true);

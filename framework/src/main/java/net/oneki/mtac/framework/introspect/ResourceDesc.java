@@ -1,7 +1,9 @@
 package net.oneki.mtac.framework.introspect;
 
 import java.lang.reflect.Modifier;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import lombok.AllArgsConstructor;
@@ -24,6 +26,13 @@ public class ResourceDesc {
     @Builder.Default protected Set<Class<?>> childClasses = new HashSet<>();
     protected ClassType classType;
     protected Class<?> clazz;
+
+    // Indexes
+    // used by the JSON deserializer to add tenantId and schemaId to relation
+    // because there are not saved in the DB
+    @Builder.Default protected Set<ResourceField> fieldRelationIndex = new HashSet<>(); 
+    // used by the JSON deserializer to decrypt passwords
+    @Builder.Default protected Set<ResourceField> fieldSecretIndex = new HashSet<>();
 
     public ResourceField getField(String fieldName) {
         for (ResourceField field : fields) {
@@ -62,5 +71,13 @@ public class ResourceDesc {
                 }
             }
         }
+    }
+
+    public void addSecretField(ResourceField field) {
+        fieldSecretIndex.add(field);
+    }
+
+    public void addRelationField(ResourceField field) {
+        fieldRelationIndex.add(field);
     }
 }

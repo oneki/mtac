@@ -172,7 +172,7 @@ public class PermissionService {
                     "The tenant with id " + tenantId + " doesnt't exist.");
         }
         // Retrieve all roles that are directly assigned to the given tenant for a user
-        var roles = roleRepository.listTenantRoles(tenantId);
+        var roles = roleRepository.listCompiledRolesByTenant(tenantId);
         var permission = new PropertyPath(schemaLabel, "create"); // Example: "tenant.company|create"
 
         for (var role : roles) {

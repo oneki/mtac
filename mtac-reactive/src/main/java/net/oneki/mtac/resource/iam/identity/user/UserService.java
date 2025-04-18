@@ -62,10 +62,11 @@ public class UserService extends ResourceService<UserUpsertRequest, User> {
           sids.addAll(listGroupSids(user));
           var tenantSids = tenantRepository.listUserTenantSidsUnsecure(sids);
 
-          return tokenService.generateExpiringToken(Map.of(
-              "sub", user.getLabel(),
-              "tenantSids", tenantSids,
-              "sids", sids));
+          // return tokenService.generateExpiringToken(Map.of(
+          //     "sub", user.getLabel(),
+          //     "tenantSids", tenantSids,
+          //     "sids", sids));
+          return null; // TODO
         });
 
   }

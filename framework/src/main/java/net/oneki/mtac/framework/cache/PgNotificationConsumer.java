@@ -9,11 +9,16 @@ import java.util.stream.Collectors;
 import org.postgresql.PGNotification;
 import org.springframework.stereotype.Component;
 
+import com.nimbusds.oauth2.sdk.util.ListUtils;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.oneki.mtac.framework.repository.ResourceRepository;
+import net.oneki.mtac.framework.repository.ResourceTenantTreeRepository;
 import net.oneki.mtac.framework.repository.TokenRepository;
 import net.oneki.mtac.model.core.Constants;
 import net.oneki.mtac.model.core.security.UserInfo;
+import net.oneki.mtac.model.resource.Resource;
 import net.oneki.mtac.model.resource.Tenant;
 import net.oneki.mtac.model.resource.schema.Schema;
 
@@ -24,6 +29,8 @@ import net.oneki.mtac.model.resource.schema.Schema;
 public class PgNotificationConsumer implements Consumer<PGNotification> {
     private final TokenRegistry tokenRegistry;
     private final TokenRepository tokenRepository;
+    private final ResourceRepository resourceRepository;
+    private final ResourceTenantTreeRepository resourceTenantTreeRepository;
 
     @Override
     public void accept(PGNotification message) {
@@ -87,23 +94,39 @@ public class PgNotificationConsumer implements Consumer<PGNotification> {
                 if (value != null) {
                     var tokens = value.split(",");
                     var action = tokens[0];
-                    var jti = tokens[1];
+                    var sub = tokens[1];
                     switch (action) {
                         case "delete":
-                            log.info("Delete token id={} from cache", jti);
-                            tokenRegistry.remove(jti);
+                            log.info("Delete token id={} from cache", sub);
+                            tokenRegistry.remove(sub);
                             break;
                         case "create":
-                            log.info("Add token id={} to cache", jti);
-                            var claims = tokenRepository.getToken(jti);
+                            log.info("Add token id={} to cache", sub);
+                            var claims = tokenRepository.getToken(sub);
                             if (claims != null) {
-                                tokenRegistry.put(jti, claims);
+                                tokenRegistry.put(sub, claims);
                             }
                             break;
                     }
                 }
 
+            } else if (message.getName().equals(PgNotifierService.RESOURCE_TENANT_TREE_CHANNEL)) {
+                String value = message.getParameter();
+                if (value != null) {
+                    String[] tokens = value.split(",");
+                    Integer descendantId = Integer.valueOf(tokens[2]);
+                    Resource resource = resourceRepository.getById(descendantId, Resource.class);
+                    if (resource != null) {
+                        boolean isTenant = resource.getTenantLabel().startsWith("tenant.");
+                        if (isTenant) {
+                            var ancestors = resourceTenantTreeRepository.listTenantAncestors(descendantId);
+                            log.info("Add ancestors ids <{}> of tenant {} to cache", ancestors, resource.getLabel());
+                            cache.setTenantAncestor(descendantId, ancestors);
+                        }
+                    }
+                }
             }
+
         } catch (Exception e) {
             if (message != null) {
                 log.error("Failed to parse PostgreSQL notification: channel={}, value={} with error={}",

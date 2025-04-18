@@ -62,14 +62,14 @@ public class DbRelationDeserializer extends DelegatingDeserializer /* implements
 
         if (token == JsonToken.START_OBJECT) {
             JsonNode node = parser.getCodec().readTree(parser);
-            var schemaNode = node.get("@s");
+            var schemaNode = node.get("$s");
             if (schemaNode == null) {
                 return entityMapper.treeToValue(node, Object.class);
             }
             var schemaId = (Integer) ((IntNode) schemaNode).numberValue();
-            var tenantId = (Integer) ((IntNode) node.get("@t")).numberValue();
+            var tenantId = (Integer) ((IntNode) node.get("$t")).numberValue();
             var id = (Integer) ((IntNode) node.get("id")).numberValue();
-            var label = node.get("@l").asText();
+            var label = node.get("$l").asText();
             var schemaLabel = ResourceRegistry.getSchemaLabel(schemaId);
             var tenantLabel = ResourceRegistry.getTenantLabel(tenantId);
             var urnRecord = new Urn(tenantLabel, schemaLabel, label);

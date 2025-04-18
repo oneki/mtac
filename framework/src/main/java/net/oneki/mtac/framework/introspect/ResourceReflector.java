@@ -19,6 +19,7 @@ import net.oneki.mtac.model.core.util.introspect.annotation.Entity;
 import net.oneki.mtac.model.core.util.introspect.annotation.EntityInterface;
 import net.oneki.mtac.model.core.util.introspect.annotation.Peer;
 import net.oneki.mtac.model.core.util.introspect.annotation.Secret;
+import net.oneki.mtac.model.core.util.introspect.annotation.Secret.SecretType;
 import net.oneki.mtac.model.resource.Resource;
 
 public class ResourceReflector {
@@ -33,15 +34,16 @@ public class ResourceReflector {
 
     public static class Parent implements SuperInterface {
         public Integer testInterface;
+
         public String getFirstName() {
             return "John";
         }
     }
 
-
     public static class Fifi extends Parent implements TestInterface {
         private String name;
         public String testInterface;
+
         public String getName() {
             return "Fifi";
         }
@@ -110,36 +112,49 @@ public class ResourceReflector {
                 .clazz(clazz)
                 .childClasses(childClasses)
                 .build();
-        
+
+        for (var field : resourceFields) {
+            if (field.isSecret()) {
+                result.addSecretField(field);
+            }
+
+            if (field.isRelation()) {
+                result.addRelationField(field);
+            }
+        }
+
         context.getResourceDescIndex().put(schemaLabel, result);
     }
 
-    // private static Set<ResourceDesc> reflectInterfaces(Class<?> clazz, ReflectorContext context, Set<Class<?>> descendantClasses) {
-    //     Set<ResourceDesc> resourceDescs = new HashSet<>();
-    //     descendantClasses.add(clazz);
-    //     var interfaces = clazz.getInterfaces();
-    //     for (var interfaceClass : interfaces) {
-    //         var interfaceDescendantClasses = new HashSet<>(descendantClasses);
-    //         resourceDescs.addAll(reflectInterfaces(interfaceClass, context, interfaceDescendantClasses));
-    //     }
-    //     var resourceDesc = reflectInterface(clazz, context);
-    //     if (resourceDesc != null) {
-    //         resourceDesc.getChildClasses().addAll(descendantClasses);
-    //         resourceDescs.add(resourceDesc);
-    //     }
-    //     return resourceDescs;
+    // private static Set<ResourceDesc> reflectInterfaces(Class<?> clazz,
+    // ReflectorContext context, Set<Class<?>> descendantClasses) {
+    // Set<ResourceDesc> resourceDescs = new HashSet<>();
+    // descendantClasses.add(clazz);
+    // var interfaces = clazz.getInterfaces();
+    // for (var interfaceClass : interfaces) {
+    // var interfaceDescendantClasses = new HashSet<>(descendantClasses);
+    // resourceDescs.addAll(reflectInterfaces(interfaceClass, context,
+    // interfaceDescendantClasses));
+    // }
+    // var resourceDesc = reflectInterface(clazz, context);
+    // if (resourceDesc != null) {
+    // resourceDesc.getChildClasses().addAll(descendantClasses);
+    // resourceDescs.add(resourceDesc);
+    // }
+    // return resourceDescs;
     // }
 
     private static void reflectInterface(Class<?> clazz, ReflectorContext context, Class<?> childClass) {
         String schemaLabel = null;
-        
+
         var annotation = clazz.getAnnotation(EntityInterface.class);
-        if (annotation == null) return;
+        if (annotation == null)
+            return;
         if (!annotation.value().isEmpty()) {
             schemaLabel = annotation.value();
         } else {
             schemaLabel = buildSchemaLabel(clazz, context);
-        } 
+        }
         ResourceDesc resourceDesc = context.getResourceDescIndex().get(schemaLabel);
 
         var interfaces = clazz.getInterfaces();
@@ -167,6 +182,9 @@ public class ResourceReflector {
                     isMultiple = true;
                     returnType = getGenericType(method.getGenericReturnType());
                 }
+                var secretDesc = method.isAnnotationPresent(Secret.class) ? SecretDesc.builder()
+                        .type(getSecretType(method.getAnnotation(Secret.class)))
+                        .build() : null;
                 resourceFields.add(ResourceField.builder()
                         .label(fieldName)
                         .type(getType(method.getReturnType()))
@@ -174,7 +192,7 @@ public class ResourceReflector {
                         .field(null)
                         .fieldClass(returnType)
                         .ownerClass(clazz)
-                        .secret(method.isAnnotationPresent(Secret.class))
+                        .secret(secretDesc)
                         .peer(method.isAnnotationPresent(Peer.class) ? method.getAnnotation(Peer.class).value() : null)
                         .build());
             }
@@ -218,7 +236,7 @@ public class ResourceReflector {
             var action = requestType.substring(dtoName.length(), requestType.length() - 7); // e.g: "Create"
 
             schemaLabel = className.substring(context.getBasePackage().length() + 1,
-            className.lastIndexOf("."));
+                    className.lastIndexOf("."));
             schemaLabel = "req." + schemaLabel + ":" + StringUtils.pascalToCamel(action);
             schemaLabel = StringUtils.pascalToSnake(schemaLabel);
         }
@@ -266,6 +284,10 @@ public class ResourceReflector {
             relationClass = (Class<? extends Resource>) classType;
         }
 
+        var secretDesc = field.isAnnotationPresent(Secret.class) ? SecretDesc.builder()
+                .type(getSecretType(field.getAnnotation(Secret.class)))
+                .build() : null;
+
         return ResourceField.builder()
                 .label(field.getName())
                 .type(type)
@@ -274,7 +296,7 @@ public class ResourceReflector {
                 .fieldClass(classType)
                 .ownerClass(field.getDeclaringClass())
                 .relationClass(relationClass)
-                .secret(field.isAnnotationPresent(Secret.class))
+                .secret(secretDesc)
                 .peer(peer)
                 .build();
     }
@@ -326,4 +348,15 @@ public class ResourceReflector {
         return type;
     }
 
+
+    private static SecretType getSecretType(Secret secretAnnotation) {
+        if (secretAnnotation != null) {
+            if (secretAnnotation.type() != null) {
+                return secretAnnotation.type();
+            } 
+
+            return secretAnnotation.value();
+        }
+        return null;
+    }
 }

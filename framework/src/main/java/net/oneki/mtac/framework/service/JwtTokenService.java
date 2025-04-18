@@ -50,7 +50,7 @@ public class JwtTokenService implements Clock {
 	private PrivateKeyEntry privateKeyEntry;
 	private JWK jwk;
 
-	JwtTokenService(@Value("${jwt.issuer:mfe}") final String issuer,
+	JwtTokenService(@Value("${jwt.issuer:fuzz}") final String issuer,
 			@Value("${jwt.expiration-sec:86400}") final int expirationSec,
 			@Value("${jwt.clock-skew-sec:300}") final int clockSkewSec,
 			@Value("${jwt.secret:secret}") final String secret,
@@ -101,9 +101,12 @@ public class JwtTokenService implements Clock {
         // @formatter:on
     }
 
-	public Map<String,Object> generateExpiringToken(final Map<String, Object> attributes) {
+	public Map<String,Object> generateExpiringToken(final net.oneki.mtac.model.core.util.security.Claims accessTokenClaims, final net.oneki.mtac.model.core.util.security.Claims idTokenClaims) {
 		Map<String,Object> result = new HashMap<>();
-		result.put("access_token", newToken(attributes, expirationSec));
+		result.put("access_token", newToken(accessTokenClaims, expirationSec));
+		if (idTokenClaims != null) {
+			result.put("id_token", newToken(idTokenClaims, expirationSec));
+		}
 		result.put("token_type", "Bearer");
 		result.put("expires_in", expirationSec);
 		return result;

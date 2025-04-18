@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.ser.BeanPropertyWriter;
 import com.fasterxml.jackson.databind.ser.BeanSerializerModifier;
 
+import net.oneki.mtac.framework.cache.ResourceRegistry;
 import net.oneki.mtac.framework.json.RelationDeserializer;
 import net.oneki.mtac.model.core.resource.Ref;
 import net.oneki.mtac.model.core.util.json.JsonUtil;
@@ -25,12 +26,12 @@ import net.oneki.mtac.model.resource.UpsertRequest;
 import net.oneki.mtac.resource.DefaultResourceService;
 
 @Component
-public class UpsertRequestModule extends SimpleModule {
+public class DtoModule extends SimpleModule {
     private final static Set<String> skipFields = Set.of("id", "$pub", "acl", "link", "$l", "$t", "$s");
     // private final static Set<String> metadataFields = Set.of("createdAt", "updatedAt", "createdBy", "updatedBy", "urn");
     // private final static MetadataNameTransformer metadataNameTransformer = new MetadataNameTransformer();
     @Autowired
-    public UpsertRequestModule(DefaultResourceService resourceService) {
+    public DtoModule(DefaultResourceService resourceService) {
         super();
         setDeserializerModifier(new BeanDeserializerModifier() {
             @Override
@@ -39,7 +40,7 @@ public class UpsertRequestModule extends SimpleModule {
                     JsonDeserializer<?> originalDeserializer) {
 
                 if (UpsertRequest.class.isAssignableFrom(beanDescription.getBeanClass())) {
-                    return new UpsertRequestDeserializer(originalDeserializer, beanDescription, resourceService);
+                    return new DtoDeserializer(originalDeserializer, beanDescription, resourceService);
                 } else if (Resource.class.isAssignableFrom(beanDescription.getBeanClass())) {
                     return new RelationDeserializer(beanDescription, originalDeserializer);
                 } else {
@@ -65,7 +66,12 @@ public class UpsertRequestModule extends SimpleModule {
                 if (Resource.class.isAssignableFrom(beanDesc.getBeanClass()) ||
                         Ref.class.isAssignableFrom(beanDesc.getBeanClass())) {
                     var result = new ArrayList<BeanPropertyWriter>();
+                    var resourceDesc = ResourceRegistry.getResourceDesc(beanDesc.getBeanClass());
                     for (BeanPropertyWriter writer : beanProperties) {
+                        var field = resourceDesc.getField(writer.getName());
+                        if (field != null && field.isSecret()) {
+                            continue;
+                        } 
                         if (skipFields.contains(writer.getName()) || JsonUtil.hasView(writer.getViews(), Internal.class)) {
                             continue;
                         // } else if (metadataFields.contains(writer.getName())) {

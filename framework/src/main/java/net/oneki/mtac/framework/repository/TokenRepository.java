@@ -4,7 +4,6 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.UUID;
 
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -16,20 +15,20 @@ import net.oneki.mtac.model.core.util.security.Claims;
 @Repository
 public class TokenRepository extends AbstractRepository {
 
-  private static final String SQL_DELETE_TOKEN = "DELETE FROM token WHERE jti = :jti";
+  private static final String SQL_DELETE_TOKEN = "DELETE FROM token WHERE sub = :sub";
 
-  public void deleteToken(String jti) {
+  public void deleteToken(String sub) {
     var params = new HashMap<String, Object>();
-    params.put("jti", jti);
+    params.put("sub", sub);
     jdbcTemplate.update(SQL_DELETE_TOKEN, params);
   }
 
   // get token
-  public static final String SQL_GET_TOKEN = "SELECT * FROM token WHERE jti = :jti";
+  public static final String SQL_GET_TOKEN = "SELECT * FROM token WHERE sub = :sub";
 
-  public Claims getToken(String jti) {
+  public Claims getToken(String sub) {
     var params = new HashMap<String, Object>();
-    params.put("jti", jti);
+    params.put("sub", sub);
     return jdbcTemplate.queryForObject(SQL_GET_TOKEN, params, (rs, rowNum) -> {
       try {
         return JsonUtil.json2Object(rs.getString("token"), Claims.class);
@@ -40,11 +39,15 @@ public class TokenRepository extends AbstractRepository {
   }
 
   // insert token
-  public static final String SQL_INSERT_TOKEN = "INSERT INTO token (jti, sub, token, expire_at) VALUES (:jti, :sub, to_json(:token::JSON), :expire_at)";
+  public static final String SQL_INSERT_TOKEN = "INSERT INTO token (sub, token, expire_at) VALUES (:sub, to_json(:token::JSON), :expire_at)";
 
-  public void insertToken(String jti, String sub, Object token, Instant expireAt) {
+  public void upsertToken( String sub, Object token, Instant expireAt) {
+    var currentToken = getToken(sub);
+    if (currentToken != null) {
+      deleteToken(sub);
+    }
+
     var params = new HashMap<String, Object>();
-    params.put("jti", UUID.fromString(jti));
     params.put("sub", sub);
     params.put("token", JsonUtil.object2Json(token));
     params.put("expire_at", Timestamp.from(expireAt));

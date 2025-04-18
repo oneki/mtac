@@ -10,12 +10,13 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import net.oneki.mtac.framework.cache.Cache;
 import net.oneki.mtac.framework.json.EntityMapper;
 import net.oneki.mtac.framework.json.EntityModule;
+import net.oneki.mtac.framework.util.security.PasswordUtil;
 
 @Configuration
 public class EntityConfig {
 
     @Bean(name = "entityMapper")
-    public EntityMapper entityMapper() {
+    public EntityMapper entityMapper(PasswordUtil passwordUtil) {
 
         var mapper = EntityMapper.builder()
             .enable(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY)
@@ -26,7 +27,7 @@ public class EntityConfig {
             //     .withSerializerModifier(new EntityToDbSerializerModifier()
             // ))
             .build();
-        var entityModule = new EntityModule(mapper);
+        var entityModule = new EntityModule(mapper, passwordUtil);
         mapper.registerModule(new JavaTimeModule());
         mapper.registerModule(entityModule);
 

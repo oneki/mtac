@@ -3,6 +3,8 @@ package net.oneki.mtac.model.core.security;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -14,15 +16,19 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor
 @SuperBuilder
 public class TenantWithHierarchy {
+  @JsonIgnore
+  private int id;
   private String urn;
   private String name;
-  @Builder.Default private List<TenantHiearchy> hierarchy = new ArrayList<>();
+  @Builder.Default private List<TenantHierarchy> hierarchy = new ArrayList<>();
 
   @Data
   @AllArgsConstructor
   @NoArgsConstructor
   @SuperBuilder
-  public static class TenantHiearchy {
+  public static class TenantHierarchy {
+    @JsonIgnore
+    private int id;
     private String urn;
     private String name;
   }

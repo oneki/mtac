@@ -8,16 +8,16 @@ import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.deser.std.DelegatingDeserializer;
 
-import net.oneki.mtac.core.util.json.UpsertRequestDeserializer;
+import net.oneki.mtac.core.util.json.DtoDeserializer;
 import net.oneki.mtac.model.resource.UpsertRequest;
 import net.oneki.mtac.resource.ResourceService;
 
-public class UpsertRequestDeserializer extends DelegatingDeserializer {
+public class DtoDeserializer extends DelegatingDeserializer {
 
     private BeanDescription beanDescription;
     private ResourceService resourceService;
 
-    public UpsertRequestDeserializer(JsonDeserializer<?> delegate, BeanDescription beanDescription, ResourceService resourceService) {
+    public DtoDeserializer(JsonDeserializer<?> delegate, BeanDescription beanDescription, ResourceService resourceService) {
         super(delegate);
         this.beanDescription = beanDescription;
         this.resourceService = resourceService;
@@ -25,7 +25,7 @@ public class UpsertRequestDeserializer extends DelegatingDeserializer {
 
     @Override
     protected JsonDeserializer<?> newDelegatingInstance(JsonDeserializer<?> newDelegatee) {
-        return new UpsertRequestDeserializer(newDelegatee, beanDescription, resourceService);
+        return new DtoDeserializer(newDelegatee, beanDescription, resourceService);
     }
 
     @Override

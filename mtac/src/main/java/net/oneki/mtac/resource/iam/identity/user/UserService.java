@@ -1,17 +1,27 @@
 package net.oneki.mtac.resource.iam.identity.user;
 
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import net.oneki.mtac.framework.cache.ResourceRegistry;
+import net.oneki.mtac.framework.cache.TokenRegistry;
 import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.framework.repository.TenantRepository;
+import net.oneki.mtac.framework.repository.TokenRepository;
 import net.oneki.mtac.framework.service.JwtTokenService;
+import net.oneki.mtac.model.core.security.TenantWithHierarchy;
+import net.oneki.mtac.model.core.security.TenantWithHierarchy.TenantHierarchy;
 import net.oneki.mtac.model.core.util.SetUtils;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
 import net.oneki.mtac.model.core.util.security.Claims;
@@ -19,6 +29,7 @@ import net.oneki.mtac.model.core.util.security.SecurityContext;
 import net.oneki.mtac.model.resource.iam.identity.user.User;
 import net.oneki.mtac.model.resource.iam.identity.user.UserUpsertRequest;
 import net.oneki.mtac.resource.ResourceService;
+import net.oneki.mtac.resource.iam.RoleRepository;
 import net.oneki.mtac.resource.iam.identity.group.GroupMembershipRepository;
 import net.oneki.mtac.resource.iam.identity.group.GroupRepository;
 
@@ -32,7 +43,12 @@ public class UserService extends ResourceService<UserUpsertRequest, User> {
   private final TenantRepository tenantRepository;
   private final JwtTokenService tokenService;
   private final ResourceRepository resourceRepository;
+  private final RoleRepository roleRepository;
   private final SecurityContext securityContext;
+  private final TokenRegistry tokenRegistry;
+  private final TokenRepository tokenRepository;
+
+  @Value("${jwt.expiration-sec:86400}") int expirationSec;
 
   @Override
   public Class<User> getEntityClass() {
@@ -57,15 +73,16 @@ public class UserService extends ResourceService<UserUpsertRequest, User> {
     if (user == null || !passwordEncoder.matches(password, user.getPassword())) {
       throw new BusinessException("INVALID_CREDENTIALS", "User/Password incorrect");
     }
-    Set<Integer> sids = SetUtils.of(user.getId());
-    sids.addAll(listGroupSids(user));
-    var tenantSids = tenantRepository.listUserTenantSidsUnsecure(sids);
 
-    return tokenService.generateExpiringToken(Map.of(
-      "jti", UUID.randomUUID().toString(),
-        "sub", user.getLabel(),
-        "tenantSids", tenantSids,
-        "sids", sids));
+
+    var accessTokenClaims = new Claims();
+    accessTokenClaims.put("jti", UUID.randomUUID().toString());
+    accessTokenClaims.put("sub", user.getLabel());
+
+    var idTokenClaims = userinfo(user.getLabel());
+
+    return tokenService.generateExpiringToken(accessTokenClaims, idTokenClaims);
+
   }
 
   public Claims userinfo() {
@@ -74,11 +91,48 @@ public class UserService extends ResourceService<UserUpsertRequest, User> {
 
   public Claims userinfo(String sub) {
     var user = getByLabelOrUrnUnsecure(sub);
-    var claims = new Claims();
+    return userinfo(user);
+  }
+
+  public Claims userinfo(User user) {
+    var claims = tokenRegistry.get(user.getLabel());
+    if (claims != null) {
+      return claims;
+    } else {
+      claims = new Claims();
+    }
+    claims.put("username", user.getLabel());
     claims.put("email", user.getEmail());
     claims.put("firstName", user.getFirstName());
     claims.put("lastName", user.getLastName());
-    // TODO ajouter tenantRoles
+
+    var sids = new ArrayList<Integer>();
+    sids.add(user.getId());
+    sids.addAll(listGroupSids(user));
+    var tenantRoles = roleRepository.listAssignedTenantRolesByIdentity(sids);
+    var tenantSids = tenantRoles.stream()
+        .filter(tenantRole -> tenantRole.getRoles().size() > 0)
+        .map(tenantRole -> tenantRole.getTenant().getId())
+        .collect(Collectors.toList());
+    claims.put("tenantSids", tenantSids);
+    claims.put("sids", sids);
+    for (var tenantRole : tenantRoles) {
+      var tenantId = tenantRole.getTenant().getId();
+      var ancestorTenants = ResourceRegistry.getTenantAncestors(tenantId);
+      var hierarchy = ancestorTenants.stream()
+        .map(ancestor -> (TenantHierarchy) TenantHierarchy.builder()
+          .id(ancestor.getId())
+          .urn(ancestor.getUrn())
+          .name(ancestor.getName())
+          .build()
+        )
+        .toList();
+      tenantRole.getTenant().setHierarchy(hierarchy);
+    }
+
+    claims.put("tenantRoles", tenantRoles);
+    tokenRepository.upsertToken(user.getLabel(), claims, Instant.now().plusSeconds(expirationSec));
+
     return claims;
   }
 

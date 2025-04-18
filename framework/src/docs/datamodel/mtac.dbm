@@ -3,8 +3,8 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="1.1.0" use-changelog="false" max-obj-count="49"
-	 last-position="0,149" last-zoom="1" scene-rect="-80,-40.5,1707.33,2074.22"
+<dbmodel pgmodeler-ver="1.1.0" use-changelog="false" max-obj-count="51"
+	 last-position="-80,343" last-zoom="1" scene-rect="-80,-40.5,1707.33,2074.22"
 	 default-owner="postgres"
 	 layers="Default"
 	 active-layers="0"
@@ -2395,13 +2395,10 @@ END;]]> </definition>
 		<function signature="public.manage_delete_relationship()"/>
 </trigger>
 
-<table name="token" layers="0" collapse-mode="2" max-obj-count="4" z-value="0">
+<table name="token" layers="0" collapse-mode="2" max-obj-count="3" z-value="0">
 	<schema name="public"/>
 	<role name="postgres"/>
 	<position x="360" y="1120"/>
-	<column name="jti" not-null="true">
-		<type name="uuid" length="0"/>
-	</column>
 	<column name="sub" not-null="true">
 		<type name="text" length="0"/>
 	</column>
@@ -2411,8 +2408,8 @@ END;]]> </definition>
 	<column name="expire_at" not-null="true">
 		<type name="timestamp with time zone" length="0" with-timezone="true"/>
 	</column>
-	<constraint name="token_pk" type="pk-constr" table="public.token">
-		<columns names="jti" ref-type="src-columns"/>
+	<constraint name="token_sub_pk" type="pk-constr" table="public.token">
+		<columns names="sub" ref-type="src-columns"/>
 	</constraint>
 </table>
 
@@ -2432,7 +2429,7 @@ END;]]> </definition>
 	<type name="trigger" length="0"/>
 	</return-type>
 	<definition> <![CDATA[BEGIN
-    PERFORM pg_notify('token_channel', 'create,' || NEW.jti);
+    PERFORM pg_notify('token_channel', 'create,' || NEW.sub);
 	RETURN NULL;
 END;]]> </definition>
 </function>
@@ -2453,7 +2450,7 @@ END;]]> </definition>
 	<type name="trigger" length="0"/>
 	</return-type>
 	<definition> <![CDATA[BEGIN
-    PERFORM pg_notify('token_channel', 'delete,' || OLD.jti);
+    PERFORM pg_notify('token_channel', 'delete,' || OLD.sub);
 	RETURN NULL;
 END;]]> </definition>
 </function>
@@ -2468,6 +2465,60 @@ END;]]> </definition>
 	 ins-event="false" del-event="true" upd-event="false" trunc-event="false"
 	 table="public.token">
 		<function signature="public.after_delete_token()"/>
+</trigger>
+
+<function name="after_delete_resource_tenant_tree"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+    PERFORM pg_notify('resource_tenant_tree_channel', 'delete,' || OLD.ancestor_id || ',' || OLD.descendant_id);
+    RETURN NULL;
+END;]]> </definition>
+</function>
+
+<function name="after_insert_resource_tenant_tree"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+    PERFORM pg_notify('resource_tenant_tree_channel', 'create,' || NEW.ancestor_id || ',' || NEW.descendant_id );
+	RETURN NULL;
+END;]]> </definition>
+</function>
+
+<trigger name="after_insert_resource_tenant_tree" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="true" del-event="false" upd-event="false" trunc-event="false"
+	 table="public.resource_tenant_tree">
+		<function signature="public.after_insert_resource_tenant_tree()"/>
+</trigger>
+
+<trigger name="after_delete_resource_tenant_tree" firing-type="BEFORE" per-line="true" constraint="false"
+	 ins-event="false" del-event="true" upd-event="false" trunc-event="false"
+	 table="public.resource_tenant_tree">
+		<function signature="public.after_delete_resource_tenant_tree()"/>
 </trigger>
 
 <constraint name="role_schema_role_fk" type="fk-constr" comparison-type="MATCH FULL"

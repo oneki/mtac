@@ -3,6 +3,7 @@ package net.oneki.mtac.framework.cache;
 import java.lang.annotation.Annotation;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -290,6 +291,12 @@ public class ResourceRegistry {
 
     public static Map<Integer, Tenant> getTenants() {
         return cache.getTenants();
+    }
+
+    public static List<Tenant> getTenantAncestors(Integer tenantId) {
+        return cache.getTenantAncestors(tenantId).stream()
+                .map(ancestorId -> getTenantById(ancestorId))
+                .collect(Collectors.toList());
     }
 
     // ------------------------------------------------- protected methods

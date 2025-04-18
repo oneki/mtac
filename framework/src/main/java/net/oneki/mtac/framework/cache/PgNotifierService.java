@@ -6,7 +6,6 @@ import java.util.function.Consumer;
 
 import org.postgresql.PGConnection;
 import org.postgresql.PGNotification;
-import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +18,7 @@ import net.oneki.mtac.model.resource.Resource;
 public class PgNotifierService {
     public static final String RESOURCE_CHANNEL = "resource_channel";
     public static final String TOKEN_CHANNEL = "token_channel";
+    public static final String RESOURCE_TENANT_TREE_CHANNEL = "resource_tenant_tree_channel";
     private final JdbcTemplate tpl;
 
     @Transactional

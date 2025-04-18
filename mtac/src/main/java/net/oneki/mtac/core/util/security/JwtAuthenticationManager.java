@@ -23,7 +23,6 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.framework.cache.TokenRegistry;
 import net.oneki.mtac.framework.repository.TokenRepository;
-import net.oneki.mtac.model.core.security.UserInfo;
 import net.oneki.mtac.model.core.util.security.DefaultOAuth2User;
 import net.oneki.mtac.model.core.util.security.JwtAuthoritiesExtractor;
 import net.oneki.mtac.resource.iam.identity.user.UserService;
@@ -39,7 +38,7 @@ public class JwtAuthenticationManager implements AuthenticationManager {
 	private final TokenRegistry tokenRegistry;
 	private final TokenRepository tokenRepository;
 	private final UserService userService;
-	private String nameAttributeKey = "email";
+	private String nameAttributeKey = "username";
 	private String authorizedClientRegistrationId = "default";
 
 	@Override
@@ -51,26 +50,11 @@ public class JwtAuthenticationManager implements AuthenticationManager {
 		Jwt jwt;
 		try {
 			jwt = this.jwtDecoder.decode(bearer.getToken());
-			var jti = jwt.getClaimAsString("jti");
-			if (jti == null) {
-				throw new JwtException("Missing claim 'jti' in JWT token");
+			var sub = jwt.getClaimAsString("sub");
+			if (sub == null) {
+				throw new JwtException("Missing claim 'sub' in JWT token");
 			}
-
-			var claims = tokenRegistry.get(jti);
-			if (claims == null) {
-				var sub = jwt.getClaimAsString("sub");
-				var exp  = jwt.getClaimAsInstant("exp");
-				claims = userService.userinfo(sub);
-				claims.put("tenantSids", jwt.getClaims().get("tenantSids"));
-				claims.put("sids", jwt.getClaims().get("sids"));
-				tokenRegistry.put(jti, claims);
-				final var claimsFinal = claims;
-				Thread.startVirtualThread(() -> {
-					tokenRepository.insertToken(jti, sub, claimsFinal, exp);
-				});
-			}
-
-
+			var claims = userService.userinfo(sub);
 			Collection<GrantedAuthority> authorities = new ArrayList<>(); // TODO
 
 			OAuth2User principal = new DefaultOAuth2User(authorities, claims, nameAttributeKey, bearer.getToken());

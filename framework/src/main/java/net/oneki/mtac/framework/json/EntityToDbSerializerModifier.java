@@ -8,12 +8,16 @@ import com.fasterxml.jackson.databind.SerializationConfig;
 import com.fasterxml.jackson.databind.ser.BeanPropertyWriter;
 import com.fasterxml.jackson.databind.ser.BeanSerializerModifier;
 
+import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.framework.cache.ResourceRegistry;
+import net.oneki.mtac.framework.util.security.PasswordUtil;
 import net.oneki.mtac.model.core.resource.Ref;
 import net.oneki.mtac.model.core.util.json.JsonUtil;
 import net.oneki.mtac.model.core.util.json.view.External;
 
+@RequiredArgsConstructor
 public class EntityToDbSerializerModifier extends BeanSerializerModifier {
+    private final PasswordUtil passwordUtil;
 
     private final static Set<String> skipFields = Set.of("id", "$l", "$s", "$t", "$createdAt", "$createdBy",
             "$updatedAt", "$updatedBy", "$pub", "link", "acl", "$urn");
@@ -40,6 +44,10 @@ public class EntityToDbSerializerModifier extends BeanSerializerModifier {
                 var resourceField = resourceDesc.getField(writer.getName());
                 if (resourceField != null && resourceField.isRelation()) {
                     beanProperties.set(i, new RefWriter(writer, resourceField));
+                }
+                if (resourceField != null && resourceField.isSecret()) {
+                    beanProperties.set(i, new PasswordWriter(writer, resourceField, passwordUtil));
+
                 }
             }
         }

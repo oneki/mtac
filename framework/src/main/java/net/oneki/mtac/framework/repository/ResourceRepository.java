@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.framework.cache.ResourceRegistry;
 import net.oneki.mtac.framework.json.EntityMapper;
+import net.oneki.mtac.framework.json.JsonEntityMapper;
 import net.oneki.mtac.framework.query.Filter;
 import net.oneki.mtac.framework.query.FilterCriteria;
 import net.oneki.mtac.framework.query.Query;
@@ -37,6 +38,7 @@ import net.oneki.mtac.model.resource.Resource;
 @RequiredArgsConstructor
 public class ResourceRepository extends AbstractRepository {
     private final SecurityContext securityContext;
+    private final JsonEntityMapper jsonEntityMapper;
     @Qualifier("entityMapper")
     private final EntityMapper entityMapper;
 
@@ -71,20 +73,20 @@ public class ResourceRepository extends AbstractRepository {
         return null;
     }
 
-    public Integer createLink(Resource source, Integer targetTenantId, LinkType linkType, boolean pub, String createdBy) {
+    public Integer createLink(Resource source, Integer targetTenantId, LinkType linkType, boolean pub,
+            String createdBy) {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         var sql = SqlUtils.getSQL("resource/resource_insert_link.sql");
         var targetTenantLabel = ResourceRegistry.getTenantLabel(targetTenantId);
         Map<String, Object> parameters = Map.of(
-            "label", source.getLabel(),
-            "urn", "urn:" + targetTenantLabel + ":" + source.getSchemaLabel() + ":" + source.getLabel(),
-            "pub", pub,
-            "linkId", source.getId(),
-            "linkType", linkType.ordinal(),
-            "tenantId", targetTenantId,
-            "schemaId", source.getSchemaId(),
-            "createdBy", createdBy
-        );
+                "label", source.getLabel(),
+                "urn", "urn:" + targetTenantLabel + ":" + source.getSchemaLabel() + ":" + source.getLabel(),
+                "pub", pub,
+                "linkId", source.getId(),
+                "linkType", linkType.ordinal(),
+                "tenantId", targetTenantId,
+                "schemaId", source.getSchemaId(),
+                "createdBy", createdBy);
         jdbcTemplate.update(sql, new MapSqlParameterSource(parameters), keyHolder);
         if (keyHolder.getKeyList() != null && keyHolder.getKeyList().size() > 0) {
             return (Integer) keyHolder.getKeyList().get(0).get("id");
@@ -168,7 +170,7 @@ public class ResourceRepository extends AbstractRepository {
             args.put("sids", securityContext.getSids());
         }
         try {
-            return jdbcTemplate.queryForObject(sql, args, new ResourceRowMapper<T>());
+            return jdbcTemplate.queryForObject(sql, args, new ResourceRowMapper<T>(jsonEntityMapper));
         } catch (EmptyResultDataAccessException e) {
             return null;
         }
@@ -191,7 +193,7 @@ public class ResourceRepository extends AbstractRepository {
             return getByUniqueLabelUnsecure(labelOrUrn, resultContentClass);
         }
     }
-    
+
     public <T extends Resource> T getByUrn(String urn, Class<T> resultContentClass) {
         return getByUrn(urn, resultContentClass, null, null);
     }
@@ -222,7 +224,8 @@ public class ResourceRepository extends AbstractRepository {
             args.put("sids", securityContext.getSids());
         }
         try {
-            return jdbcTemplate.queryForObject(sql, args, new ResourceRowMapper<T>());
+            var result =  jdbcTemplate.queryForObject(sql, args, new ResourceRowMapper<T>(jsonEntityMapper));
+            return result;
         } catch (EmptyResultDataAccessException e) {
             return null;
         }
@@ -282,7 +285,8 @@ public class ResourceRepository extends AbstractRepository {
         }
 
         try {
-            return jdbcTemplate.queryForObject(sql, args, new ResourceRowMapper<T>());
+            var result =  jdbcTemplate.queryForObject(sql, args, new ResourceRowMapper<T>(jsonEntityMapper));
+            return result;
         } catch (EmptyResultDataAccessException e) {
             return null;
         }
@@ -377,6 +381,18 @@ public class ResourceRepository extends AbstractRepository {
     public <T extends Resource> List<T> list(Integer tenantId, Class<T> contentClass,
             String sql, Query query,
             Map<String, Object> args) {
+        if (securityContext != null) {
+            return list(tenantId, contentClass, sql, query, args, securityContext.getSids(), securityContext.getTenantSids());
+        } else {
+            return list(tenantId, contentClass, sql, query, args, null, null);
+        }
+    }
+
+    public <T extends Resource> List<T> list(Integer tenantId, Class<T> contentClass,
+            String sql, Query query,
+            Map<String, Object> args,
+            Collection<Integer> sids,
+            Collection<Integer> tenantSids) {
 
         var schemaLabel = ResourceRegistry.getSchemaByClass(contentClass);
 
@@ -407,9 +423,11 @@ public class ResourceRepository extends AbstractRepository {
 
         // sids represent the id of the logged-in user + all the groups in which he/she
         // is present
-        if (securityContext != null) {
-            args.put("sids", securityContext.getSids());
-            args.put("tenantSids", SecurityUtils.getTenantSids(securityContext));
+        if (sids != null) {
+            args.put("sids", sids);
+        }
+        if (tenantSids != null) {
+            args.put("tenantSids", tenantSids);
         }
 
         // schemaLabel is the type of the object we want in return.
@@ -583,7 +601,7 @@ public class ResourceRepository extends AbstractRepository {
                 .replace("\"<placeholder for dynamic limit />\"", limitSql)
                 .replace("\"<placeholder for dynamic temporary tables />\"", temporaryTablesSql);
 
-        var resources = jdbcTemplate.query(sql, args, new ResourceRowMapper<T>());
+        var resources = jdbcTemplate.query(sql, args, new ResourceRowMapper<T>(jsonEntityMapper));
 
         return resources;
     }
@@ -607,7 +625,7 @@ public class ResourceRepository extends AbstractRepository {
         if (securityContext != null) {
             args.put("sids", securityContext.getSids());
         }
-        List<Resource> entities = jdbcTemplate.query(sql, args, new ResourceRowMapper<Resource>());
+        List<Resource> entities = jdbcTemplate.query(sql, args, new ResourceRowMapper<Resource>(jsonEntityMapper));
         return entities;
     }
 
@@ -618,7 +636,7 @@ public class ResourceRepository extends AbstractRepository {
         if (securityContext != null) {
             args.put("sids", securityContext.getSids());
         }
-        List<Resource> entities = jdbcTemplate.query(sql, args, new ResourceRowMapper<Resource>());
+        List<Resource> entities = jdbcTemplate.query(sql, args, new ResourceRowMapper<Resource>(jsonEntityMapper));
         return entities;
     }
 }

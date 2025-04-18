@@ -7,11 +7,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.deser.BeanDeserializerModifier;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 
+import net.oneki.mtac.framework.util.security.PasswordUtil;
 import net.oneki.mtac.model.resource.Resource;
 
 public class EntityModule extends SimpleModule {
 
-    public EntityModule(ObjectMapper mapper) {
+    public EntityModule(ObjectMapper mapper, PasswordUtil passwordUtil) {
         super();
         setDeserializerModifier(new BeanDeserializerModifier() {
             @Override
@@ -33,7 +34,7 @@ public class EntityModule extends SimpleModule {
             }
         });
 
-        setSerializerModifier(new EntityToDbSerializerModifier());
+        setSerializerModifier(new EntityToDbSerializerModifier(passwordUtil));
     }
 
 }
