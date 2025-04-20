@@ -2,12 +2,12 @@ package net.oneki.mtac.resource.iam.identity.user;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -17,17 +17,15 @@ import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.framework.cache.ResourceRegistry;
 import net.oneki.mtac.framework.cache.TokenRegistry;
 import net.oneki.mtac.framework.repository.ResourceRepository;
-import net.oneki.mtac.framework.repository.TenantRepository;
 import net.oneki.mtac.framework.repository.TokenRepository;
 import net.oneki.mtac.framework.service.JwtTokenService;
-import net.oneki.mtac.model.core.security.TenantWithHierarchy;
 import net.oneki.mtac.model.core.security.TenantWithHierarchy.TenantHierarchy;
-import net.oneki.mtac.model.core.util.SetUtils;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
 import net.oneki.mtac.model.core.util.security.Claims;
 import net.oneki.mtac.model.core.util.security.SecurityContext;
+import net.oneki.mtac.model.resource.iam.identity.group.Group;
+import net.oneki.mtac.model.resource.iam.identity.user.BaseUserUpsertRequest;
 import net.oneki.mtac.model.resource.iam.identity.user.User;
-import net.oneki.mtac.model.resource.iam.identity.user.UserUpsertRequest;
 import net.oneki.mtac.resource.ResourceService;
 import net.oneki.mtac.resource.iam.RoleRepository;
 import net.oneki.mtac.resource.iam.identity.group.GroupMembershipRepository;
@@ -35,33 +33,69 @@ import net.oneki.mtac.resource.iam.identity.group.GroupRepository;
 
 @Service("mtacUserService")
 @RequiredArgsConstructor
-public class UserService extends ResourceService<UserUpsertRequest, User> {
-  private final UserRepository userRepository;
-  private final PasswordEncoder passwordEncoder;
-  private final GroupMembershipRepository groupMembershipRepository;
-  private final GroupRepository groupRepository;
-  private final TenantRepository tenantRepository;
-  private final JwtTokenService tokenService;
-  private final ResourceRepository resourceRepository;
-  private final RoleRepository roleRepository;
-  private final SecurityContext securityContext;
-  private final TokenRegistry tokenRegistry;
-  private final TokenRepository tokenRepository;
+public abstract class UserService<U extends BaseUserUpsertRequest<? extends Group>, E extends User> extends ResourceService<U, E> {
+  //private final UserRepository userRepository;
+  private PasswordEncoder passwordEncoder;
+  private GroupMembershipRepository groupMembershipRepository;
+  private GroupRepository groupRepository;
+  //private final TenantRepository tenantRepository;
+  private JwtTokenService tokenService;
+  private ResourceRepository resourceRepository;
+  private RoleRepository roleRepository;
+  private SecurityContext securityContext;
+  private TokenRegistry tokenRegistry;
+  private TokenRepository tokenRepository;
 
-  @Value("${jwt.expiration-sec:86400}") int expirationSec;
 
-  @Override
-  public Class<User> getEntityClass() {
-    return User.class;
+  @Autowired
+  public final void setPasswordEncoder(PasswordEncoder passwordEncoder) {
+    this.passwordEncoder = passwordEncoder;
   }
 
-  @Override
-  public Class<UserUpsertRequest> getRequestClass() {
-    return UserUpsertRequest.class;
+  @Autowired
+  public final void setGroupMembershipRepository(GroupMembershipRepository groupMembershipRepository) {
+    this.groupMembershipRepository = groupMembershipRepository;
   }
 
-  public User getByLabel(String tenantLabel, String userLabel) {
-    return resourceRepository.getByLabel(userLabel, tenantLabel, User.class);
+  @Autowired
+  public final void setGroupRepository(GroupRepository groupRepository) {
+    this.groupRepository = groupRepository;
+  }
+
+  @Autowired
+  public final void setTokenService(JwtTokenService tokenService) {
+    this.tokenService = tokenService;
+  }
+
+  @Autowired
+  public final void setResourceRepository(ResourceRepository resourceRepository) {
+    this.resourceRepository = resourceRepository;
+  }
+
+  @Autowired
+  public final void setRoleRepository(RoleRepository roleRepository) {
+    this.roleRepository = roleRepository;
+  }
+
+  @Autowired
+  public final void setSecurityContext(SecurityContext securityContext) {
+    this.securityContext = securityContext;
+  }
+
+  @Autowired
+  public final void setTokenRegistry(TokenRegistry tokenRegistry) {
+    this.tokenRegistry = tokenRegistry;
+  }
+
+  @Autowired
+  public final void setTokenRepository(TokenRepository tokenRepository) {
+    this.tokenRepository = tokenRepository;
+  }
+
+  @Value("${jwt.expiration-sec:86400}") protected int expirationSec;
+
+  public E getByLabel(String tenantLabel, String userLabel) {
+    return resourceRepository.getByLabel(userLabel, tenantLabel, getEntityClass());
   }
 
   public Map<String, Object> login(String username, String password) {
@@ -69,7 +103,7 @@ public class UserService extends ResourceService<UserUpsertRequest, User> {
       throw new BusinessException("INVALID_PASSWORD", "Password cannot be blank");
     }
 
-    var user = userRepository.getUserUnsecure(username);
+    var user = resourceRepository.getByLabelOrUrnUnsecure(username, getEntityClass());
     if (user == null || !passwordEncoder.matches(password, user.getPassword())) {
       throw new BusinessException("INVALID_CREDENTIALS", "User/Password incorrect");
     }
@@ -136,22 +170,29 @@ public class UserService extends ResourceService<UserUpsertRequest, User> {
     return claims;
   }
 
-  public User create(UserUpsertRequest request) {
+  public E create(U request) {
     var userEntity = toCreateEntity(request);
     if (userEntity.getPassword() == null) {
       throw new BusinessException("INVALID_PASSWORD", "Password cannot be blank");
     }
-    userEntity.setPassword(passwordEncoder.encode(userEntity.getPassword()));
-    return userRepository.create(userEntity);
+
+    var result = resourceRepository.create(userEntity);
+    if (userEntity.getMemberOf() != null) {
+      for (var group : userEntity.getMemberOf()) {
+        groupMembershipRepository.create(group.toRef(), result.toRef());
+      }
+    }
+
+    return result;
 
   }
 
-  public User update(String urn, UserUpsertRequest request) {
+  public void update(String urn, U request) {
     var userEntity = toUpdateEntity(urn, request);
     if (request.getPassword() != null) {
       userEntity.setPassword(passwordEncoder.encode(request.getPassword()));
     }
-    return userRepository.update(userEntity);
+    resourceRepository.update(userEntity);
   }
 
   public Set<Integer> listGroupSids(@NonNull User user) {

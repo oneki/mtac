@@ -30,7 +30,7 @@ public class SiteService extends TenantService<SiteUpsertRequest, Site> {
 
     @Override
     public void delete(Site site) {
-        deleteRg(site, "assets");
+        // deleteRg(site, "assets");
         super.delete(site);
     }
 
@@ -42,12 +42,12 @@ public class SiteService extends TenantService<SiteUpsertRequest, Site> {
         return rgService.create(rg);
     }
 
-    private void deleteRg(Site site, String rgName) {
-        try {
-            rgService.deleteByLabel(site.getLabel(), Tenant.toLabel(rgName, site.getLabel()));
-        } catch (NotFoundException e) {
-        }
-    }
+    // private void deleteRg(Site site, String rgName) {
+    //     try {
+    //         rgService.deleteByLabel(site.getLabel(), Tenant.toLabel(rgName, site.getLabel()));
+    //     } catch (NotFoundException e) {
+    //     }
+    // }
 
     @Override
     public Class<Site> getEntityClass() {

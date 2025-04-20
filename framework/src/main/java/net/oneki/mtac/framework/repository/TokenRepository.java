@@ -7,6 +7,7 @@ import java.util.HashMap;
 
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.stereotype.Repository;
 
 import net.oneki.mtac.model.core.util.json.JsonUtil;
@@ -29,13 +30,18 @@ public class TokenRepository extends AbstractRepository {
   public Claims getToken(String sub) {
     var params = new HashMap<String, Object>();
     params.put("sub", sub);
-    return jdbcTemplate.queryForObject(SQL_GET_TOKEN, params, (rs, rowNum) -> {
-      try {
-        return JsonUtil.json2Object(rs.getString("token"), Claims.class);
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-    });
+    try {
+      return jdbcTemplate.queryForObject(SQL_GET_TOKEN, params, (rs, rowNum) -> {
+        try {
+          return JsonUtil.json2Object(rs.getString("token"), Claims.class);
+        } catch (Exception e) {
+          throw new RuntimeException(e);
+        }
+      });
+    } catch (EmptyResultDataAccessException emptyException) {
+      return null;
+    }
+
   }
 
   // insert token
