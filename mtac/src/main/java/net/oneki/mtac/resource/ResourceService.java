@@ -414,16 +414,23 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
             relationField.getField().setAccessible(true);
             if (relationField.isMultiple()) {
                 var relations = (List<Resource>) relationField.getField().get(upsertRequest);
+
                 var relationEntities = new ArrayList<Resource>();
-                for (var relation : relations) {
-                    var relationEntity = getRelationEntity(upsertRequest, relationField, relation);
-                    relationEntities.add(relationEntity);
+                if (relations != null) {
+                    for (var relation : relations) {
+                        var relationEntity = getRelationEntity(upsertRequest, relationField, relation);
+                        relationEntities.add(relationEntity);
+                    }
                 }
                 relationField.getField().set(upsertRequest, relationEntities);
             } else {
                 var relation = (Resource) relationField.getField().get(upsertRequest);
-                var relationEntity = getRelationEntity(upsertRequest, relationField, relation);
-                relationField.getField().set(upsertRequest, relationEntity);
+                if (relation != null) {
+                    var relationEntity = getRelationEntity(upsertRequest, relationField, relation);
+                    relationField.getField().set(upsertRequest, relationEntity);
+                } else {
+                    relationField.getField().set(upsertRequest, null);
+                }
             }
         }
 

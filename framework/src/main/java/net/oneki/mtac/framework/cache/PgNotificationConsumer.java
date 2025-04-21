@@ -47,7 +47,7 @@ public class PgNotificationConsumer implements Consumer<PGNotification> {
                     Integer schemaId = Integer.valueOf(tokens[3]);
                     String label = String.join(",", Arrays.copyOfRange(tokens, 4, tokens.length));
                     List<Integer> tenantSchemaIds = List
-                            .of("tenant.root", "tenant.company", "tenant.site", "tenant.rg").stream()
+                            .of("tenant.root", "tenant.company.partner", "tenant.company.customer", "tenant.site", "tenant.rg").stream()
                             .map(s -> cache.getSchemaId(s)).collect(Collectors.toList());
                     boolean isSchema = schemaId.equals(Constants.SCHEMA_SCHEMA_ID);
                     boolean isTenant = tenantSchemaIds.contains(schemaId);

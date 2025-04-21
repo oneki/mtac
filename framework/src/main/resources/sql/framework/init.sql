@@ -2366,6 +2366,134 @@ CREATE TRIGGER after_delete_resource_content
 	EXECUTE PROCEDURE public.manage_delete_relationship();
 -- ddl-end --
 
+-- object: public.token | type: TABLE --
+-- DROP TABLE IF EXISTS public.token CASCADE;
+CREATE TABLE public.token (
+	sub text NOT NULL,
+	token jsonb NOT NULL,
+	expire_at timestamp with time zone NOT NULL,
+	CONSTRAINT token_sub_pk PRIMARY KEY (sub)
+);
+-- ddl-end --
+ALTER TABLE public.token OWNER TO postgres;
+-- ddl-end --
+
+-- object: public.after_insert_token | type: FUNCTION --
+-- DROP FUNCTION IF EXISTS public.after_insert_token() CASCADE;
+CREATE FUNCTION public.after_insert_token ()
+	RETURNS trigger
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	PARALLEL UNSAFE
+	COST 1
+	AS $$
+BEGIN
+    PERFORM pg_notify('token_channel', 'create,' || NEW.sub);
+	RETURN NULL;
+END;
+$$;
+-- ddl-end --
+ALTER FUNCTION public.after_insert_token() OWNER TO postgres;
+-- ddl-end --
+
+-- object: public.after_delete_token | type: FUNCTION --
+-- DROP FUNCTION IF EXISTS public.after_delete_token() CASCADE;
+CREATE FUNCTION public.after_delete_token ()
+	RETURNS trigger
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	PARALLEL UNSAFE
+	COST 1
+	AS $$
+BEGIN
+    PERFORM pg_notify('token_channel', 'delete,' || OLD.sub);
+	RETURN NULL;
+END;
+$$;
+-- ddl-end --
+ALTER FUNCTION public.after_delete_token() OWNER TO postgres;
+-- ddl-end --
+
+-- object: after_insert_token | type: TRIGGER --
+-- DROP TRIGGER IF EXISTS after_insert_token ON public.token CASCADE;
+CREATE TRIGGER after_insert_token
+	AFTER INSERT 
+	ON public.token
+	FOR EACH ROW
+	EXECUTE PROCEDURE public.after_insert_token();
+-- ddl-end --
+
+-- object: after_delete_token | type: TRIGGER --
+-- DROP TRIGGER IF EXISTS after_delete_token ON public.token CASCADE;
+CREATE TRIGGER after_delete_token
+	AFTER DELETE 
+	ON public.token
+	FOR EACH ROW
+	EXECUTE PROCEDURE public.after_delete_token();
+-- ddl-end --
+
+-- object: public.after_delete_resource_tenant_tree | type: FUNCTION --
+-- DROP FUNCTION IF EXISTS public.after_delete_resource_tenant_tree() CASCADE;
+CREATE FUNCTION public.after_delete_resource_tenant_tree ()
+	RETURNS trigger
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	PARALLEL UNSAFE
+	COST 1
+	AS $$
+BEGIN
+    PERFORM pg_notify('resource_tenant_tree_channel', 'delete,' || OLD.ancestor_id || ',' || OLD.descendant_id);
+    RETURN NULL;
+END;
+$$;
+-- ddl-end --
+ALTER FUNCTION public.after_delete_resource_tenant_tree() OWNER TO postgres;
+-- ddl-end --
+
+-- object: public.after_insert_resource_tenant_tree | type: FUNCTION --
+-- DROP FUNCTION IF EXISTS public.after_insert_resource_tenant_tree() CASCADE;
+CREATE FUNCTION public.after_insert_resource_tenant_tree ()
+	RETURNS trigger
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	PARALLEL UNSAFE
+	COST 1
+	AS $$
+BEGIN
+    PERFORM pg_notify('resource_tenant_tree_channel', 'create,' || NEW.ancestor_id || ',' || NEW.descendant_id );
+	RETURN NULL;
+END;
+$$;
+-- ddl-end --
+ALTER FUNCTION public.after_insert_resource_tenant_tree() OWNER TO postgres;
+-- ddl-end --
+
+-- object: after_insert_resource_tenant_tree | type: TRIGGER --
+-- DROP TRIGGER IF EXISTS after_insert_resource_tenant_tree ON public.resource_tenant_tree CASCADE;
+CREATE TRIGGER after_insert_resource_tenant_tree
+	AFTER INSERT 
+	ON public.resource_tenant_tree
+	FOR EACH ROW
+	EXECUTE PROCEDURE public.after_insert_resource_tenant_tree();
+-- ddl-end --
+
+-- object: after_delete_resource_tenant_tree | type: TRIGGER --
+-- DROP TRIGGER IF EXISTS after_delete_resource_tenant_tree ON public.resource_tenant_tree CASCADE;
+CREATE TRIGGER after_delete_resource_tenant_tree
+	BEFORE DELETE 
+	ON public.resource_tenant_tree
+	FOR EACH ROW
+	EXECUTE PROCEDURE public.after_delete_resource_tenant_tree();
+-- ddl-end --
+
 -- object: role_schema_role_fk | type: CONSTRAINT --
 -- ALTER TABLE public.role_schema DROP CONSTRAINT IF EXISTS role_schema_role_fk CASCADE;
 ALTER TABLE public.role_schema ADD CONSTRAINT role_schema_role_fk FOREIGN KEY (role_id)

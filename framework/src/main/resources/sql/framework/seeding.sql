@@ -50,15 +50,23 @@ INSERT INTO group_membership (parent_id, child_id) VALUES (10,9);
 
 -- Create the role role_admin
 INSERT INTO resource (urn, label, pub, tenant_id, link_id, schema_id, content, created_at, updated_at, created_by, updated_by)
-VALUES ('urn:root:iam.role:role_admin', 'role_admin', true, 4, null, 5, to_json('{"name":"Administrator","schemas":["*"],"actions":["*"],"fields":["*"]}'::JSON), NOW(), NOW(), 'root@local', 'root@local');
+VALUES ('urn:root:iam.role:admin', 'admin', true, 4, null, 5, to_json('{"name":"Administrator","schemas":["*"],"actions":["*"],"fields":["*"]}'::JSON), NOW(), NOW(), 'root@local', 'root@local');
 
 -- Create the role role_group_admin
 INSERT INTO resource (urn, label, pub, tenant_id, link_id, schema_id, content, created_at, updated_at, created_by, updated_by)
-VALUES ('urn:root:iam.role:role_group_admin', 'role_group_admin', true, 4, null, 5, to_json('{"name":"Group Administrator","schemas":["*"],"actions":["iam.identity.group|*"],"fields":["*"]}'::JSON), NOW(), NOW(), 'root@local', 'root@local');
+VALUES ('urn:root:iam.role:group-admin', 'group-admin', true, 4, null, 5, to_json('{"name":"Group Administrator","schemas":["*"],"actions":["iam.identity.group|*"],"fields":["*"]}'::JSON), NOW(), NOW(), 'root@local', 'root@local');
 
 -- Create the role role_user_admin
 INSERT INTO resource (urn, label, pub, tenant_id, link_id, schema_id, content, created_at, updated_at, created_by, updated_by)
-VALUES ('urn:root:iam.role:role_user_admin', 'role_user_admin', true, 4, null, 5, to_json('{"name":"User Administrator","schemas":["*"],"actions":["iam.identity.user|*"],"fields":["*"]}'::JSON), NOW(), NOW(), 'root@local', 'root@local');
+VALUES ('urn:root:iam.role:user-admin', 'user-admin', true, 4, null, 5, to_json('{"name":"User Administrator","schemas":["*"],"actions":["iam.identity.user|*"],"fields":["*"]}'::JSON), NOW(), NOW(), 'root@local', 'root@local');
+
+-- Create the role iam_admin
+INSERT INTO resource (urn, label, pub, tenant_id, link_id, schema_id, content, created_at, updated_at, created_by, updated_by)
+VALUES ('urn:root:iam.role:iam-admin', 'iam-admin', true, 4, null, 5, to_json('{"name":"IAM Administrator","schemas":["*"],"actions":["iam.*|*"],"fields":["*"]}'::JSON), NOW(), NOW(), 'root@local', 'root@local');
+
+-- Create the role role_viewer
+INSERT INTO resource (urn, label, pub, tenant_id, link_id, schema_id, content, created_at, updated_at, created_by, updated_by)
+VALUES ('urn:root:iam.role:readonly', 'readonly', true, 4, null, 5, to_json('{"name":"Read only","schemas":["*"],"actions":[],"fields":["*"]}'::JSON), NOW(), NOW(), 'root@local', 'root@local');
 
 -- Grant role role_admin to group super-admins on tenant root
 INSERT INTO ace(identity_id, resource_id, role_id)

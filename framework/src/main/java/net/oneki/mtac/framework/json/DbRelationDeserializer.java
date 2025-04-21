@@ -40,7 +40,11 @@ public class DbRelationDeserializer extends DelegatingDeserializer /* implements
 
     @Override
     public Object deserialize(JsonParser parser, DeserializationContext ctxt) throws IOException {
-       
+        var flag = ctxt.getAttribute("FIRST_PASS");
+        if (flag != null && flag.equals("true")) {
+            ctxt.setAttribute("FIRST_PASS", "false");
+            return super.deserialize(parser, ctxt);
+        }
         var token = parser.currentToken();
         if (token == JsonToken.START_OBJECT) {
             return deserialize(parser, ctxt, token, type);
@@ -59,12 +63,14 @@ public class DbRelationDeserializer extends DelegatingDeserializer /* implements
 
     private Object deserialize(JsonParser parser, DeserializationContext ctxt, JsonToken token, JavaType type)
             throws IOException {
-
         if (token == JsonToken.START_OBJECT) {
             JsonNode node = parser.getCodec().readTree(parser);
             var schemaNode = node.get("$s");
             if (schemaNode == null) {
-                return entityMapper.treeToValue(node, Object.class);
+                ctxt.setAttribute("FIRST_PASS", "true");
+                //return entityMapper.treeToValue(node, type.getRawClass());
+                parser.assignCurrentValue(node.asText());
+                return deserialize(parser, ctxt);
             }
             var schemaId = (Integer) ((IntNode) schemaNode).numberValue();
             var tenantId = (Integer) ((IntNode) node.get("$t")).numberValue();

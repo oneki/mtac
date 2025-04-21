@@ -35,35 +35,35 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
             json = rs.getString("link_content");
         }
         var resource = jsonEntityMapper.json2Object(json, clazz);
-        var relationFields = ResourceRegistry.getRelations(clazz);
-        for (var relationField : relationFields) {
-            relationField.getField().setAccessible(true);
-            try {
-                if (relationField.isMultiple()) {
-                    var relations = (List<Resource>) relationField.getField().get(resource);
-                    if (relations == null)
-                        continue;
-                    // var relationEntities = new ArrayList<Resource>();
-                    for (var relation : relations) {
-                        relation.setUrn(String.format("urn:%s:%s:%s",
-                                ResourceRegistry.getTenantLabel(relation.getTenantId()),
-                                ResourceRegistry.getSchemaLabel(relation.getSchemaId()),
-                                relation.getLabel()));
-                    }
-                    // relationField.getField().set(resource, relationEntities);
-                } else {
-                    var relation = (Resource) relationField.getField().get(resource);
-                    if (relation == null)
-                        continue;
-                    relation.setUrn(String.format("urn:%s:%s:%s",
-                            ResourceRegistry.getTenantLabel(relation.getTenantId()),
-                            ResourceRegistry.getSchemaLabel(relation.getSchemaId()),
-                            relation.getLabel()));
-                }
-            } catch (IllegalAccessException e) {
-                throw new SQLException(e);
-            }
-        }
+        // var relationFields = ResourceRegistry.getRelations(clazz);
+        // for (var relationField : relationFields) {
+        //     relationField.getField().setAccessible(true);
+        //     try {
+        //         if (relationField.isMultiple()) {
+        //             var relations = (List<Resource>) relationField.getField().get(resource);
+        //             if (relations == null)
+        //                 continue;
+        //             // var relationEntities = new ArrayList<Resource>();
+        //             for (var relation : relations) {
+        //                 relation.setUrn(String.format("urn:%s:%s:%s",
+        //                         relation.getTenantLabel(),
+        //                         relation.getSchemaLabel(),
+        //                         relation.getLabel()));
+        //             }
+        //             // relationField.getField().set(resource, relationEntities);
+        //         } else {
+        //             var relation = (Resource) relationField.getField().get(resource);
+        //             if (relation == null)
+        //                 continue;
+        //             relation.setUrn(String.format("urn:%s:%s:%s",
+        //                     relation.getTenantLabel(),
+        //                     relation.getSchemaLabel(),
+        //                     relation.getLabel()));
+        //         }
+        //     } catch (IllegalAccessException e) {
+        //         throw new SQLException(e);
+        //     }
+        // }
 
         // resource.setUrn(String.format("%s:%s:%s", tenantLabel, schemaLabel,
         // rs.getString("label")));

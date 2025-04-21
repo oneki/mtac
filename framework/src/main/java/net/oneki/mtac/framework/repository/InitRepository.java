@@ -16,6 +16,9 @@ public class InitRepository extends AbstractRepository {
     @Value("${mtac.postgres.owner:postgres}")
     String owner;
 
+    @Value("${mtac.postgres.seeding:}")
+    String seedingPath;
+
     public boolean initSchema() {
         var schema = getSchemaName();
         String sql = "select count(*) from pg_class c join pg_namespace s on s.oid = c.relnamespace where s.nspname not in ('pg_catalog', 'information_schema') and s.nspname = '"
@@ -35,6 +38,11 @@ public class InitRepository extends AbstractRepository {
                 // Seed tables
                 sql = SqlUtils.getSQL("framework/seeding.sql");
                 ScriptUtils.executeSqlScript(dataSource.getConnection(), new ByteArrayResource(sql.getBytes()));
+
+                if (seedingPath != null && seedingPath.length() > 0) {
+                    sql = SqlUtils.getSQL(seedingPath);
+                    ScriptUtils.executeSqlScript(dataSource.getConnection(), new ByteArrayResource(sql.getBytes()));
+                }
                 log.info("Database initialized");
             } catch (Exception e) {
                 throw new RuntimeException(e);

@@ -14,6 +14,7 @@ import org.springframework.context.annotation.ClassPathScanningCandidateComponen
 import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.stereotype.Component;
 
+import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.framework.introspect.ClassType;
@@ -21,6 +22,7 @@ import net.oneki.mtac.framework.introspect.ReflectorContext;
 import net.oneki.mtac.framework.introspect.ResourceDesc;
 import net.oneki.mtac.framework.introspect.ResourceField;
 import net.oneki.mtac.framework.introspect.ResourceReflector;
+import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.framework.repository.ResourceRepositorySync;
 import net.oneki.mtac.model.core.Constants;
 import net.oneki.mtac.model.core.util.exception.NotFoundException;
@@ -55,7 +57,13 @@ public class ResourceRegistry {
     // protected final static Map<String, PermissionSet> permissions = new
     // HashMap<>();
     protected final static Map<Class<?>, Set<ResourceField>> relations = new HashMap<>();
-    protected static ResourceRepositorySync resourceRepository;
+    protected static ResourceRepository resourceRepositoryStatic;
+    private final ResourceRepository resourceRepository;
+
+    @PostConstruct
+    public void init() {
+        resourceRepositoryStatic = resourceRepository; 
+    }
 
     public static void init(String scanBasePackage) throws ClassNotFoundException {
         cache.addSchema(Schema.builder()
@@ -221,8 +229,8 @@ public class ResourceRegistry {
 
     public static Schema getSchemaById(Integer id) {
         var result = cache.getSchemaById(id);
-        if (result == null && resourceRepository != null) {
-            result = resourceRepository.getByIdUnsecureSync(id, Schema.class);
+        if (result == null && resourceRepositoryStatic != null) {
+            result = resourceRepositoryStatic.getByIdUnsecure(id, Schema.class);
             if (result != null) {
                 cache.addSchema(result);
             }
@@ -232,8 +240,9 @@ public class ResourceRegistry {
 
     public static Tenant getTenantById(Integer id) {
         var result = cache.getTenantById(id);
-        if (result == null && resourceRepository != null) {
-            result = resourceRepository.getByIdUnsecureSync(id, Tenant.class);
+        if (result == null && resourceRepositoryStatic != null) {
+            System.out.println("lazy load tenant " + id);
+            result = resourceRepositoryStatic.getByIdUnsecure(id, Tenant.class);
             if (result != null) {
                 cache.addTenant(result);
             }
@@ -243,8 +252,8 @@ public class ResourceRegistry {
 
     public static Tenant getTenantByLabel(String tenantLabel) {
         var result = cache.getTenantByLabel(tenantLabel);
-        if (result == null && resourceRepository != null) {
-            result = resourceRepository.getByUniqueLabelUnsecureSync(tenantLabel, Tenant.class);
+        if (result == null && resourceRepositoryStatic != null) {
+            result = resourceRepositoryStatic.getByUniqueLabelUnsecure(tenantLabel, Tenant.class);
             if (result != null) {
                 cache.addTenant(result);
             }
