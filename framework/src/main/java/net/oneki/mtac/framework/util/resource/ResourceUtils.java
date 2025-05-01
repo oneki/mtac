@@ -6,12 +6,15 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
+import org.sqids.Sqids;
+
 import net.oneki.mtac.framework.cache.ResourceRegistry;
 import net.oneki.mtac.framework.introspect.ResourceDesc;
 import net.oneki.mtac.model.core.framework.HasSchema;
 import net.oneki.mtac.model.core.util.exception.UnexpectedException;
 
 public class ResourceUtils {
+	public  static Sqids sqids;
 	public static <T extends HasSchema> List<Object> get(Collection<T> resource, String path) {
 		var result = new ArrayList<>();
 		for (var r : resource) {
@@ -19,6 +22,7 @@ public class ResourceUtils {
 		}
 		return result;
 	}
+	
 
 	public static <T extends HasSchema> Object get(T resource, String path) {
 		var resourceClass = resource.getClass();
@@ -29,21 +33,25 @@ public class ResourceUtils {
 			for (var token : tokens) {
 				tokenList.add(token);
 			}
-			return get(resource, resourceDesc,  tokenList);
+			return get(resource, resourceDesc, tokenList);
 		} catch (IllegalArgumentException | IllegalAccessException e) {
-			throw new UnexpectedException("ILLEGAL_ACCESS", "Error while accessing field " + path + " in " + resourceClass.getSimpleName(), e);
+			throw new UnexpectedException("ILLEGAL_ACCESS",
+					"Error while accessing field " + path + " in " + resourceClass.getSimpleName(), e);
 		}
 	}
 
-	private static Object  get(Object resource, ResourceDesc resourceDesc,  List<String> pathTokens) throws IllegalArgumentException, IllegalAccessException {
+	private static Object get(Object resource, ResourceDesc resourceDesc, List<String> pathTokens)
+			throws IllegalArgumentException, IllegalAccessException {
 		// pop first token
 		var token = pathTokens.remove(0);
 		// get the field
 		var field = resourceDesc.getField(token);
 		// get the value
 		var value = field.getValue(resource);
-		if (value == null) return null;
-		if (pathTokens.isEmpty()) return value;
+		if (value == null)
+			return null;
+		if (pathTokens.isEmpty())
+			return value;
 
 		var nextResourceDesc = ResourceRegistry.getResourceDesc(field.getType());
 		if (field.isMultiple()) {
@@ -59,34 +67,56 @@ public class ResourceUtils {
 						return null;
 					}
 				}
-			} catch (NumberFormatException e) {}
+			} catch (NumberFormatException e) {
+			}
 		}
 
 		return get(value, nextResourceDesc, pathTokens);
-		
+
 	}
 
-	private static Set<String> refFields =  Set.of("id", "label", "schema", "pub", "link", "urn", "tenant");
-    public static boolean isRef(Object resource) {
+	private static Set<String> refFields = Set.of("id", "label", "schema", "pub", "link", "urn", "tenant");
+
+	public static boolean isRef(Object resource) {
 		if (resource instanceof HasSchema) {
 			var resourceDesc = ResourceRegistry.getResourceDesc(resource.getClass());
-			return !resourceDesc.getFields().stream().anyMatch(f -> 
-				f.getValue(resource) != null &&
-				!refFields.contains(f.getLabel())
-			);
+			return !resourceDesc.getFields().stream().anyMatch(f -> f.getValue(resource) != null &&
+					!refFields.contains(f.getLabel()));
 		}
 		return false;
-    }
+	}
 
-	private static Set<String> softRelationFields =  Set.of("label", "schema");
+	private static Set<String> softRelationFields = Set.of("label", "schema");
+
 	public static boolean isSoftRelation(Object resource) {
 		if (resource instanceof HasSchema) {
 			var resourceDesc = ResourceRegistry.getResourceDesc(resource.getClass());
-			return !resourceDesc.getFields().stream().anyMatch(f -> 
-				f.getValue(resource) != null &&
-				!softRelationFields.contains(f.getLabel())
-			);
+			return !resourceDesc.getFields().stream().anyMatch(f -> f.getValue(resource) != null &&
+					!softRelationFields.contains(f.getLabel()));
 		}
 		return false;
-    }
+	}
+
+	public static void initSqids(String alphabet) {
+		if (sqids == null) {
+			sqids = Sqids.builder()
+				.minLength(7)
+				.alphabet(alphabet)
+				.build();
+		}
+	}
+
+
+
+	// public static void main(String[] args) {
+	// 	Sqids sqids = Sqids.builder()
+	// 		.minLength(7)
+	// 		.alphabet("FxnXM1kBN6cuhsAvjW3Co7l2RePyY8DwaU04Tzt9fHQrqSVKdpimLGIJOgb5ZE")
+	// 		.build();
+	// 		for (int i=0; i<100; i++) {
+	// 			String id = sqids.encode(Arrays.asList(Long.valueOf(Integer.MAX_VALUE-1)));
+	// 			System.out.println(id);
+	// 			System.out.println(sqids.decode(id));
+	// 		}
+	// }
 }

@@ -14,8 +14,4 @@ import net.oneki.mtac.model.resource.Tenant;
 @Entity("tenant.site")
 public class Site extends Tenant {
 
-    @Override
-    public String labelize() {
-        return getName() + getTenantSuffix();
-    }
 }

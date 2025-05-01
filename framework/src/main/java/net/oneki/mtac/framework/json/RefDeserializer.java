@@ -65,7 +65,7 @@ public class RefDeserializer extends DelegatingDeserializer  /*implements Contex
                 JsonDeserializer<Object> deserializer = ctxt.findRootValueDeserializer(stringType);
                 var value = (String) deserializer.deserialize(parser, ctxt);
                 var instance = (Resource) beanDescription.instantiateBean(false);
-                instance.setUrn(value);
+                instance.setUid(value);
                 //Object instance = beanDeserializer.getValueInstantiator().getDefaultCreator().call();
                 // SettableBeanProperty property = beanDeserializer.findProperty(primitiveName);
                 // property.deserializeAndSet(parser, ctxt, instance);

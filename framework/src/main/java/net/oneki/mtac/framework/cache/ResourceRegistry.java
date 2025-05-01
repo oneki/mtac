@@ -68,13 +68,20 @@ public class ResourceRegistry {
     public static void init(String scanBasePackage) throws ClassNotFoundException {
         cache.addSchema(Schema.builder()
                 .id(Constants.SCHEMA_SCHEMA_ID)
-                .urn(String.format("urn:%s:%s:%s", Constants.TENANT_ROOT_LABEL, Constants.SCHEMA_SCHEMA_LABEL,
-                        Constants.SCHEMA_SCHEMA_LABEL))
+                .uid(Resource.toUid(Constants.SCHEMA_SCHEMA_ID))
+                .label(Constants.SCHEMA_SCHEMA_LABEL)
+                .schemaId(Constants.SCHEMA_SCHEMA_ID)
+                .schemaLabel(Constants.SCHEMA_SCHEMA_LABEL)
+                .tenantId(Constants.TENANT_ROOT_ID)
+                .tenantLabel(Constants.TENANT_ROOT_LABEL)
                 .pub(true)
                 .build());
         cache.addTenant(Tenant.builder()
                 .id(Constants.TENANT_ROOT_ID)
-                .urn(String.format("urn::%s:%s", Constants.TENANT_ROOT_SCHEMA_LABEL, Constants.TENANT_ROOT_LABEL))
+                .uid(Resource.toUid(Constants.TENANT_ROOT_ID))
+                .label( Constants.TENANT_ROOT_LABEL)
+                .schemaLabel(Constants.TENANT_ROOT_SCHEMA_LABEL)
+                .schemaId(Constants.TENANT_ROOT_SCHEMA_ID)
                 .pub(false)
                 .build());
         var reflectorContext = ReflectorContext.builder()

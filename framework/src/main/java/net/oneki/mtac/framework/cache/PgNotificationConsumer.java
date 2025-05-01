@@ -2,14 +2,11 @@ package net.oneki.mtac.framework.cache;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import org.postgresql.PGNotification;
 import org.springframework.stereotype.Component;
-
-import com.nimbusds.oauth2.sdk.util.ListUtils;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +14,6 @@ import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.framework.repository.ResourceTenantTreeRepository;
 import net.oneki.mtac.framework.repository.TokenRepository;
 import net.oneki.mtac.model.core.Constants;
-import net.oneki.mtac.model.core.security.UserInfo;
 import net.oneki.mtac.model.resource.Resource;
 import net.oneki.mtac.model.resource.Tenant;
 import net.oneki.mtac.model.resource.schema.Schema;
@@ -69,7 +65,15 @@ public class PgNotificationConsumer implements Consumer<PGNotification> {
                             if (isSchema) {
                                 log.info("Add schema id={}, label={} to cache", id, label);
                                 cache.addSchema(
-                                        Schema.builder().id(id).urn(Schema.asUrn(label)).build());
+                                        Schema.builder()
+                                            .id(id)
+                                            .uid(Resource.toUid(id))
+                                            .label(label)
+                                            .schemaId(Constants.SCHEMA_SCHEMA_ID)
+                                            .schemaLabel(Constants.SCHEMA_SCHEMA_LABEL)
+                                            .tenantId(Constants.TENANT_ROOT_ID)
+                                            .tenantLabel(Constants.TENANT_ROOT_LABEL)
+                                            .build());
                             }
                             if (isTenant) {
                                 log.info("Add tenant id={}, label={} to cache", id, label);
@@ -83,7 +87,15 @@ public class PgNotificationConsumer implements Consumer<PGNotification> {
                                 var schema = ResourceRegistry.getSchemaById(schemaId);
                                 
                                 cache.addTenant(
-                                        Tenant.builder().id(id).urn(String.format("urn:%s:%s:%s", parentTenantLabel, schema.getLabel(), label)).build());
+                                        Tenant.builder()
+                                            .id(id)
+                                            .uid(Resource.toUid(id))
+                                            .label(label)
+                                            .schemaLabel(schema.getLabel())
+                                            .schemaId(schemaId)
+                                            .tenantLabel(parentTenantLabel)
+                                            .tenantId(tenantId)
+                                            .build());
                             }
                             break;
 

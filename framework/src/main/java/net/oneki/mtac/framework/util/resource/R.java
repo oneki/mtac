@@ -1,7 +1,6 @@
 package net.oneki.mtac.framework.util.resource;
 
 import net.oneki.mtac.framework.cache.ResourceRegistry;
-import net.oneki.mtac.model.core.framework.Urn;
 import net.oneki.mtac.model.resource.Resource;
 
 public class R {
@@ -26,19 +25,6 @@ public class R {
             return null;
         }
 
-        if (resource.getUrn() != null) {
-            var urnRecord = Urn.of(resource.getUrn());
-            if (resource.getSchemaLabel() == null) {
-                resource.setSchemaLabel(urnRecord.schema());
-            }
-            if (resource.getTenantLabel() == null) {
-                resource.setTenantLabel(urnRecord.tenant());
-            }
-            if (resource.getLabel() == null) {
-                resource.setLabel(urnRecord.label());
-            }
-        }
-
         if (resource.getTenantId() == null && resource.getTenantLabel() != null) {
             resource.setTenantId(ResourceRegistry.getTenantId(resource.getTenantLabel()));
         }
@@ -57,14 +43,6 @@ public class R {
 
         if (resource.getSchemaLabel() == null) {
             resource.setSchemaLabel(ResourceRegistry.getSchemaLabel(resource.getSchemaId()));
-        }
-
-        if (resource.getLabel() == null) {
-            resource.setLabel(resource.labelize());
-        }
-
-        if (resource.getUrn() == null) {
-            resource.setUrn(new Urn(resource.getTenantLabel(), resource.getSchemaLabel(), resource.getLabel()).toString());
         }
 
         return resource;

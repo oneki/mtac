@@ -21,10 +21,6 @@ public class User extends Identity {
     private String firstName;
     private String lastName;
 
-    @Override
-    public String labelize() {
-        return getEmail();
-    }
 
 
 }

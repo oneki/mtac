@@ -15,6 +15,7 @@ import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.framework.repository.ResourceTenantTreeRepository;
 import net.oneki.mtac.framework.repository.SchemaDbSynchronizer;
 import net.oneki.mtac.framework.repository.SchemaRepository;
+import net.oneki.mtac.model.resource.Resource;
 import net.oneki.mtac.model.resource.Tenant;
 import net.oneki.mtac.model.resource.iam.Role;
 import net.oneki.mtac.model.resource.schema.Schema;
@@ -32,8 +33,12 @@ public class ResourceRegistryInitializer {
     @Value("${mtac.scan.package}")
     private String scanBasePackage;
 
+    @Value("${mtac.sqids.alphabet}")
+    private String sqidsAlphabet;
+
     @PostConstruct
     public void initResourceRegistry() throws ClassNotFoundException {
+        Resource.initSqids(sqidsAlphabet);
         ResourceRegistry.init(scanBasePackage);
         initRepository.initSchema();
         

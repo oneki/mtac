@@ -9,7 +9,7 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 import net.oneki.mtac.api.OpenIdController;
 import net.oneki.mtac.core.service.security.PermissionService;
 import net.oneki.mtac.framework.service.JwtTokenService;
-import net.oneki.mtac.resource.iam.identity.user.UserService;
+import net.oneki.mtac.resource.iam.identity.user.DefaultUserService;
 
 @Configuration
 @ConditionalOnProperty(prefix = "mtac.openid.server", name = "enabled", havingValue = "true", matchIfMissing = true)
@@ -18,7 +18,7 @@ public class OpenIdConfig {
     @RestController
     public class DefaultOpenIdAPI extends OpenIdController {
 
-        public DefaultOpenIdAPI(UserService userService, JwtTokenService tokenService,
+        public DefaultOpenIdAPI(DefaultUserService userService, JwtTokenService tokenService,
                 PermissionService permissionService, RequestMappingHandlerMapping handlerMapping, @Value("${mtac.api.base-path:/api}") String apiBasePath) {
             super(userService, tokenService, permissionService, handlerMapping, apiBasePath);
         }

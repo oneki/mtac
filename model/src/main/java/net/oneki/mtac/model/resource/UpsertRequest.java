@@ -11,13 +11,13 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder
 @EqualsAndHashCode(callSuper = true)
 public abstract class UpsertRequest extends ResourceRequest {
-    // private String label;
+    private String label;
     // private String schema;
-    private String tenant;
+    private String tenant; // UID of the tenant
 
-    // public final String getLabel() {
-    //     return label;
-    // }
+    public final String getLabel() {
+        return label;
+    }
 
     // public	final String getSchema() {
     //     return schema;
@@ -27,9 +27,9 @@ public abstract class UpsertRequest extends ResourceRequest {
         return tenant;
     }
 
-    // public final void setLabel(String label) {
-    //     this.label = label;
-    // }
+    public final void setLabel(String label) {
+        this.label = label;
+    }
 
     // public final void setSchema(String schema) {
     //     this.schema = schema;

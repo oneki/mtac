@@ -24,9 +24,5 @@ public class Role extends Resource {
     @Builder.Default private List<String> actions = new ArrayList<>();
     @Builder.Default private List<String> fields = new ArrayList<>();
 
-    @Override
-    public String labelize() {
-        return name;
-    }
 
 }

@@ -12,6 +12,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import com.nimbusds.jose.util.Resource;
+
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.framework.cache.ResourceRegistry;
@@ -119,12 +121,21 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
 
   }
 
+  public void logout() {
+    tokenRepository.deleteToken(securityContext.getSubject());
+    tokenRegistry.remove(securityContext.getSubject());
+  }
+
   public Claims userinfo() {
     return userinfo(securityContext.getUsername());
   }
 
   public Claims userinfo(String sub) {
-    var user = getByLabelOrUrnUnsecure(sub);
+    var claims = tokenRegistry.get(sub);
+    if (claims != null) {
+      return claims;
+    }
+    var user = getByUid(sub);
     return userinfo(user);
   }
 
@@ -155,9 +166,9 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
       var ancestorTenants = ResourceRegistry.getTenantAncestors(tenantId);
       var hierarchy = ancestorTenants.stream()
         .map(ancestor -> (TenantHierarchy) TenantHierarchy.builder()
-          .id(ancestor.getId())
-          .urn(ancestor.getUrn())
-          .name(ancestor.getName())
+          .uid(ancestor.getUid())
+          .label(ancestor.getLabel())
+          .schemaLabel(ancestor.getSchemaLabel())
           .build()
         )
         .toList();

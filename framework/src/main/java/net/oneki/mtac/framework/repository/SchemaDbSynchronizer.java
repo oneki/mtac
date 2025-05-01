@@ -87,10 +87,9 @@ public class SchemaDbSynchronizer {
         if (!dbSchemaLabels.contains(scannedSchemaLabel)) {
             var schemaEntity = resourceRepository.create(Schema.builder()
                     .pub(true)
-                    .urn("urn:root:schema:" + scannedSchemaLabel)
                     .tenantId(Constants.TENANT_ROOT_ID)
                     .schemaId(Constants.SCHEMA_SCHEMA_ID)
-                    .name(scannedSchemaLabel)
+                    .label(scannedSchemaLabel)
                     .parents(parents)
                     .build());
             cache.addSchema(schemaEntity);

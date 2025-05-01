@@ -4,6 +4,8 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.framework.cache.ResourceRegistry;
+import net.oneki.mtac.framework.util.resource.UrnUtils;
+import net.oneki.mtac.model.core.framework.Urn;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
 import net.oneki.mtac.model.resource.Resource;
 import net.oneki.mtac.model.resource.ResourceRequest;
@@ -56,13 +58,12 @@ public class MapperService {
                 entityField.getField().set(entity, requestField.getField().get(request));
             }
 
-            if (request instanceof UpsertRequest) {
-                var upsertRequest = (UpsertRequest) request;
-                var label = entity.labelize();
-                entity.setLabel(label);
-                entity.setUrn(
-                        "urn:" + upsertRequest.getTenant() + ":" + entity.getSchemaLabel() + ":" + label);
-            }
+            // if (request instanceof UpsertRequest) {
+            //     var upsertRequest = (UpsertRequest) request;
+            //     // var label = entity.labelize();
+            //     // entity.setLabel(label);
+            //     entity.setUrn(UrnUtils.of(upsertRequest.getTenant(), entity.getSchemaLabel(), entity.getLabel()).toString());
+            // }
         } catch (IllegalArgumentException e) {
             throw new BusinessException("BAD_REQUEST", "Invalid request", e);
         } catch (IllegalAccessException e) {

@@ -16,7 +16,7 @@ VALUES ('urn:root:schema:tenant.root', 'tenant.root', true, null, null, 1, to_js
 
 -- Create the tenant root
 INSERT INTO resource (urn, label, pub, tenant_id, link_id, schema_id, content, created_at, updated_at, created_by, updated_by)
-VALUES ('urn::tenant.root:root', 'root', false, null, null, 3, to_json('{"name":"Root"}'::JSON), NOW(), NOW(), 'root@local', 'root@local');
+VALUES ('urn::tenant.root:root', 'root', false, null, null, 3, to_json('{"name":"root", "displayName": "Global"}'::JSON), NOW(), NOW(), 'root@local', 'root@local');
 
 -- As the tenant root is created, we can associated the schema to this tenant (id = 4)
 UPDATE resource SET tenant_id=4 WHERE id<=3;

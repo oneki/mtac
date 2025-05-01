@@ -14,8 +14,5 @@ import net.oneki.mtac.model.resource.Tenant;
 @EqualsAndHashCode(callSuper = true)
 @Entity("tenant.root")
 public class Root extends Tenant {
-    @Override
-    public String labelize() {
-        return "root";
-    }
+
 }

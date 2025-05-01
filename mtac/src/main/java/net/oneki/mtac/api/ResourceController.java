@@ -1,5 +1,7 @@
 package net.oneki.mtac.api;
 
+import java.util.Map;
+
 import org.atteo.evo.inflector.English;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -7,12 +9,15 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 import jakarta.annotation.PostConstruct;
+import net.oneki.mtac.framework.query.Query;
 import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.model.core.util.StringUtils;
+import net.oneki.mtac.model.framework.Page;
 import net.oneki.mtac.model.resource.Resource;
 import net.oneki.mtac.model.resource.UpsertRequest;
 import net.oneki.mtac.resource.ResourceService;
@@ -31,12 +36,12 @@ public abstract class ResourceController<U extends UpsertRequest, R extends Reso
     public void init() throws NoSuchMethodException {
         // getByLabelOrUrn
         handlerMapping.registerMapping(
-            RequestMappingInfo.paths(getApiPath() + "/{label_or_urn}")
+            RequestMappingInfo.paths(getApiPath() + "/{uid}")
                     .methods(RequestMethod.GET)
                     .produces(MediaType.APPLICATION_JSON_VALUE)
                     .build(),
             this,
-            ResourceController.class.getDeclaredMethod("getByLabelOrUrn", String.class)
+            ResourceController.class.getDeclaredMethod("getByUid", String.class)
         ); 
         
         // create
@@ -52,17 +57,27 @@ public abstract class ResourceController<U extends UpsertRequest, R extends Reso
 
         // delete
         handlerMapping.registerMapping(
-            RequestMappingInfo.paths(getApiPath() + "/{urn}")
+            RequestMappingInfo.paths(getApiPath() + "/{uid}")
                     .methods(RequestMethod.DELETE)
                     .produces(MediaType.APPLICATION_JSON_VALUE)
                     .build(),
             this,
-            ResourceController.class.getDeclaredMethod("deleteByUrn", String.class)
-        );         
+            ResourceController.class.getDeclaredMethod("deleteByUid", String.class)
+        );  
+        
+        // list
+        handlerMapping.registerMapping(
+            RequestMappingInfo.paths(getApiPath())
+                    .methods(RequestMethod.GET)
+                    .produces(MediaType.APPLICATION_JSON_VALUE)
+                    .build(),
+            this,
+            ResourceController.class.getDeclaredMethod("list", Map.class)
+        );
     }
 
-    public R getByLabelOrUrn(@PathVariable("label_or_urn") String labelOrUrn) {
-        return resourceRepository.getByLabelOrUrn(labelOrUrn, getResourceClass());
+    public R getByUid(@PathVariable("uid") String uid) {
+        return getService().getByUid(uid);
     }
 
     public R create(@RequestBody U request) {
@@ -70,8 +85,18 @@ public abstract class ResourceController<U extends UpsertRequest, R extends Reso
         return result;
     }
 
-    public void deleteByUrn(@PathVariable("urn") String urn) {
-        getService().deleteByUrn(urn);
+    public void deleteByUid(@PathVariable("uid") String uid) {
+        getService().deleteById(Resource.fromUid(uid));
+    }
+
+    // list. A query param is used to specify the tenant. If no tenant is specified, the tenant root is used.
+    public Page<R> list(@RequestParam Map<String, String> parameters) {
+        if (!parameters.containsKey("tenant")) {
+            parameters.put("tenant", "root");
+        }
+        var query = Query.fromRest(parameters, getResourceClass());
+        return getService().list(query);
+
     }
 
     protected String getApiPath() {

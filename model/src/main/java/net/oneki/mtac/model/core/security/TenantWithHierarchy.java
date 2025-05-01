@@ -19,9 +19,10 @@ import lombok.experimental.SuperBuilder;
 public class TenantWithHierarchy {
   @JsonIgnore
   private int id;
-  @JsonProperty("$urn")
-  private String urn;
-  private String name;
+  private String uid;
+  private String label;
+  @JsonProperty("schema")
+  private String schemaLabel;  
   @Builder.Default private List<TenantHierarchy> hierarchy = new ArrayList<>();
 
   @Data
@@ -31,8 +32,9 @@ public class TenantWithHierarchy {
   public static class TenantHierarchy {
     @JsonIgnore
     private int id;
-    @JsonProperty("$urn")
-    private String urn;
-    private String name;
+    private String uid;
+    private String label;
+    @JsonProperty("schema")
+    private String schemaLabel;
   }
 }

@@ -36,7 +36,7 @@ public class SiteService extends TenantService<SiteUpsertRequest, Site> {
 
     private ResourceGroup createRg(String name, Integer tenantId) {
         var rg = ResourceGroup.builder()
-                .name(name)
+                .label(name)
                 .tenantId(tenantId)
                 .build();
         return rgService.create(rg);

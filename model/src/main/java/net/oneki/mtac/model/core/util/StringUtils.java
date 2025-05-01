@@ -49,4 +49,12 @@ public class StringUtils {
         // return the result
         return result;
     }
+
+    public static String toTechnicalName(String displayName) {
+        var name = org.apache.commons.lang3.StringUtils.stripAccents(displayName);
+        // replace all special characters with an underscore
+        name = name.replaceAll("[^a-zA-Z0-9]", "_");
+        name = name.toLowerCase();
+        return name;
+    }
 }

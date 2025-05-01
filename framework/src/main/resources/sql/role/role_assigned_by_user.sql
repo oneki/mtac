@@ -1,6 +1,5 @@
 SELECT t.id, 
-       t.urn, 
-       t.content #>> '{name}' as name, 
+       t.label, 
        JSON_AGG(jsonb_build_object('role', ro.content, 'assigned', case when source_id is null then true else false end)) as roles
 FROM ace a, 
 	 resource r, 

@@ -7,6 +7,7 @@ public class Constants {
     public static Integer PUBLIC_ROLE_ID = null; // TODO: set this value
     public static String TENANT_ROOT_LABEL = "root";
     public static String TENANT_ROOT_SCHEMA_LABEL = "tenant.root";
+    public static Integer TENANT_ROOT_SCHEMA_ID = 3;
     public static Integer TENANT_ROOT_ID = 4;
 
 }

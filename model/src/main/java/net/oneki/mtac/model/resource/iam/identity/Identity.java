@@ -25,10 +25,5 @@ public class Identity extends Resource {
 
     // @Lookup
     // public abstract void labelize();
-
-    @Override
-	public String labelize() {
-		return"";
-	}
 }
 

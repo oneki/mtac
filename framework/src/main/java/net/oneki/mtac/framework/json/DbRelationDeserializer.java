@@ -78,11 +78,9 @@ public class DbRelationDeserializer extends DelegatingDeserializer /* implements
             var label = node.get("$l").asText();
             var schemaLabel = ResourceRegistry.getSchemaLabel(schemaId);
             var tenantLabel = ResourceRegistry.getTenantLabel(tenantId);
-            var urnRecord = new Urn(tenantLabel, schemaLabel, label);
             var clazz = ResourceRegistry.getClassBySchema(schemaLabel);
             try {
                 var resource = (Resource) clazz.getConstructor().newInstance();
-                resource.setUrn(urnRecord.toString());
                 resource.setId(id);
                 resource.setSchemaId(schemaId);
                 resource.setTenantId(tenantId);

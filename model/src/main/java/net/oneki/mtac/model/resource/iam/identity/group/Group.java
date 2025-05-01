@@ -18,15 +18,9 @@ import net.oneki.mtac.model.resource.iam.identity.Identity;
 @EqualsAndHashCode(callSuper = true)
 @Entity("iam.identity.group")
 public class Group extends Identity {
-	private String name;
 	private String description;
 
 	@Peer("memberOf")
 	protected List<Identity> members;
-
-	@Override
-	public String labelize() {
-		return name;
-	}
 
 }

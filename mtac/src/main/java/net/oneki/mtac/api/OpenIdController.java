@@ -15,12 +15,12 @@ import net.oneki.mtac.core.service.security.PermissionService;
 import net.oneki.mtac.framework.service.JwtTokenService;
 import net.oneki.mtac.model.core.openid.JwksResponse;
 import net.oneki.mtac.model.core.openid.LoginRequest;
-import net.oneki.mtac.resource.iam.identity.user.UserService;
+import net.oneki.mtac.resource.iam.identity.user.DefaultUserService;
 
 @RequiredArgsConstructor
 public class OpenIdController {
 
-    protected final UserService userService;
+    protected final DefaultUserService userService;
     protected final JwtTokenService tokenService;
     protected final PermissionService permissionService;
     private final RequestMappingHandlerMapping handlerMapping;
@@ -54,6 +54,14 @@ public class OpenIdController {
         );
 
         handlerMapping.registerMapping(
+            RequestMappingInfo.paths(apiBasePath + "/logout")
+                    .methods(RequestMethod.POST)
+                    .build(),
+            this,
+            OpenIdController.class.getDeclaredMethod("logout")
+        );        
+
+        handlerMapping.registerMapping(
             RequestMappingInfo.paths(apiBasePath + "/.well-known/jwks.json")
                     .methods(RequestMethod.GET)
                     .produces(MediaType.APPLICATION_JSON_VALUE)
@@ -62,14 +70,14 @@ public class OpenIdController {
             OpenIdController.class.getDeclaredMethod("getJwks")
         ); 
         
-        // handlerMapping.registerMapping(
-        //     RequestMappingInfo.paths(apiBasePath + "/oauth2/userinfo")
-        //             .methods(RequestMethod.GET)
-        //             .produces(MediaType.APPLICATION_JSON_VALUE)
-        //             .build(),
-        //     this,
-        //     OpenIdController.class.getDeclaredMethod("userinfo")
-        // ); 
+        handlerMapping.registerMapping(
+            RequestMappingInfo.paths(apiBasePath + "/oauth2/userinfo")
+                    .methods(RequestMethod.GET)
+                    .produces(MediaType.APPLICATION_JSON_VALUE)
+                    .build(),
+            this,
+            OpenIdController.class.getDeclaredMethod("userinfo")
+        ); 
 
     }
 
@@ -85,6 +93,10 @@ public class OpenIdController {
 
     public Map<String, Object> userinfo() throws Exception {
         return userService.userinfo();
+    }
+
+    public void logout() throws Exception {
+        userService.logout();
     }
 
     public JwksResponse getJwks() {

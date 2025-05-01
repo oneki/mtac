@@ -96,15 +96,7 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
             case "id":
                 columnName = isLink ? "link_id" : "id";
                 resource.setId(rs.getInt(columnName));
-                break;
-            case "urn":
-                columnName = isLink ? "link_urn" : "urn";
-                var urn = rs.getString(columnName);
-                var urnRecord = Urn.of(urn);
-                resource.setUrn(urn);
-                resource.setTenantLabel(urnRecord.tenant().isEmpty() ? null : urnRecord.tenant());
-                resource.setSchemaLabel(urnRecord.schema());
-                break;
+                break; 
             case "label":
                 resource.setLabel(rs.getString(columnName));
                 break;

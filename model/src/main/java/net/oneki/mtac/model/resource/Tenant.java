@@ -12,15 +12,5 @@ import net.oneki.mtac.model.core.util.introspect.annotation.Entity;
 @EqualsAndHashCode(callSuper = true)
 @Entity(schema = "tenant")
 public class Tenant extends Resource {
-    private String name;
-    private String displayName;
 
-    @Override
-    public String labelize() {
-        return name;
-    }
-
-    // public static String toLabel(String name, String tenantLabel) {
-    //     return name + "@" + tenantLabel.replace("@", ".");
-    // }
 }

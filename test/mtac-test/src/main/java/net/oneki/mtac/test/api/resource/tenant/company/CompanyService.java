@@ -33,19 +33,19 @@ public abstract class CompanyService<U extends CompanyUpsertRequest, E extends C
         Group installerAdminGroup = null;
         Group installerAssetAdminGroup = null;
         if (request.getAdminGroup() != null) {
-            installerAdminGroup = groupService.getByLabelOrUrn(request.getAdminGroup());
+            installerAdminGroup = groupService.getByUid(request.getAdminGroup());
             groupService.createLink(installerAdminGroup, company.getId(), LinkType.Ref, true);
         }
 
         if (request.getAssetAdminGroup() != null) {
-            installerAssetAdminGroup = groupService.getByLabelOrUrn(request.getAssetAdminGroup());
+            installerAssetAdminGroup = groupService.getByUid(request.getAssetAdminGroup());
             groupService.createLink(installerAssetAdminGroup, company.getId(), LinkType.Ref, true);
         }
         
         // Create groups
-        var iamAdministrators = createGroup(company.getName() + " IAM Administrators", groupsRg.getId(), company.getId(), List.of());
-        var administrators = createGroup(company.getName() + " Administrators", adminGroupsRg.getId(), company.getId(), installerAdminGroup != null ? List.of(installerAdminGroup) : List.of());
-        var assetAdministrators = createGroup(company.getName() + " Asset Administrators", adminGroupsRg.getId(), company.getId(), installerAssetAdminGroup != null ? List.of(installerAssetAdminGroup) : List.of());
+        var iamAdministrators = createGroup(company.getLabel() + " IAM Administrators", groupsRg.getId(), company.getId(), List.of());
+        var administrators = createGroup(company.getLabel() + " Administrators", adminGroupsRg.getId(), company.getId(), installerAdminGroup != null ? List.of(installerAdminGroup) : List.of());
+        var assetAdministrators = createGroup(company.getLabel() + " Asset Administrators", adminGroupsRg.getId(), company.getId(), installerAssetAdminGroup != null ? List.of(installerAssetAdminGroup) : List.of());
 
         // Give permissions to IAM Administrators to manage groupsRg and usersRg
         permissionService.addPermissionUnsecure("role_user_admin", usersRg.getId(), iamAdministrators.getId());
@@ -77,7 +77,7 @@ public abstract class CompanyService<U extends CompanyUpsertRequest, E extends C
 
     private ResourceGroup createRg(String name, Integer tenantId) {
         var rg = ResourceGroup.builder()
-            .name(name)
+            .label(name)
             .tenantId(tenantId)
             .build();
         return rgService.create(rg);
@@ -85,7 +85,7 @@ public abstract class CompanyService<U extends CompanyUpsertRequest, E extends C
 
     private Group createGroup(String name, Integer tenantId, Integer companyId, List<Identity> members) {
         var group = Group.builder()
-            .name(name)
+            .label(name)
             .tenantId(tenantId)
             .members(members)
             .build();
@@ -94,13 +94,13 @@ public abstract class CompanyService<U extends CompanyUpsertRequest, E extends C
 
     private void deleteGroup(E company, String rgName, String groupName) {
         try {
-            groupService.deleteByLabel(rgName + "@" + company.getLabel(), company.getLabel() + " " + groupName);
+            // groupService.deleteByLabel(rgName + "@" + company.getLabel(), company.getLabel() + " " + groupName);
         } catch (NotFoundException e) {}
     }
 
     private void deleteRg(E company, String rgName) {
         try {
-            rgService.deleteByLabel(company.getLabel(),  rgName + "@" + company.getLabel());
+            // rgService.deleteByLabel(company.getLabel(),  rgName + "@" + company.getLabel());
         } catch (NotFoundException e) {}
     }
 

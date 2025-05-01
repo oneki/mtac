@@ -14,8 +14,5 @@ import net.oneki.mtac.model.resource.Tenant;
 @Entity("tenant.rg")
 public class ResourceGroup extends Tenant {
 
-    @Override
-    public String labelize() {
-        return getName() + getTenantSuffix();
-    }
+
 }

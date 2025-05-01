@@ -1,9 +1,10 @@
 package net.oneki.mtac.model.resource;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Lookup;
+import org.sqids.Sqids;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -13,22 +14,26 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 import net.oneki.mtac.model.core.framework.HasSchema;
-import net.oneki.mtac.model.core.framework.Urn;
 import net.oneki.mtac.model.core.resource.HasId;
 import net.oneki.mtac.model.core.resource.HasLabel;
 import net.oneki.mtac.model.core.resource.Ref;
 import net.oneki.mtac.model.core.security.Acl;
+import net.oneki.mtac.model.core.util.exception.UnexpectedException;
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-@SuperBuilder(toBuilder=true)
+@SuperBuilder(toBuilder = true)
 public abstract class Resource implements HasLabel, HasId, HasSchema {
+	public static Sqids sqids; // short UID generator from Integer (7 chars length)
 	/*
-	 * Internal id of the resource. Auto generated during the first insertion in the DB
+	 * Internal id of the resource. Auto generated during the first insertion in the
+	 * DB
 	 * This id should never be exposed to the outside and is only used internally
 	 */
 	protected Integer id;
+
+	protected String uid;
 
 	@JsonProperty("$s")
 	protected Integer schemaId;
@@ -51,13 +56,12 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 	 *
 	 * Example: urn:root:iam.identity.user:olivier.franki@gmail.com
 	 */
-	@JsonProperty("$urn")
-	protected String urn;
+	// @JsonProperty("$urn")
+	// protected String urn;
 
 	/*
 	 * A public resource is visible by any sub-tenant
 	 */
-	@JsonProperty("$pub")
 	protected boolean pub;
 
 	/*
@@ -74,25 +78,21 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 	/*
 	 * The datetime at which the resource was created
 	 */
-	@JsonProperty("$createdAt")
 	protected Instant createdAt;
 
 	/*
 	 * The datetime at which the resource was last updated
 	 */
-	@JsonProperty("$updatedAt")
 	protected Instant updatedAt;
 
 	/*
 	 * The email of the creator of the resource
 	 */
-	@JsonProperty("$createdBy")
 	protected String createdBy;
 
 	/*
 	 * The email of the last updater of the resource
 	 */
-	@JsonProperty("$updatedBy")
 	protected String updatedBy;
 
 	/*
@@ -117,17 +117,52 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 	 * When a new resource is inserted, we must labelize it based on some fields
 	 * of the resource
 	 * Example:
-	 *   organization: MyOrg
-	 *   site: site1
+	 * organization: MyOrg
+	 * site: site1
 	 *
-	 *   --> The label is site1@MyOrg
+	 * --> The label is site1@MyOrg
 	 */
-	@Lookup
-	public abstract String labelize();
+	// @Lookup
+	// public abstract String labelize();
 
 	// public String toUrn(String tenant) {
 	// return String.format("%s:%s:%s", tenant, getSchema(), labelize());
 	// }
+	public static void initSqids(String alphabet) {
+		if (sqids == null) {
+			sqids = Sqids.builder()
+				.minLength(7)
+				.alphabet(alphabet)
+				.build();
+		}
+	}
+
+	public static String toUid(Integer id) {
+		if (sqids == null) {
+			throw new UnexpectedException("SQIDS_NOT_INITIALIZED",
+					"Sqids is not initialized. Please call initSqids() before using this method.");
+		}
+		if (id == null) {
+			return null;
+		}
+		return sqids.encode(Arrays.asList(Long.valueOf(id)));
+	}
+
+	public static Integer fromUid(String uid) {
+		if (sqids == null) {
+			throw new UnexpectedException("SQIDS_NOT_INITIALIZED",
+					"Sqids is not initialized. Please call initSqids() before using this method.");
+		}
+		if (uid == null) {
+			return null;
+		}
+		var decoded = sqids.decode(uid);
+		if (decoded.size() != 1) {
+			throw new UnexpectedException("SQIDS_DECODE_ERROR",
+					"Sqids decode error. Expected 1 value, got " + decoded.size());
+		}
+		return decoded.get(0).intValue();
+	}
 
 	public Ref toRef() {
 		return Ref.builder()
@@ -163,7 +198,17 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 
 	public final void setId(Integer id) {
 		this.id = id;
+		this.uid = toUid(id);
 	}
+
+	public final String getUid() {
+		return uid;
+	}
+
+	public final void setUid(String uid) {
+		this.id = fromUid(uid);
+		this.uid = uid;
+	}	
 
 	public final Integer getLinkId() {
 		return linkId;
@@ -186,35 +231,33 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 		return linkId != null && linkType != null && linkType == LinkType.Ref;
 	}
 
-	public final String getUrn() {
-		return urn;
-	}
+	// public final String getUrn() {
+	// 	return urn;
+	// }
 
-	public final void setUrn(String urn) {
-		this.urn = urn;
-	}
+	// public final void setUrn(String urn) {
+	// 	this.urn = urn;
+	// }
 
 	public final String getLabel() {
-		if (label != null) return label;
-		if (urn != null) {
-			var label = Urn.of(urn).label();
-			this.label = label;
-			return label;
-		}
-		return null;
+		return label;
+	}
+
+	public final void setLabel(String label) {
+		this.label = label;
 	}
 
 	// public final void setLabel(String label) {
-	// 	if (urn == null) {
-	// 		urn = "::" + label;
-	// 	} else {
-	// 		var startPos = urn.indexOf(":", urn.indexOf(":") + 1);
-	// 		if (startPos == -1) {
-	// 			urn = urn + ":" + label;
-	// 		} else {
-	// 			urn = urn.substring(0, startPos + 1) + label;
-	// 		}
-	// 	}
+	// if (urn == null) {
+	// urn = "::" + label;
+	// } else {
+	// var startPos = urn.indexOf(":", urn.indexOf(":") + 1);
+	// if (startPos == -1) {
+	// urn = urn + ":" + label;
+	// } else {
+	// urn = urn.substring(0, startPos + 1) + label;
+	// }
+	// }
 	// }
 
 	public final boolean isPub() {
@@ -226,60 +269,55 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 	}
 
 	// public final void setSchema(String schema) {
-	// 	if (urn == null) {
-	// 		urn =  ":" + schema + ":";
-	// 	} else {
-	// 		var startPos = urn.indexOf(":");
-	// 		if (startPos == -1) {
-	// 			urn = ":" + schema + ":" + urn;
-	// 		} else {
-	// 			var endPos = urn.indexOf(":", startPos + 1);
-	// 			if (endPos == -1) {
-	// 				urn = urn + ":" + schema;
-	// 			} else {
-	// 				urn = urn.substring(0, startPos + 1) + schema + urn.substring(endPos);
-	// 			}
-	// 		}
-	// 	}
+	// if (urn == null) {
+	// urn = ":" + schema + ":";
+	// } else {
+	// var startPos = urn.indexOf(":");
+	// if (startPos == -1) {
+	// urn = ":" + schema + ":" + urn;
+	// } else {
+	// var endPos = urn.indexOf(":", startPos + 1);
+	// if (endPos == -1) {
+	// urn = urn + ":" + schema;
+	// } else {
+	// urn = urn.substring(0, startPos + 1) + schema + urn.substring(endPos);
+	// }
+	// }
+	// }
 	// }
 
 	public final String getTenantLabel() {
-		if (tenantLabel != null) return tenantLabel;
-		if (urn != null) {
-			var tenantLabel = Urn.of(urn).tenant();
-			this.tenantLabel = tenantLabel;
-			return tenantLabel;
-		}
-		return null;
+		return tenantLabel;
 	}
 
-	@JsonIgnore
-	protected final String getTenantSuffix() {
-		if (tenantLabel != null) return "@" + tenantLabel.replace("@", ".");
-		throw new RuntimeException("Tenant label is not set for entity " + getClass().getSimpleName() + " with id " + id);
-	}
+	// @JsonIgnore
+	// protected final String getTenantSuffix() {
+	// 	if (tenantLabel != null)
+	// 		return "@" + toSuffix(tenantLabel);
+	// 	throw new RuntimeException("Tenant label is not set for entity " + getClass().getSimpleName() + " with id " + id);
+	// }
+
+	// public static String toSuffix(String label) {
+	// 	// Example: label = "site1@MyOrg"
+	// 	// --> suffix = "site1.MyOrg"
+	// 	return label.replace("@", ".");
+	// }
 
 	public final String getSchemaLabel() {
-		if (schemaLabel != null) return schemaLabel;
-		if (urn != null) {
-			var schemaLabel = Urn.of(urn).schema();
-			this.schemaLabel = schemaLabel;
-			return schemaLabel;
-		}
-		return null;
+		return schemaLabel;
 	}
 
 	// public final void setTenant(String tenantLabel) {
-	// 	if (urn == null) {
-	// 		urn = tenantLabel + "::";
-	// 	} else {
-	// 		var endPos = urn.indexOf(":");
-	// 		if (endPos == -1) {
-	// 			urn = tenantLabel + ":" + urn;
-	// 		} else {
-	// 			urn = tenantLabel + urn.substring(endPos);
-	// 		}
-	// 	}
+	// if (urn == null) {
+	// urn = tenantLabel + "::";
+	// } else {
+	// var endPos = urn.indexOf(":");
+	// if (endPos == -1) {
+	// urn = tenantLabel + ":" + urn;
+	// } else {
+	// urn = tenantLabel + urn.substring(endPos);
+	// }
+	// }
 	// }
 
 	public final boolean isLink() {

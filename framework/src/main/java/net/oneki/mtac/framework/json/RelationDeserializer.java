@@ -55,30 +55,22 @@ public class RelationDeserializer extends DelegatingDeserializer /* implements C
     @SuppressWarnings("unchecked")
     private Object deserialize(JsonParser parser, DeserializationContext ctxt, JsonToken token, JavaType type)
             throws IOException {
+        var resourceDesc = ResourceRegistry.getResourceDesc(type.getRawClass());
+        var resourceField = resourceDesc.getField(parser.getCurrentName());
+        var clazz = resourceField.getField().getType();
+
         if (token == JsonToken.START_OBJECT) {
             var mapType = ctxt.constructType(HashMap.class);
             JsonDeserializer<Object> deserializer = ctxt.findRootValueDeserializer(mapType);
             var value = (HashMap<String, Object>) deserializer.deserialize(parser, ctxt);
-            var urn = (String) value.get("@urn");
-            return buildObjectFromUrn(urn);
-            // return super.deserialize(parser, ctxt);
+            var uid = (String) value.get("uid");
+            return buildObjectFromUid(uid, clazz);
         } else if (token == JsonToken.VALUE_STRING) {
             try {
                 var stringType = ctxt.constructType(String.class);
                 JsonDeserializer<Object> deserializer = ctxt.findRootValueDeserializer(stringType);
-                var value = (String) deserializer.deserialize(parser, ctxt);
-                // var instance = (Resource) beanDescription.instantiateBean(false);
-                if (value.startsWith("urn:")) {
-                    return buildObjectFromUrn(value);
-                } else {
-                    throw new BusinessException("BSN_INVALID_REQUEST", "a relation must be identified via an URN");
-                }
-
-                // Object instance =
-                // beanDeserializer.getValueInstantiator().getDefaultCreator().call();
-                // SettableBeanProperty property = beanDeserializer.findProperty(primitiveName);
-                // property.deserializeAndSet(parser, ctxt, instance);
-                // return instance;
+                var uid = (String) deserializer.deserialize(parser, ctxt);
+                return buildObjectFromUid(uid, clazz);
             } catch (Exception e) {
                 throw JsonMappingException.from(parser, e.getMessage());
             }
@@ -86,18 +78,17 @@ public class RelationDeserializer extends DelegatingDeserializer /* implements C
         return null;
     }
 
-    private Object buildObjectFromUrn(String urn) {
-        if (urn == null) {
-            throw new BusinessException("BSN_INVALID_REQUEST", "a relation must be identified via an URN");
+    private Object buildObjectFromUid(String uid, Class<?> clazz) {
+        if (uid == null) {
+            throw new BusinessException("BSN_INVALID_REQUEST", "a relation must be identified via a UID");
         }        
-        var urnRecord = Urn.of(urn);
-        var clazz = ResourceRegistry.getClassBySchema(urnRecord.schema());
+
         try {
             var obj = (Resource) clazz.getDeclaredConstructor().newInstance();
-            obj.setUrn(urn);
+            obj.setUid(uid);
             return obj;
-        } catch (Exception ex) {
-            throw new BusinessException("BSN_INVALID_REQUEST", "Error creating instance of class " + clazz.getName());
+        } catch (ReflectiveOperationException e) {
+            throw new BusinessException("BSN_INVALID_REQUEST", "Error creating instance of class " + clazz.getName() + ": " + e.getMessage());
         }
     }
 

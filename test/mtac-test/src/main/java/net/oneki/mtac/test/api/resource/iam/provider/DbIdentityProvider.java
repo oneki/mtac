@@ -17,8 +17,4 @@ public class DbIdentityProvider extends Resource implements IdentityProvider {
     private String authorizationUrl;
     private String driver;
 
-    @Override
-    public String labelize() {
-        return name;
-    }
 }

@@ -2,6 +2,13 @@
     "configurations": [
         {
             "type": "java",
+            "name": "ResourceUtils",
+            "request": "launch",
+            "mainClass": "net.oneki.mtac.framework.util.resource.ResourceUtils",
+            "projectName": "mtac-framework"
+        },
+        {
+            "type": "java",
             "name": "[Local] MTAC Tester",
             "request": "launch",
             "mainClass": "net.oneki.mtac.test.TestApplication",

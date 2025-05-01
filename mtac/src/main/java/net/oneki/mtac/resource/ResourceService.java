@@ -66,7 +66,6 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
                                 + " in tenant " + entity.getTenantLabel() + " is forbidden for user "
                                 + securityContext.getUsername());
             }
-            entity.labelize();
 
             // check uniqueness
             var uniqueInScope = ResourceRegistry.getUniqueInScope(entityClass);
@@ -174,11 +173,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
      * @return The entity containing the auto generated id
      */
     public E create(E resourceEntity) {
-        if (resourceEntity.getTenantId() != null) {
-            R.inject(resourceEntity, resourceEntity.getTenantId());
-        } else if (resourceEntity.getTenantLabel() != null) {
-            R.inject(resourceEntity, resourceEntity.getTenantLabel());
-        } else if (resourceEntity.getUrn() != null) {
+        if (resourceEntity.getTenantId() != null || resourceEntity.getTenantLabel() != null) {
             R.fillMeta(resourceEntity);
         } else {
             throw new BusinessException("INVALID_ENTITY", "The entity " + resourceEntity + " must have a tenant");
@@ -251,6 +246,21 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
         resourceRepository.delete(ids);
     }
 
+    public void deleteByUid(String uid) {
+        deleteById(Resource.fromUid(uid));
+    }
+
+    public void deleteByUidUnsecure(String uid) {
+        deleteByIdUnsecure(Resource.fromUid(uid));
+    }
+
+    public void deleteByUidsUnsecure(List<String> uids) {
+        if (uids == null || uids.isEmpty()) {
+            return;
+        }
+        deleteByIdsUnsecure(uids.stream().map(Resource::fromUid).toList());
+    }
+
    /**
      * Delte an entity by its public id
      *
@@ -259,38 +269,38 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
      * @param entityClass: the class of the entity
      * @return void
      */
-    public  void deleteByLabelOrUrn(String labelOrUrn) {
-        E entity = resourceRepository.getByLabelOrUrn(labelOrUrn, getEntityClass());
-        if (entity == null) {
-            throw new NotFoundException("Resource " + labelOrUrn + " not found");
-        }
-        delete(entity);
-    }
+//     public  void deleteByLabelOrUrn(String labelOrUrn) {
+//         E entity = resourceRepository.getByLabelOrUrn(labelOrUrn, getEntityClass());
+//         if (entity == null) {
+//             throw new NotFoundException("Resource " + labelOrUrn + " not found");
+//         }
+//         delete(entity);
+//     }
 
-    public  void deleteByUrn(String urn) {
-        E entity = resourceRepository.getByUrn(urn, getEntityClass());
-        if (entity == null) {
-            throw new NotFoundException("Resource " + urn + " not found");
-        }
-        delete(entity);
-    }
+//     public  void deleteByUrn(String urn) {
+//         E entity = resourceRepository.getByUrn(urn, getEntityClass());
+//         if (entity == null) {
+//             throw new NotFoundException("Resource " + urn + " not found");
+//         }
+//         delete(entity);
+//     }
 
-   /**
-     * Delte an entity by its label, tenant, schema
-     *
-     *
-     * @param tenantLabel: the label of the tenant
-     * @param label: the label of the entity
-     * @param entityClass: the class of the entity
-     * @return void
-     */
-    public void deleteByLabel(String tenantLabel, String label) {
-        E entity = resourceRepository.getByLabel(label, tenantLabel, getEntityClass());
-        if (entity == null) {
-            throw new NotFoundException("Resource " + label + " in tenant " + tenantLabel + " not found");
-        }
-        delete(entity);
-    }
+//    /**
+//      * Delte an entity by its label, tenant, schema
+//      *
+//      *
+//      * @param tenantLabel: the label of the tenant
+//      * @param label: the label of the entity
+//      * @param entityClass: the class of the entity
+//      * @return void
+//      */
+//     public void deleteByLabel(String tenantLabel, String label) {
+//         E entity = resourceRepository.getByLabel(label, tenantLabel, getEntityClass());
+//         if (entity == null) {
+//             throw new NotFoundException("Resource " + label + " in tenant " + tenantLabel + " not found");
+//         }
+//         delete(entity);
+//     }
 
    /**
      * Delete an entity
@@ -322,6 +332,10 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
         return getById(id, null);
     }
 
+    public E getByIdUnsecure(Integer id) {
+        return getByIdUnsecure(id, null);
+    }
+
     public E getById(Integer id, Set<String> relations) {
         E result = resourceRepository.getById(id, getEntityClass());
         if (result == null) {
@@ -334,7 +348,20 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
 
         return result;
     }
-    
+
+
+    public E getByIdUnsecure(Integer id, Set<String> relations) {
+        E result = resourceRepository.getByIdUnsecure(id, getEntityClass());
+        if (result == null) {
+            throw new BusinessException("NOT_FOUND", "Resource not found");
+        }
+
+        if (relations != null) {
+            relationService.populateSingleResourceRelations(result, relations);
+        }
+
+        return result;
+    }
 
    /**
      * Get an entity by its tenant, schema, label
@@ -360,29 +387,78 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
         return result;
     }
 
-    public E getByLabelOrUrn(String label) {
-        return getByLabelOrUrn(label, null);
-    }
-    public E getByLabelOrUrn(String label, Set<String> relations) {
-        E result = resourceRepository.getByLabelOrUrn(label, getEntityClass());
-        if (result == null) {
-            throw new BusinessException("NOT_FOUND", "Resource not found");
-        }
-
-        if (relations != null) {
-            relationService.populateSingleResourceRelations(result, relations);
-        }
-
-        return result;
+    public E getByUid(String uid) {
+        return getById(Resource.fromUid(uid), null);
     }
 
-    public E getByLabelOrUrnUnsecure(String label) {
-        E result = resourceRepository.getByLabelOrUrnUnsecure(label, getEntityClass());
-        if (result == null) {
-            throw new BusinessException("NOT_FOUND", "Resource not found");
-        }
-        return result;
+    public E getByUid(String uid, Set<String> relations) {
+        return getById(Resource.fromUid(uid), relations);
     }
+
+    public E getByUidUnsecure(String uid) {
+        return getByIdUnsecure(Resource.fromUid(uid), null);
+    }
+
+    public E getByUidUnsecure(String uid, Set<String> relations) {
+        return getByIdUnsecure(Resource.fromUid(uid), relations);
+    }
+
+    // public E getByLabelOrUrn(String label) {
+    //     return getByLabelOrUrn(label, null);
+    // }
+    // public E getByLabelOrUrn(String label, Set<String> relations) {
+    //     E result = resourceRepository.getByLabelOrUrn(label, getEntityClass());
+    //     if (result == null) {
+    //         throw new BusinessException("NOT_FOUND", "Resource not found");
+    //     }
+
+    //     if (relations != null) {
+    //         relationService.populateSingleResourceRelations(result, relations);
+    //     }
+
+    //     return result;
+    // }
+
+    // public E getByLabelOrUrnUnsecure(String label) {
+    //     E result = resourceRepository.getByLabelOrUrnUnsecure(label, getEntityClass());
+    //     if (result == null) {
+    //         throw new BusinessException("NOT_FOUND", "Resource not found");
+    //     }
+    //     return result;
+    // }
+
+    // public E getByUrn(String urn) {
+    //     return getByUrn(urn, null);
+    // }
+    // public E getByUrn(Urn urn) {
+    //     return getByUrn(urn.toString(), null);
+    // }
+    // public E getByUrn(String urn, Set<String> relations) {
+    //     E result = resourceRepository.getByUrn(urn, getEntityClass());
+    //     if (result == null) {
+    //         throw new BusinessException("NOT_FOUND", "Resource not found");
+    //     }
+
+    //     if (relations != null) {
+    //         relationService.populateSingleResourceRelations(result, relations);
+    //     }
+
+    //     return result;
+    // }
+    // public E getByUrn(Urn urn, Set<String> relations) {
+    //     return getByUrn(urn.toString(), relations);
+    // }
+
+    // public E getByUrnUnsecure(String urn) {
+    //     E result = resourceRepository.getByUrnUnsecure(urn, getEntityClass());
+    //     if (result == null) {
+    //         throw new BusinessException("NOT_FOUND", "Resource not found");
+    //     }
+    //     return result;
+    // }
+    // public E getByUrnUnsecure(Urn urn) {
+    //     return getByUrnUnsecure(urn.toString());
+    // }
 
    /**
      * Get a list of entities
@@ -445,8 +521,8 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
             Resource relation) throws IllegalArgumentException, IllegalAccessException {
         if (relation != null) {
             Resource relationEntity = null;
-            if (relation.getUrn() != null) {
-                relationEntity = resourceRepository.getByUrn(relation.getUrn(), relationField.getRelationClass());
+            if (relation.getId() != null) {
+                relationEntity = resourceRepository.getById(relation.getId(), relationField.getRelationClass());
             } else if (relation.getLabel() != null) {
                 relationEntity = resourceRepository.getByLabel(relation.getLabel(), upsertRequest.getTenant(),
                         relationField.getRelationClass());

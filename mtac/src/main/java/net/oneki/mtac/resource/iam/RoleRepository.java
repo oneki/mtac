@@ -18,6 +18,7 @@ import net.oneki.mtac.framework.util.sql.SqlUtils;
 import net.oneki.mtac.model.core.security.TenantRole;
 import net.oneki.mtac.model.core.security.TenantWithHierarchy;
 import net.oneki.mtac.model.core.util.json.JsonUtil;
+import net.oneki.mtac.model.resource.Resource;
 import net.oneki.mtac.model.resource.iam.Role;
 
 @Repository
@@ -41,8 +42,8 @@ public class RoleRepository extends AbstractRepository {
             var tenantRole = TenantRole.builder()
                 .tenant(TenantWithHierarchy.builder()
                     .id(rs.getInt("id"))
-                    .urn(rs.getString("urn"))
-                    .name(rs.getString("name"))
+                    .uid(Resource.toUid(rs.getInt("id")))
+                    .label(rs.getString("label"))
                     .build())
                 .roles(JsonUtil.json2Set(rs.getString("roles"), RoleAssigned.class).stream()
                     .filter(r -> r.isAssigned() == true)
