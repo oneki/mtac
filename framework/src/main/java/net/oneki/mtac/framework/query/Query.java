@@ -25,7 +25,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @Builder
 public class Query {
-  private String tenant;
+  private Integer tenant;
   private Integer limit;
   private Integer offset;
   private boolean noLink;
@@ -99,7 +99,7 @@ public class Query {
           query.setRelations(new HashSet<String>(Arrays.asList(value.split(","))));
           break;
         case "tenant":
-          query.setTenant(value);
+          query.setTenant(Integer.parseInt(value));
           break;
       }
 

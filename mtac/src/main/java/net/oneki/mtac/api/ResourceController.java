@@ -16,6 +16,7 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 import jakarta.annotation.PostConstruct;
 import net.oneki.mtac.framework.query.Query;
 import net.oneki.mtac.framework.repository.ResourceRepository;
+import net.oneki.mtac.model.core.Constants;
 import net.oneki.mtac.model.core.util.StringUtils;
 import net.oneki.mtac.model.framework.Page;
 import net.oneki.mtac.model.resource.Resource;
@@ -77,7 +78,8 @@ public abstract class ResourceController<U extends UpsertRequest, R extends Reso
     }
 
     public R getByUid(@PathVariable("uid") String uid) {
-        return getService().getByUid(uid);
+        var result =  getService().getByUid(uid);
+        return result;
     }
 
     public R create(@RequestBody U request) {
@@ -92,7 +94,9 @@ public abstract class ResourceController<U extends UpsertRequest, R extends Reso
     // list. A query param is used to specify the tenant. If no tenant is specified, the tenant root is used.
     public Page<R> list(@RequestParam Map<String, String> parameters) {
         if (!parameters.containsKey("tenant")) {
-            parameters.put("tenant", "root");
+            parameters.put("tenant", "" + Constants.TENANT_ROOT_ID);
+        } else {
+            parameters.put("tenant", "" + Resource.fromUid(parameters.get("tenant")));
         }
         var query = Query.fromRest(parameters, getResourceClass());
         return getService().list(query);

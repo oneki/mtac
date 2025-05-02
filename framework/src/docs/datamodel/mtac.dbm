@@ -4,7 +4,7 @@ CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
 <dbmodel pgmodeler-ver="1.1.0" use-changelog="false" max-obj-count="51"
-	 last-position="-80,343" last-zoom="1" scene-rect="-80,-40.5,1707.33,2074.22"
+	 last-position="0,150" last-zoom="1" scene-rect="-80,-40.5,1707.33,2074.22"
 	 default-owner="postgres"
 	 layers="Default"
 	 active-layers="0"
@@ -1382,16 +1382,12 @@ END;
 		</idxelement>
 </index>
 
-<table name="resource" layers="0" collapse-mode="1" max-obj-count="16" z-value="0">
+<table name="resource" layers="0" collapse-mode="1" max-obj-count="15" z-value="0">
 	<schema name="public"/>
 	<role name="postgres"/>
 	<position x="400" y="480"/>
 	<column name="id" not-null="true" sequence="public.resource_id_seq">
 		<type name="integer" length="0"/>
-	</column>
-	<column name="urn" not-null="true">
-		<type name="varchar" length="0"/>
-		<comment> <![CDATA[The ID visible externally. The format of the URL is: urn:<tenant>:<schema>:<label>]]> </comment>
 	</column>
 	<column name="label" not-null="true">
 		<type name="varchar" length="255"/>
@@ -1432,9 +1428,6 @@ END;
 	</column>
 	<constraint name="resource_pk" type="pk-constr" table="public.resource">
 		<columns names="id" ref-type="src-columns"/>
-	</constraint>
-	<constraint name="resource_urn_unique" type="uq-constr" table="public.resource">
-		<columns names="urn" ref-type="src-columns"/>
 	</constraint>
 </table>
 
@@ -1936,15 +1929,6 @@ A role contains another role if he have at least
 		<idxelement use-sorting="false">
 			<expression> <![CDATA[label gin_trgm_ops]]> </expression>
 		</idxelement>
-</index>
-
-<index name="resource_public_id_idx" table="public.resource"
-	 concurrent="false" unique="true" fast-update="false" buffering="false" nulls-not-distinct="false"
-	 index-type="btree" factor="0">
-		<idxelement use-sorting="false">
-			<column name="urn"/>
-		</idxelement>
-	<columns names="urn"/>
 </index>
 
 <trigger name="after_insert_schema" firing-type="AFTER" per-line="true" constraint="false"
@@ -2746,7 +2730,7 @@ END;]]> </definition>
 	 dst-table="public.resource" reference-fk="resource_link_fk"
 	 src-required="false" dst-required="false">
 	<line>
-		<position x="754.95" y="586.108"/>
+		<position x="754.95" y="579.575"/>
 	<position x="754.95" y="447"/>
 	<position x="614.633" y="447"/>
 	</line>
@@ -2757,9 +2741,9 @@ END;]]> </definition>
 	 dst-table="public.resource" reference-fk="resource_tenant_fk"
 	 src-required="false" dst-required="false">
 	<line>
-		<position x="780.416" y="611.574"/>
-	<position x="780.416" y="421.534"/>
-	<position x="589.167" y="421.534"/>
+		<position x="778.848" y="603.473"/>
+	<position x="778.848" y="423.102"/>
+	<position x="590.735" y="423.102"/>
 	</line>
 </relationship>
 
@@ -2768,9 +2752,9 @@ END;]]> </definition>
 	 dst-table="public.resource" reference-fk="resource_schema_fk"
 	 src-required="false" dst-required="false">
 	<line>
-		<position x="805.882" y="637.04"/>
-	<position x="805.882" y="396.068"/>
-	<position x="563.701" y="396.068"/>
+		<position x="802.746" y="627.371"/>
+	<position x="802.746" y="399.204"/>
+	<position x="566.837" y="399.204"/>
 	</line>
 </relationship>
 

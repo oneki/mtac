@@ -9,7 +9,6 @@ WITH tmp_schema_inheritance AS(
      )
 SELECT
       r.id as id,
-      r.urn,
       r.label,
       r.pub,
       r.schema_id,
@@ -22,7 +21,6 @@ SELECT
       r.created_by,
       r.updated_by,
       l.id as link_id,
-      l.urn as link_urn,
       l.content as link_content,
       l.pub as link_pub,
       l.tenant_id as link_tenant_id,

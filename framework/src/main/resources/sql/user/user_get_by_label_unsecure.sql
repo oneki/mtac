@@ -9,7 +9,6 @@ WITH  tmp_schema_inheritance AS(
      )
 SELECT
       r.id as id,
-      r.urn,
       r.label,
       r.pub,
       r.schema_id,

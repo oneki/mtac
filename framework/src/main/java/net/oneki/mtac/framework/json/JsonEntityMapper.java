@@ -79,7 +79,9 @@ public class JsonEntityMapper extends BaseJsonEntityMapper {
 
     private net.oneki.mtac.model.resource.Resource fillLabels(net.oneki.mtac.model.resource.Resource resource) {
         resource.setSchemaLabel(ResourceRegistry.getSchemaLabel(resource.getSchemaId()));
-        resource.setTenantLabel(ResourceRegistry.getTenantLabel(resource.getTenantId()));
+        if (resource.getTenantId() != null) {
+            resource.setTenantLabel(ResourceRegistry.getTenantLabel(resource.getTenantId()));
+        }
         return resource;
     }
 }

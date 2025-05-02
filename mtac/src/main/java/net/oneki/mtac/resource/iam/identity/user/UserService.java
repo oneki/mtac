@@ -2,6 +2,7 @@ package net.oneki.mtac.resource.iam.identity.user;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -12,8 +13,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import com.nimbusds.jose.util.Resource;
-
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.framework.cache.ResourceRegistry;
@@ -21,10 +20,18 @@ import net.oneki.mtac.framework.cache.TokenRegistry;
 import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.framework.repository.TokenRepository;
 import net.oneki.mtac.framework.service.JwtTokenService;
+import net.oneki.mtac.model.core.Constants;
+import net.oneki.mtac.model.core.security.RoleUserInfo;
+import net.oneki.mtac.model.core.security.TenantRole;
+import net.oneki.mtac.model.core.security.TenantUserInfo;
+import net.oneki.mtac.model.core.security.TenantWithHierarchy;
 import net.oneki.mtac.model.core.security.TenantWithHierarchy.TenantHierarchy;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
 import net.oneki.mtac.model.core.util.security.Claims;
 import net.oneki.mtac.model.core.util.security.SecurityContext;
+import net.oneki.mtac.model.resource.Resource;
+import net.oneki.mtac.model.resource.Tenant;
+import net.oneki.mtac.model.resource.iam.Role;
 import net.oneki.mtac.model.resource.iam.identity.group.Group;
 import net.oneki.mtac.model.resource.iam.identity.user.BaseUserUpsertRequest;
 import net.oneki.mtac.model.resource.iam.identity.user.User;
@@ -35,19 +42,19 @@ import net.oneki.mtac.resource.iam.identity.group.GroupRepository;
 
 @Service("mtacUserService")
 @RequiredArgsConstructor
-public abstract class UserService<U extends BaseUserUpsertRequest<? extends Group>, E extends User> extends ResourceService<U, E> {
-  //private final UserRepository userRepository;
+public abstract class UserService<U extends BaseUserUpsertRequest<? extends Group>, E extends User>
+    extends ResourceService<U, E> {
+  // private final UserRepository userRepository;
   private PasswordEncoder passwordEncoder;
   private GroupMembershipRepository groupMembershipRepository;
   private GroupRepository groupRepository;
-  //private final TenantRepository tenantRepository;
+  // private final TenantRepository tenantRepository;
   private JwtTokenService tokenService;
   private ResourceRepository resourceRepository;
   private RoleRepository roleRepository;
   private SecurityContext securityContext;
   private TokenRegistry tokenRegistry;
   private TokenRepository tokenRepository;
-
 
   @Autowired
   public final void setPasswordEncoder(PasswordEncoder passwordEncoder) {
@@ -94,7 +101,8 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
     this.tokenRepository = tokenRepository;
   }
 
-  @Value("${jwt.expiration-sec:86400}") protected int expirationSec;
+  @Value("${jwt.expiration-sec:86400}")
+  protected int expirationSec;
 
   public E getByLabel(String tenantLabel, String userLabel) {
     return resourceRepository.getByLabel(userLabel, tenantLabel, getEntityClass());
@@ -110,12 +118,13 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
       throw new BusinessException("INVALID_CREDENTIALS", "User/Password incorrect");
     }
 
-
     var accessTokenClaims = new Claims();
     accessTokenClaims.put("jti", UUID.randomUUID().toString());
-    accessTokenClaims.put("sub", user.getLabel());
+    var sub = Resource.toUid(user.getId());
+    accessTokenClaims.put("sub", sub);
+    accessTokenClaims.put("username", user.getLabel());
 
-    var idTokenClaims = userinfo(user.getLabel());
+    var idTokenClaims = userinfo(sub);
 
     return tokenService.generateExpiringToken(accessTokenClaims, idTokenClaims);
 
@@ -127,7 +136,7 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
   }
 
   public Claims userinfo() {
-    return userinfo(securityContext.getUsername());
+    return userinfo(securityContext.getSubject());
   }
 
   public Claims userinfo(String sub) {
@@ -135,7 +144,7 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
     if (claims != null) {
       return claims;
     }
-    var user = getByUid(sub);
+    var user = getByUidUnsecure(sub);
     return userinfo(user);
   }
 
@@ -146,6 +155,7 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
     } else {
       claims = new Claims();
     }
+    claims.put("sub", user.getUid());
     claims.put("username", user.getLabel());
     claims.put("email", user.getEmail());
     claims.put("firstName", user.getFirstName());
@@ -161,24 +171,76 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
         .collect(Collectors.toList());
     claims.put("tenantSids", tenantSids);
     claims.put("sids", sids);
+    var roleIndex = new HashMap<String, RoleUserInfo>();
+    var tenantIndex = new HashMap<String, TenantUserInfo>();
     for (var tenantRole : tenantRoles) {
-      var tenantId = tenantRole.getTenant().getId();
-      var ancestorTenants = ResourceRegistry.getTenantAncestors(tenantId);
-      var hierarchy = ancestorTenants.stream()
-        .map(ancestor -> (TenantHierarchy) TenantHierarchy.builder()
-          .uid(ancestor.getUid())
-          .label(ancestor.getLabel())
-          .schemaLabel(ancestor.getSchemaLabel())
-          .build()
-        )
-        .toList();
-      tenantRole.getTenant().setHierarchy(hierarchy);
+      buildTenantRoleIndexes(tenantRole, roleIndex, tenantIndex);
+      // var tenantId = tenantRole.getTenant().getId();
+      // var ancestorTenants = ResourceRegistry.getTenantAncestors(tenantId);
+      // var hierarchy = ancestorTenants.stream()
+      //     .map(ancestor -> (TenantHierarchy) TenantHierarchy.builder()
+      //         .uid(ancestor.getUid())
+      //         .label(ancestor.getLabel())
+      //         .schemaLabel(ancestor.getSchemaLabel())
+      //         .build())
+      //     .toList();
+      // tenantRole.getTenant().setHierarchy(hierarchy);
     }
-
-    claims.put("tenantRoles", tenantRoles);
-    tokenRepository.upsertToken(user.getLabel(), claims, Instant.now().plusSeconds(expirationSec));
+    claims.put("roles", roleIndex);
+    claims.put("tenants", tenantIndex.get(Resource.toUid(Constants.TENANT_ROOT_ID)));
+    tokenRepository.upsertToken(user.getUid(), claims, Instant.now().plusSeconds(expirationSec));
 
     return claims;
+  }
+
+  private void buildTenantRoleIndexes(TenantRole tenantRole, Map<String, RoleUserInfo> roleIndex,
+      Map<String, TenantUserInfo> tenantIndex) {
+    if (tenantRole != null) {
+      tenantRole.getRoles().forEach(role -> {
+        roleIndex.put(role.getUid(), RoleUserInfo.builder()
+            .actions(role.getActions())
+            .schemas(role.getSchemas())
+            .build());
+      });
+      var tenant = tenantRole.getTenant();
+
+      var child = tenantIndex.get(tenant.getUid());
+      if (child != null) {
+        child.setRoles(tenantRole.getRoles().stream()
+            .map(role -> role.getUid())
+            .collect(Collectors.toSet()));
+      } else {
+        child = TenantUserInfo.builder()
+            .uid(tenant.getUid())
+            .label(tenant.getLabel())
+            .schemaLabel(tenant.getSchemaLabel())
+            .roles(tenantRole.getRoles().stream()
+                .map(role -> role.getUid())
+                .collect(Collectors.toSet()))
+            .build();
+        tenantIndex.put(tenant.getUid(), child);
+
+        var tenantId = tenant.getId();
+        var ancestorTenants = ResourceRegistry.getTenantAncestors(tenantId).reversed();
+
+        for (var ancestor : ancestorTenants) {
+          var parentTenantUserInfo = tenantIndex.get(ancestor.getUid());
+          if (parentTenantUserInfo != null) {
+            parentTenantUserInfo.getChildren().add(child);
+            break;
+          } else {
+            parentTenantUserInfo = TenantUserInfo.builder()
+                .uid(ancestor.getUid())
+                .label(ancestor.getLabel())
+                .schemaLabel(ancestor.getSchemaLabel())
+                .build();
+            parentTenantUserInfo.getChildren().add(child);
+            tenantIndex.put(ancestor.getUid(), parentTenantUserInfo);
+            child = parentTenantUserInfo;
+          }
+        }
+      }
+    }
   }
 
   public E create(U request) {

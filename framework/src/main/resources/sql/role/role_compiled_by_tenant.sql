@@ -1,7 +1,6 @@
 -- retrieve all roles that are directly assigned to the given tenant for a user
 SELECT
       r.id as id,
-      r.urn,
       r.label,
       r.pub,
       r.schema_id,

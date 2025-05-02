@@ -1,6 +1,5 @@
 INSERT INTO "resource" (
   label,
-  urn,
   pub,
   link_id,
   link_type,
@@ -11,7 +10,6 @@ INSERT INTO "resource" (
 )
 VALUES(
   :label,
-  :urn,
   :pub,
   :linkId,
   :linkType,

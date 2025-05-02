@@ -56,8 +56,8 @@ public class RelationDeserializer extends DelegatingDeserializer /* implements C
     private Object deserialize(JsonParser parser, DeserializationContext ctxt, JsonToken token, JavaType type)
             throws IOException {
         var resourceDesc = ResourceRegistry.getResourceDesc(type.getRawClass());
-        var resourceField = resourceDesc.getField(parser.getCurrentName());
-        var clazz = resourceField.getField().getType();
+        var resourceField = resourceDesc.getField(parser.getParsingContext().getParent().getCurrentName());
+        var clazz = resourceField.getFieldClass();
 
         if (token == JsonToken.START_OBJECT) {
             var mapType = ctxt.constructType(HashMap.class);

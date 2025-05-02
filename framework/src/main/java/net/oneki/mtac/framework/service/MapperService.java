@@ -28,12 +28,12 @@ public class MapperService {
                 var entityField = entityFields.getField(requestField.getLabel());
 
                 if ("tenant".equals(requestField.getLabel())) {
-                    var tenantLabel = (String) requestField.getField().get(request);
-                    if (tenantLabel == null) {
+                    var tenantUid = (String) requestField.getField().get(request);
+                    if (tenantUid == null) {
                         entity.setTenantId(null);
                         entity.setTenantLabel(null);
                     } else {
-                        var tenant = ResourceRegistry.getTenantByLabel(tenantLabel);
+                        var tenant = ResourceRegistry.getTenantById(Resource.fromUid(tenantUid));
                         entity.setTenantId(tenant.getId());
                         entity.setTenantLabel(tenant.getLabel());
 

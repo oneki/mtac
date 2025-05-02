@@ -150,6 +150,7 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
                    * }
                    */ else {
                     resource.setTenantId(tenantId);
+                    resource.setTenantLabel(ResourceRegistry.getTenantLabel(tenantId));
                 }
 
                 break;
@@ -168,6 +169,7 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
                    * }
                    */ else {
                     resource.setSchemaId(schemaId);
+                    resource.setSchemaLabel(ResourceRegistry.getSchemaLabel(schemaId));
                 }
 
                 break;

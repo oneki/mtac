@@ -7,12 +7,6 @@
 -- Database creation must be performed outside a multi lined SQL file. 
 -- These commands were put in this file only as a convenience.
 -- 
--- object: fuzz | type: DATABASE --
--- DROP DATABASE IF EXISTS fuzz;
--- CREATE DATABASE fuzz
--- 	TABLESPACE = pg_default
--- 	OWNER = postgres;
--- -- ddl-end --
 
 -- Appended SQL commands --
 SELECT now();
@@ -1373,6 +1367,7 @@ USING btree
 -- DROP TABLE IF EXISTS public.resource CASCADE;
 CREATE TABLE public.resource (
 	id integer NOT NULL DEFAULT nextval('public.resource_id_seq'::regclass),
+	urn varchar NOT NULL,
 	label varchar(255) NOT NULL,
 	pub bool DEFAULT false,
 	tenant_id integer,
@@ -1385,8 +1380,11 @@ CREATE TABLE public.resource (
 	updated_at timestamp with time zone,
 	created_by varchar(255),
 	updated_by varchar(255),
-	CONSTRAINT resource_pk PRIMARY KEY (id)
+	CONSTRAINT resource_pk PRIMARY KEY (id),
+	CONSTRAINT resource_urn_unique UNIQUE (urn)
 );
+-- ddl-end --
+COMMENT ON COLUMN public.resource.urn IS E'The ID visible externally. The format of the URL is: urn:<tenant>:<schema>:<label>';
 -- ddl-end --
 COMMENT ON COLUMN public.resource.link_type IS E'0=normal,1=ref';
 -- ddl-end --
@@ -1921,6 +1919,16 @@ USING gin
 (
 	label gin_trgm_ops
 );
+-- ddl-end --
+
+-- object: resource_public_id_idx | type: INDEX --
+-- DROP INDEX IF EXISTS public.resource_public_id_idx CASCADE;
+CREATE UNIQUE INDEX resource_public_id_idx ON public.resource
+USING btree
+(
+	urn
+)
+INCLUDE (urn);
 -- ddl-end --
 
 -- object: after_insert_schema | type: TRIGGER --

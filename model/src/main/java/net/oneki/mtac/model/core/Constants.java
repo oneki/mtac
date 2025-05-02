@@ -9,5 +9,6 @@ public class Constants {
     public static String TENANT_ROOT_SCHEMA_LABEL = "tenant.root";
     public static Integer TENANT_ROOT_SCHEMA_ID = 3;
     public static Integer TENANT_ROOT_ID = 4;
+    public static String TENANT_ROOT_UID = "vMsoJQhr";
 
 }

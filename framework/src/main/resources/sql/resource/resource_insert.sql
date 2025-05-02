@@ -1,6 +1,5 @@
 INSERT INTO "resource" (
   label,
-  urn,
   pub,
   tenant_id,
   schema_id,
@@ -10,7 +9,6 @@ INSERT INTO "resource" (
 )
 VALUES(
   :label,
-  :urn,
   :pub,
   :tenantId,
   :schemaId,

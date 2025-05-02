@@ -44,10 +44,15 @@ public class RoleRepository extends AbstractRepository {
                     .id(rs.getInt("id"))
                     .uid(Resource.toUid(rs.getInt("id")))
                     .label(rs.getString("label"))
+                    .schemaLabel(rs.getString("schema_label"))
                     .build())
                 .roles(JsonUtil.json2Set(rs.getString("roles"), RoleAssigned.class).stream()
                     .filter(r -> r.isAssigned() == true)
-                    .map(r -> r.getRole())
+                    .map(r -> {
+                        var role = r.getRole();
+                        role.setId(r.getId());
+                        return role;
+                    })
                     .collect(Collectors.toSet()))
                 .build();
             return tenantRole;
@@ -62,6 +67,7 @@ public class RoleRepository extends AbstractRepository {
     @AllArgsConstructor
     @Builder
     public static class RoleAssigned {
+        private int id;
         private Role role;
         private boolean assigned;
     }

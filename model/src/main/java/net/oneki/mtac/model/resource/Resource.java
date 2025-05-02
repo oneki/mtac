@@ -19,6 +19,7 @@ import net.oneki.mtac.model.core.resource.HasLabel;
 import net.oneki.mtac.model.core.resource.Ref;
 import net.oneki.mtac.model.core.security.Acl;
 import net.oneki.mtac.model.core.util.exception.UnexpectedException;
+import net.oneki.mtac.model.resource.schema.Schema;
 
 @Data
 @AllArgsConstructor
@@ -35,17 +36,17 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 
 	protected String uid;
 
-	@JsonProperty("$s")
+	@JsonProperty("s")
 	protected Integer schemaId;
-	@JsonProperty("$t")
+
+	@JsonIgnore
 	protected Integer tenantId;
-	@JsonProperty("$l")
 	protected String label;
 
-	@JsonIgnore
+	@JsonProperty("tenant")
 	protected String tenantLabel;
 
-	@JsonIgnore
+	@JsonProperty("schema")
 	protected String schemaLabel;
 
 	/*
@@ -169,7 +170,6 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 				.id(id)
 				.label(getLabel())
 				.schema(getSchemaId())
-				.tenant(getTenantId())
 				.build();
 	}
 
@@ -200,6 +200,14 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 		this.id = id;
 		this.uid = toUid(id);
 	}
+
+	// public final Schema getSchema() {
+	// 	throw new UnsupportedOperationException("getSchema is not supported in this resource");
+	// }
+
+	// public final void setSchema(Schema schema) {
+	// 	throw new UnsupportedOperationException("setSchema is not supported in this resource");
+	// }
 
 	public final String getUid() {
 		return uid;
@@ -289,6 +297,14 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 	public final String getTenantLabel() {
 		return tenantLabel;
 	}
+
+	// public final Tenant getTenant() {
+	// 	throw new UnsupportedOperationException("getTenant is not supported in this resource");
+	// }
+
+	// public final void setTenant(Tenant tenant) {
+	// 	throw new UnsupportedOperationException("setTenant is not supported in this resource");
+	// }
 
 	// @JsonIgnore
 	// protected final String getTenantSuffix() {

@@ -50,7 +50,7 @@ public class JwtTokenService implements Clock {
 	private PrivateKeyEntry privateKeyEntry;
 	private JWK jwk;
 
-	JwtTokenService(@Value("${jwt.issuer:fuzz}") final String issuer,
+	JwtTokenService(@Value("${jwt.issuer:mtac}") final String issuer,
 			@Value("${jwt.expiration-sec:86400}") final int expirationSec,
 			@Value("${jwt.clock-skew-sec:300}") final int clockSkewSec,
 			@Value("${jwt.secret:secret}") final String secret,

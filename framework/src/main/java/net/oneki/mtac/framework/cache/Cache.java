@@ -179,4 +179,35 @@ public class Cache {
     }
   }
 
+  public void addTenantAncestor(Integer tenantId, Integer ancestorId) {
+    if (tenantId != null && ancestorId != null) {
+      var ancestors = tenantAncestors.getOrDefault(tenantId, new HashSet<>());
+      ancestors.add(ancestorId);
+      tenantAncestors.put(tenantId, ancestors);
+    }
+  }
+
+  public void addTenantDescendant(Integer tenantId, Integer descendantId) {
+    if (tenantId != null && descendantId != null) {
+      var descendants = tenantDescendants.getOrDefault(tenantId, new HashSet<>());
+      descendants.add(descendantId);
+      tenantDescendants.put(tenantId, descendants);
+    }
+  }
+
+  public void deleteTenantAncestor(Integer tenantId) {
+    if (tenantId != null) {
+      var ancestors = tenantAncestors.get(tenantId);
+      if (ancestors != null) {
+        for (var ancestor: ancestors) {
+          var descendants = tenantDescendants.get(ancestor);
+          if (descendants != null) {
+            descendants.remove(tenantId);
+          }
+        }
+        tenantAncestors.remove(tenantId);
+      }
+    }
+  }
+
 }

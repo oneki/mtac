@@ -80,7 +80,6 @@ public class SchemaDbSynchronizer {
                     .id(parentSchemaEntityId)
                     .label(parentSchemaLabel)
                     .schema(Constants.SCHEMA_SCHEMA_ID)
-                    .tenant(Constants.TENANT_ROOT_ID)
                     .build());
         }
 
