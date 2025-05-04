@@ -47,7 +47,7 @@ public class RoleRepository extends AbstractRepository {
                     .schemaLabel(rs.getString("schema_label"))
                     .build())
                 .roles(JsonUtil.json2Set(rs.getString("roles"), RoleAssigned.class).stream()
-                    .filter(r -> r.isAssigned() == true)
+                    .filter(r -> r.id != null)
                     .map(r -> {
                         var role = r.getRole();
                         role.setId(r.getId());
@@ -67,9 +67,8 @@ public class RoleRepository extends AbstractRepository {
     @AllArgsConstructor
     @Builder
     public static class RoleAssigned {
-        private int id;
+        private Integer id;
         private Role role;
-        private boolean assigned;
     }
 
 }

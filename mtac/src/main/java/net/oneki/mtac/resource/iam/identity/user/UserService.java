@@ -131,8 +131,8 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
   }
 
   public void logout() {
-    tokenRepository.deleteToken(securityContext.getSubject());
     tokenRegistry.remove(securityContext.getSubject());
+    tokenRepository.deleteToken(securityContext.getSubject());
   }
 
   public Claims userinfo() {
@@ -188,7 +188,7 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
     }
     claims.put("roles", roleIndex);
     claims.put("tenants", tenantIndex.get(Resource.toUid(Constants.TENANT_ROOT_ID)));
-    tokenRepository.upsertToken(user.getUid(), claims, Instant.now().plusSeconds(expirationSec));
+    tokenRepository.upsertToken(user.getId(), user.getUid(), claims, Instant.now().plusSeconds(expirationSec));
 
     return claims;
   }
@@ -221,7 +221,7 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
         tenantIndex.put(tenant.getUid(), child);
 
         var tenantId = tenant.getId();
-        var ancestorTenants = ResourceRegistry.getTenantAncestors(tenantId).reversed();
+        var ancestorTenants = ResourceRegistry.getTenantAncestors(tenantId);
 
         for (var ancestor : ancestorTenants) {
           var parentTenantUserInfo = tenantIndex.get(ancestor.getUid());

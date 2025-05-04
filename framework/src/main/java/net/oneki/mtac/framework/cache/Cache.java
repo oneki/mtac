@@ -1,10 +1,9 @@
 package net.oneki.mtac.framework.cache;
 
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -19,8 +18,8 @@ public class Cache {
   protected Map<String, Integer> schemaIds = new HashMap<>();
   protected Map<String, Integer> tenantIds = new HashMap<>();
   protected Map<Integer, Role> roles = new HashMap<>();
-  private Map<Integer, Set<Integer>> tenantAncestors = new HashMap<>();
-  private Map<Integer, Set<Integer>> tenantDescendants = new HashMap<>();
+  private Map<Integer, List<Integer>> tenantAncestors = new HashMap<>(); // tenant ancestors are ordered by depth (first = parent, second = grand parent, etc)
+  private Map<Integer, List<Integer>> tenantDescendants = new HashMap<>();
 
   public Role getRoleById(Integer id) {
     return roles.get(id);
@@ -132,8 +131,8 @@ public class Cache {
     return null;
   }
 
-  public Set<Integer> getTenantAncestors(Integer tenantId) {
-    return tenantAncestors.getOrDefault(tenantId, new HashSet<>());
+  public List<Integer> getTenantAncestors(Integer tenantId) {
+    return tenantAncestors.getOrDefault(tenantId, new ArrayList<>());
   }
 
   public Map<Integer, Schema> getSchemas() {
@@ -162,52 +161,20 @@ public class Cache {
     );
   }
 
-  public void setTenantAncestor(Integer tenantId, Set<Integer> ancestors) {
+  public void setTenantAncestor(Integer tenantId, List<Integer> ancestors) {
     if (tenantId != null) {
       tenantAncestors.put(tenantId, ancestors);
       for (var ancestor: ancestors) {
-        var descendants = tenantDescendants.getOrDefault(ancestor, new HashSet<Integer>());
+      var descendants = tenantDescendants.getOrDefault(ancestor, new ArrayList<Integer>());
         descendants.add(tenantId);
         tenantDescendants.put(ancestor, descendants);
       }
     }
   }
 
-  public void setTenantAncestors(Map<Integer, Set<Integer>> tenantAncestors) {
+  public void setTenantAncestors(Map<Integer, List<Integer>> tenantAncestors) {
     for (var entry: tenantAncestors.entrySet()) {
       setTenantAncestor(entry.getKey(), entry.getValue());
     }
   }
-
-  public void addTenantAncestor(Integer tenantId, Integer ancestorId) {
-    if (tenantId != null && ancestorId != null) {
-      var ancestors = tenantAncestors.getOrDefault(tenantId, new HashSet<>());
-      ancestors.add(ancestorId);
-      tenantAncestors.put(tenantId, ancestors);
-    }
-  }
-
-  public void addTenantDescendant(Integer tenantId, Integer descendantId) {
-    if (tenantId != null && descendantId != null) {
-      var descendants = tenantDescendants.getOrDefault(tenantId, new HashSet<>());
-      descendants.add(descendantId);
-      tenantDescendants.put(tenantId, descendants);
-    }
-  }
-
-  public void deleteTenantAncestor(Integer tenantId) {
-    if (tenantId != null) {
-      var ancestors = tenantAncestors.get(tenantId);
-      if (ancestors != null) {
-        for (var ancestor: ancestors) {
-          var descendants = tenantDescendants.get(ancestor);
-          if (descendants != null) {
-            descendants.remove(tenantId);
-          }
-        }
-        tenantAncestors.remove(tenantId);
-      }
-    }
-  }
-
 }

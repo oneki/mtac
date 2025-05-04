@@ -12,24 +12,33 @@ import org.springframework.stereotype.Repository;
 
 import net.oneki.mtac.model.core.util.json.JsonUtil;
 import net.oneki.mtac.model.core.util.security.Claims;
+import net.oneki.mtac.model.resource.Resource;
 
 @Repository
 public class TokenRepository extends AbstractRepository {
 
-  private static final String SQL_DELETE_TOKEN = "DELETE FROM token WHERE sub = :sub";
+  private static final String SQL_DELETE_TOKEN = "DELETE FROM token WHERE identity_id = :identity_id";
 
   public void deleteToken(String sub) {
+    deleteToken(Resource.fromUid(sub));
+  }
+
+  public void deleteToken(Integer identityId) {
     var params = new HashMap<String, Object>();
-    params.put("sub", sub);
+    params.put("identity_id", identityId);
     jdbcTemplate.update(SQL_DELETE_TOKEN, params);
   }
 
   // get token
-  public static final String SQL_GET_TOKEN = "SELECT * FROM token WHERE sub = :sub";
+  public static final String SQL_GET_TOKEN = "SELECT * FROM token WHERE identity_id = :identity_id";
 
   public Claims getToken(String sub) {
+    return getToken(Resource.fromUid(sub));
+  }
+
+  public Claims getToken(Integer identityId) {
     var params = new HashMap<String, Object>();
-    params.put("sub", sub);
+    params.put("identity_id", identityId);
     try {
       return jdbcTemplate.queryForObject(SQL_GET_TOKEN, params, (rs, rowNum) -> {
         try {
@@ -45,15 +54,16 @@ public class TokenRepository extends AbstractRepository {
   }
 
   // insert token
-  public static final String SQL_INSERT_TOKEN = "INSERT INTO token (sub, token, expire_at) VALUES (:sub, to_json(:token::JSON), :expire_at)";
+  public static final String SQL_INSERT_TOKEN = "INSERT INTO token (identity_id, sub, token, expire_at) VALUES (:identity_id, :sub, to_json(:token::JSON), :expire_at)";
 
-  public void upsertToken( String sub, Object token, Instant expireAt) {
-    var currentToken = getToken(sub);
+  public void upsertToken(Integer identityId, String sub, Object token, Instant expireAt) {
+    var currentToken = getToken(identityId);
     if (currentToken != null) {
-      deleteToken(sub);
+      deleteToken(identityId);
     }
 
     var params = new HashMap<String, Object>();
+    params.put("identity_id", identityId);
     params.put("sub", sub);
     params.put("token", JsonUtil.object2Json(token));
     params.put("expire_at", Timestamp.from(expireAt));

@@ -40,9 +40,7 @@ public class DbRelationDeserializer extends DelegatingDeserializer /* implements
 
     @Override
     public Object deserialize(JsonParser parser, DeserializationContext ctxt) throws IOException {
-        var flag = ctxt.getAttribute("FIRST_PASS");
-        if (flag != null && flag.equals("true")) {
-            ctxt.setAttribute("FIRST_PASS", "false");
+        if (isRoot(parser) == true) {
             return super.deserialize(parser, ctxt);
         }
         var token = parser.currentToken();
@@ -61,30 +59,42 @@ public class DbRelationDeserializer extends DelegatingDeserializer /* implements
         }
     }
 
+    private boolean isRoot(JsonParser parser) {
+        var result = true;
+        var parent = parser.getParsingContext().getParent();
+        while (parent != null) {
+            if (parent.getCurrentName() != null) {
+                result = false;
+                break;
+            }
+            parent = parent.getParent();
+        }
+
+        return result;
+    }
+
     private Object deserialize(JsonParser parser, DeserializationContext ctxt, JsonToken token, JavaType type)
             throws IOException {
+
         if (token == JsonToken.START_OBJECT) {
             JsonNode node = parser.getCodec().readTree(parser);
-            var schemaNode = node.get("$s");
+            var schemaNode = node.get("s");
             if (schemaNode == null) {
-                ctxt.setAttribute("FIRST_PASS", "true");
-                //return entityMapper.treeToValue(node, type.getRawClass());
-                parser.assignCurrentValue(node.asText());
-                return deserialize(parser, ctxt);
+                return entityMapper.treeToValue(node, Object.class);
             }
             var schemaId = (Integer) ((IntNode) schemaNode).numberValue();
-            var tenantId = (Integer) ((IntNode) node.get("$t")).numberValue();
+            // var tenantId = (Integer) ((IntNode) node.get("$t")).numberValue();
             var id = (Integer) ((IntNode) node.get("id")).numberValue();
-            var label = node.get("$l").asText();
+            var label = node.get("label").asText();
             var schemaLabel = ResourceRegistry.getSchemaLabel(schemaId);
-            var tenantLabel = ResourceRegistry.getTenantLabel(tenantId);
+            // var tenantLabel = ResourceRegistry.getTenantLabel(tenantId);
             var clazz = ResourceRegistry.getClassBySchema(schemaLabel);
             try {
                 var resource = (Resource) clazz.getConstructor().newInstance();
                 resource.setId(id);
                 resource.setSchemaId(schemaId);
-                resource.setTenantId(tenantId);
-                resource.setTenantLabel(tenantLabel);
+                // resource.setTenantId(tenantId);
+                // resource.setTenantLabel(tenantLabel);
                 resource.setSchemaLabel(schemaLabel);
                 resource.setLabel(label);
                 return resource;

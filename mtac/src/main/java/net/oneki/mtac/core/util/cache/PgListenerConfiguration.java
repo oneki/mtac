@@ -20,7 +20,7 @@ public class PgListenerConfiguration {
             log.info("Starting postgres listener threads...");
 
             Runnable listener = notifier.createHandler(handler, Set.of(
-                    PgNotifierService.TOKEN_CHANNEL, PgNotifierService.RESOURCE_CHANNEL));
+                    PgNotifierService.TOKEN_CHANNEL, PgNotifierService.RESOURCE_CHANNEL, PgNotifierService.RESOURCE_TENANT_TREE_CHANNEL));
             Thread listenerThread = new Thread(listener, "pg-listener");
             listenerThread.start();
         };

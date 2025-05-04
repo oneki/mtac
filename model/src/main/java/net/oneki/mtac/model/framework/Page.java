@@ -14,6 +14,6 @@ import lombok.NoArgsConstructor;
 public class Page<T> {
     List<T> data;
     boolean hasNext;
-    int offset;
-    int limit;
+    Integer offset;
+    Integer limit;
 }

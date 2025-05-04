@@ -32,7 +32,7 @@ public class PgNotificationConsumer implements Consumer<PGNotification> {
     public void accept(PGNotification message) {
         var cache = ResourceRegistry.getCache();
         try {
-            log.debug("Notification received: channel={}, value={}", message.getName(), message.getParameter());
+            log.info("Notification received: channel={}, value={}", message.getName(), message.getParameter());
             if (message.getName().equals(PgNotifierService.RESOURCE_CHANNEL)) {
                 String value = message.getParameter();
                 if (value != null) {
@@ -127,9 +127,9 @@ public class PgNotificationConsumer implements Consumer<PGNotification> {
                 if (value != null) {
                     String[] tokens = value.split(",");
                     Integer descendantId = Integer.valueOf(tokens[2]);
-                    Resource resource = resourceRepository.getById(descendantId, Resource.class);
+                    Resource resource = resourceRepository.getByIdUnsecure(descendantId, Resource.class);
                     if (resource != null) {
-                        boolean isTenant = resource.getTenantLabel().startsWith("tenant.");
+                        boolean isTenant = resource.getSchemaLabel().startsWith("tenant.");
                         if (isTenant) {
                             var ancestors = resourceTenantTreeRepository.listTenantAncestors(descendantId);
                             log.info("Add ancestors ids <{}> of tenant {} to cache", ancestors, resource.getLabel());
