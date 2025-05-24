@@ -4,7 +4,7 @@ CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
 <dbmodel pgmodeler-ver="1.1.0" use-changelog="false" max-obj-count="51"
-	 last-position="0,148" last-zoom="1" scene-rect="-80,-40.5,1707.33,2074.22"
+	 last-position="0,147" last-zoom="1" scene-rect="-80,-40.5,1707.33,2074.22"
 	 default-owner="postgres"
 	 layers="Default"
 	 active-layers="0"
@@ -922,11 +922,8 @@ END;]]> </definition>
 	<definition> <![CDATA[DECLARE
 	v_count integer;
 BEGIN
-
 	
-	SELECT COUNT(*) INTO v_count FROM "schema" WHERE id = NEW.id;
-	
-	IF v_count > 0 THEN
+	IF NEW.schema_id = 1 THEN
 		-- get all role having acces to the old schema
 		DROP TABLE IF EXISTS role_schema_old_temp;
 		CREATE TEMP TABLE role_schema_old_temp AS

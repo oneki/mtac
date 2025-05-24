@@ -14,7 +14,6 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.deser.std.DelegatingDeserializer;
 
 import net.oneki.mtac.framework.cache.ResourceRegistry;
-import net.oneki.mtac.model.core.framework.Urn;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
 import net.oneki.mtac.model.resource.Resource;
 
@@ -55,9 +54,11 @@ public class RelationDeserializer extends DelegatingDeserializer /* implements C
     @SuppressWarnings("unchecked")
     private Object deserialize(JsonParser parser, DeserializationContext ctxt, JsonToken token, JavaType type)
             throws IOException {
-        var resourceDesc = ResourceRegistry.getResourceDesc(type.getRawClass());
-        var resourceField = resourceDesc.getField(parser.getParsingContext().getParent().getCurrentName());
-        var clazz = resourceField.getFieldClass();
+        // var resourceDesc = ResourceRegistry.getResourceDesc(this.type.getRawClass());
+        // System.out.println("type" + type.getRawClass() + ", fieldName: " + parser.getParsingContext().getParent().getCurrentName());
+        // var resourceField = resourceDesc.getField(parser.getParsingContext().getParent().getCurrentName());
+        // var clazz = resourceField.getFieldClass();
+        var clazz = type.getRawClass();
 
         if (token == JsonToken.START_OBJECT) {
             var mapType = ctxt.constructType(HashMap.class);

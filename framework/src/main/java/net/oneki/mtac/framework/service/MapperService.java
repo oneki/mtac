@@ -4,8 +4,6 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.framework.cache.ResourceRegistry;
-import net.oneki.mtac.framework.util.resource.UrnUtils;
-import net.oneki.mtac.model.core.framework.Urn;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
 import net.oneki.mtac.model.resource.Resource;
 import net.oneki.mtac.model.resource.ResourceRequest;
@@ -55,7 +53,7 @@ public class MapperService {
                     continue;
                 }
 
-                entityField.getField().set(entity, requestField.getField().get(request));
+                entityField.getField().set(entity, value);
             }
 
             // if (request instanceof UpsertRequest) {
@@ -71,6 +69,51 @@ public class MapperService {
         }
 
         return entity;
+    }
+
+    public<E extends Resource, U extends UpsertRequest> U toUpsertRequest(U request, E entity) {
+        try {
+            var requestFields = ResourceRegistry.getResourceDesc(request.getClass());
+            var entityFields = ResourceRegistry.getResourceDesc(entity.getClass());
+            var schemaLabel = ResourceRegistry.getSchemaByClass(entity.getClass());
+            entity.setSchemaLabel(schemaLabel);
+            entity.setSchemaId(ResourceRegistry.getSchemaId(schemaLabel));
+           
+            for (var entityField : entityFields.getFields()) {
+
+                entityField.getField().setAccessible(true);
+                var requestField = requestFields.getField(entityField.getLabel());
+
+                if ("tenantId".equals(entityField.getLabel())) {
+                    var tenantId = (Integer) entityField.getField().get(entity);
+                    request.setTenant(Resource.toUid(tenantId));
+                    continue;
+                }
+
+                if (requestField == null)
+                    continue;
+
+                requestField.getField().setAccessible(true);
+                if (!entityField.getType().equals(requestField.getType()))
+                    continue;
+                if (!entityField.isMultiple() && requestField.isMultiple())
+                    continue;
+
+                var value = entityField.getField().get(entity);
+                if (value == null && requestField.isSecret()) {
+                    continue;
+                }
+
+                requestField.getField().set(request, value);
+            }
+
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException("BAD_ENTITY", "Invalid entity", e);
+        } catch (IllegalAccessException e) {
+            throw new BusinessException("BAD_ENTITY", "Invalid entity", e);
+        }
+
+        return request;
     }
 
 }

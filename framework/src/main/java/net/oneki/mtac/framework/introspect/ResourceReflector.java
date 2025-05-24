@@ -24,45 +24,6 @@ import net.oneki.mtac.model.resource.Resource;
 
 public class ResourceReflector {
 
-    public static interface SuperInterface { // parent, fifi
-        public String getFirstName();
-    }
-
-    public static interface TestInterface extends SuperInterface { // fifi
-        public String getName();
-    }
-
-    public static class Parent implements SuperInterface {
-        public Integer testInterface;
-
-        public String getFirstName() {
-            return "John";
-        }
-    }
-
-    public static class Fifi extends Parent implements TestInterface {
-        private String name;
-        public String testInterface;
-
-        public String getName() {
-            return "Fifi";
-        }
-    }
-
-    public static void displayParent(Parent parent) {
-        System.out.println(parent.testInterface.getClass());
-
-    }
-
-    public static void main(String[] args) {
-        var fifi = new Fifi();
-        fifi.testInterface = "test";
-        var parent = new Parent();
-        parent.testInterface = 1;
-        displayParent(fifi);
-        displayParent(parent);
-    }
-
     public static void reflect(Class<?> clazz, ReflectorContext context) {
         reflect(clazz, context, null);
     }
@@ -185,6 +146,7 @@ public class ResourceReflector {
                 var secretDesc = method.isAnnotationPresent(Secret.class) ? SecretDesc.builder()
                         .type(getSecretType(method.getAnnotation(Secret.class)))
                         .build() : null;
+
                 resourceFields.add(ResourceField.builder()
                         .label(fieldName)
                         .type(getType(method.getReturnType()))
@@ -250,7 +212,20 @@ public class ResourceReflector {
     }
 
     public static List<Field> getAllFields(List<Field> fields, Class<?> type) {
-        fields.addAll(Arrays.asList(type.getDeclaredFields()));
+        var declaredFields = Arrays.asList(type.getDeclaredFields());
+        for (var field : declaredFields) {
+            // check if the field already exists in fields
+            // if it's the case, it means a child class has redefined the field
+            // and we don't want to add it again
+            if (fields.stream().anyMatch(f -> f.getName().equals(field.getName()))) {
+                // System.out.println("########## Field " + field.getName() + " already exists
+                // in " + type.getName());
+                continue;
+            }
+            // System.out.println("++++++ add field " + field.getName() + " in " +
+            // type.getName() + "(" + field.getType().getName() + ")");
+            fields.add(field);
+        }
 
         if (type.getSuperclass() != null) {
             getAllFields(fields, type.getSuperclass());
@@ -348,12 +323,11 @@ public class ResourceReflector {
         return type;
     }
 
-
     private static SecretType getSecretType(Secret secretAnnotation) {
         if (secretAnnotation != null) {
             if (secretAnnotation.type() != null) {
                 return secretAnnotation.type();
-            } 
+            }
 
             return secretAnnotation.value();
         }

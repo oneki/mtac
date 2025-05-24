@@ -14,6 +14,7 @@ import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import net.oneki.mtac.framework.query.Query;
 import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.model.core.Constants;
@@ -23,11 +24,12 @@ import net.oneki.mtac.model.resource.Resource;
 import net.oneki.mtac.model.resource.UpsertRequest;
 import net.oneki.mtac.resource.ResourceService;
 
+@Slf4j
 public abstract class ResourceController<U extends UpsertRequest, R extends Resource, S extends ResourceService<U, R>> {
 
     @Autowired protected ResourceRepository resourceRepository;
     @Autowired protected RequestMappingHandlerMapping handlerMapping;
-    @Value("${mtac.api.base-path:/api}") private String apiBasePath;
+    @Value("${mtac.api.base-path:/api}") protected String apiBasePath;
 
     protected abstract Class<U> getRequestClass();
     protected abstract Class<R> getResourceClass();
@@ -45,6 +47,17 @@ public abstract class ResourceController<U extends UpsertRequest, R extends Reso
             ResourceController.class.getDeclaredMethod("getByUid", String.class)
         ); 
         
+
+        // getParameters
+        handlerMapping.registerMapping(
+            RequestMappingInfo.paths(getApiPath() + "/{uid}/parameters")
+                    .methods(RequestMethod.GET)
+                    .produces(MediaType.APPLICATION_JSON_VALUE)
+                    .build(),
+            this,
+            ResourceController.class.getDeclaredMethod("getParameters", String.class)
+        );
+
         // create
         handlerMapping.registerMapping(
             RequestMappingInfo.paths(getApiPath())
@@ -55,6 +68,17 @@ public abstract class ResourceController<U extends UpsertRequest, R extends Reso
             this,
             ResourceController.class.getDeclaredMethod("create", UpsertRequest.class)
         );
+
+        // updateParameters
+        handlerMapping.registerMapping(
+            RequestMappingInfo.paths(getApiPath() + "/{uid}/parameters", getApiPath() + "/{uid}")
+                    .methods(RequestMethod.PUT)
+                    .consumes(MediaType.APPLICATION_JSON_VALUE)
+                    .produces(MediaType.APPLICATION_JSON_VALUE)
+                    .build(),
+            this,
+            ResourceController.class.getDeclaredMethod("update",String.class, UpsertRequest.class)
+        );      
 
         // delete
         handlerMapping.registerMapping(
@@ -82,8 +106,18 @@ public abstract class ResourceController<U extends UpsertRequest, R extends Reso
         return result;
     }
 
+    public U getParameters(@PathVariable("uid") String uid) {
+        var result = getService().getRequestByUid(uid);
+        return result;
+    }
+
     public R create(@RequestBody U request) {
         var result = getService().create(request);
+        return result;
+    }
+
+    public R update(@PathVariable("uid") String uid, @RequestBody U request) {
+        var result = getService().update(uid, request);
         return result;
     }
 
@@ -103,8 +137,12 @@ public abstract class ResourceController<U extends UpsertRequest, R extends Reso
 
     }
 
+    protected String getApiBasePath() {
+        return apiBasePath;
+    }
+
     protected String getApiPath() {
-        var result = apiBasePath;
+        var result = getApiBasePath();
         if (!result.endsWith("/")) {
             result += "/";
         }
@@ -115,8 +153,11 @@ public abstract class ResourceController<U extends UpsertRequest, R extends Reso
         if (name.endsWith("Controller")) name = name.substring(0, name.length() - 10);
 
         var path = result + StringUtils.pascalToKebab(English.plural(name));
+        log.debug("Registering API path: {}", path);
         return path;
     }
+
+
 
 
     

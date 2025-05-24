@@ -2,7 +2,6 @@ package net.oneki.mtac.resource.tenant;
 
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -10,7 +9,6 @@ import net.oneki.mtac.framework.query.Query;
 import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
 import net.oneki.mtac.model.core.util.exception.NotFoundException;
-import net.oneki.mtac.model.resource.Resource;
 import net.oneki.mtac.model.resource.Tenant;
 import net.oneki.mtac.model.resource.UpsertRequest;
 import net.oneki.mtac.model.resource.iam.identity.group.Group;

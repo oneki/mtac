@@ -30,7 +30,6 @@ import net.oneki.mtac.model.core.Constants;
 import net.oneki.mtac.model.core.util.SetUtils;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
 import net.oneki.mtac.model.core.util.security.SecurityContext;
-import net.oneki.mtac.model.core.util.security.SecurityUtils;
 import net.oneki.mtac.model.resource.LinkType;
 import net.oneki.mtac.model.resource.Resource;
 

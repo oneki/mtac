@@ -6,13 +6,6 @@
 
 -- Database creation must be performed outside a multi lined SQL file. 
 -- These commands were put in this file only as a convenience.
--- 
--- object: fuzz | type: DATABASE --
--- DROP DATABASE IF EXISTS fuzz;
--- CREATE DATABASE fuzz
--- 	TABLESPACE = pg_default
--- 	OWNER = postgres;
--- -- ddl-end --
 
 -- Appended SQL commands --
 SELECT now();
@@ -664,6 +657,27 @@ BEGIN
 		PERFORM sync_resource_aces('temp_after_insert_ace'::regclass);
 
 	END IF;
+
+	WITH RECURSIVE hierarchy(group_id, member_group_id) AS (
+	  SELECT parent_id, child_id
+	  FROM group_membership WHERE parent_id IN (
+	  	select distinct gm.parent_id as parent_id
+		from (
+			select a.identity_id as identity_id
+			from ace a, resource t, resource s
+			where a.resource_id = t.id
+			and t.schema_id = s.id 
+			and s.label like 'tenant.%'
+			and a.id = NEW.id
+		) g, group_membership gm
+		where gm.parent_id = g.identity_id
+	  )
+	  UNION ALL
+	  SELECT gm.parent_id, gm.child_id
+	    FROM hierarchy h, group_membership gm
+	    WHERE h.member_group_id = gm.parent_id
+	)
+	delete from token where identity_id in (select member_group_id FROM hierarchy limit 5000) or identity_id = NEW.identity_id;
 
 	RETURN NULL;
 END;
@@ -1620,12 +1634,12 @@ BEGIN
         SELECT * FROM temp_resource_fields
     LOOP  
         UPDATE resource r
-        SET    content =jsonb_set(content, ('{' ||r2.field_label  || ',' || r2.pos || ',$l}')::text[],to_jsonb(NEW.label))
+        SET    content =jsonb_set(content, ('{' ||r2.field_label  || ',' || r2.pos || ',label}')::text[],to_jsonb(NEW.label))
         FROM (
           SELECT   r.id, ordinality - 1 AS pos, record.field_label as field_label
           FROM     resource r, jsonb_array_elements(r.content->record.field_label) with ordinality
           WHERE r.schema_id = record.schema_id
-                AND (value->>'$l')::text = OLD.label
+                AND (value->>'label')::text = OLD.label
                 AND record.multiple is TRUE
           ) r2
         WHERE r2.id = r.id;
@@ -1636,13 +1650,13 @@ BEGIN
         SELECT * FROM temp_resource_fields
     LOOP  
         UPDATE resource r
-        SET    content = jsonb_set(r.content, ('{' || record.field_label  || ',$l}')::text[], to_jsonb(NEW.label))
+        SET    content = jsonb_set(r.content, ('{' || record.field_label  || ',label}')::text[], to_jsonb(NEW.label))
         FROM (
           SELECT   r.id
           FROM     resource r, jsonb_each(r.content) fields
           WHERE r.schema_id = record.schema_id
 			    AND fields.key = record.field_label
-                AND (fields.value->>'$l')::text = OLD.label
+                AND (fields.value->>'label')::text = OLD.label
                 AND record.multiple is NOT TRUE
           ) r2
         WHERE r2.id = r.id;           
@@ -1710,6 +1724,16 @@ BEGIN
           group by c.id
         ) r2, resource g
         WHERE r2.id = r.id and g.id = new.parent_id;
+
+		WITH RECURSIVE hierarchy(group_id, member_group_id) AS (
+		  SELECT parent_id, child_id
+		  FROM group_membership WHERE parent_id IN (NEW.child_id)
+		  UNION ALL
+		  SELECT gm.parent_id, gm.child_id
+		    FROM hierarchy h, group_membership gm
+		    WHERE h.member_group_id = gm.parent_id
+		)
+		delete from token where identity_id in (select member_group_id FROM hierarchy limit 5000) or identity_id = NEW.child_id;
   RETURN NULL;
 
 END;
@@ -1746,7 +1770,17 @@ BEGIN
               c.id = OLD.child_id
           group by c.id
         ) r2, resource g
-        WHERE r2.id = r.id and g.id = OLD.parent_id;            
+        WHERE r2.id = r.id and g.id = OLD.parent_id;
+
+		WITH RECURSIVE hierarchy(group_id, member_group_id) AS (
+		  SELECT parent_id, child_id
+		  FROM group_membership WHERE parent_id IN (old.child_id)
+		  UNION ALL
+		  SELECT gm.parent_id, gm.child_id
+		    FROM hierarchy h, group_membership gm
+		    WHERE h.member_group_id = gm.parent_id
+		)
+		delete from token where identity_id in (select member_group_id FROM hierarchy limit 5000) or identity_id = old.child_id;    
   RETURN NULL;
 
 END;
@@ -2240,11 +2274,11 @@ BEGIN
       UPDATE   resource r
       SET        content = (
                 CASE
-                      WHEN r.content->record.peer_label IS NOT NULL AND record.peer_multiple IS TRUE
-                      THEN jsonb_insert(r.content, ('{' || record.peer_label || ', 0}')::text[], json_build_object('id', NEW.id, '$s', NEW.schema_id, '$t', NEW.tenant_id, '$l', NEW.label )::jsonb)
-                      WHEN r.content->record.peer_label  IS NULL AND record.peer_multiple IS TRUE
-                      THEN jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_array(json_build_object('id', NEW.id, '$s', NEW.schema_id, '$t', NEW.tenant_id, '$l', NEW.label ))::jsonb)
-                  ELSE jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_object('id', NEW.id, '$s', NEW.schema_id, '$t', NEW.tenant_id, '$l', NEW.label )::jsonb)
+                      WHEN r.content->>record.peer_label IS NOT NULL AND record.peer_multiple IS TRUE
+                      THEN jsonb_insert(r.content, ('{' || record.peer_label || ', 0}')::text[], json_build_object('id', NEW.id, 's', NEW.schema_id, 'label', NEW.label )::jsonb)
+                      WHEN r.content->>record.peer_label  IS NULL AND record.peer_multiple IS TRUE
+                      THEN jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_array(json_build_object('id', NEW.id, 's', NEW.schema_id, 'label', NEW.label ))::jsonb)
+                  ELSE jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_object('id', NEW.id, 's', NEW.schema_id, 'label', NEW.label )::jsonb)
                   END
               ), updated_by=NEW.updated_by, updated_at=NEW.updated_at
       WHERE   r.id IN ( SELECT 
@@ -2304,11 +2338,11 @@ BEGIN
       UPDATE   resource r
       SET      content = (
                     CASE
-                      WHEN r.content->record.peer_label IS NOT NULL AND record.peer_multiple IS TRUE
-                      THEN jsonb_insert(r.content, ('{' || record.peer_label || ', 0}')::text[], json_build_object('id', NEW.id, '$s', NEW.schema_id, '$t', NEW.tenant_id, '$l', NEW.label )::jsonb)
-                      WHEN r.content->record.peer_label  IS NULL AND record.peer_multiple IS TRUE
-                      THEN jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_array(json_build_object('id', NEW.id, '$s', NEW.schema_id, '$t', NEW.tenant_id, '$l', NEW.label ))::jsonb)
-                    ELSE jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_object('id', NEW.id, '$s', NEW.schema_id, '$t', NEW.tenant_id, '$l', NEW.label )::jsonb)
+                      WHEN r.content->>record.peer_label IS NOT NULL AND record.peer_multiple IS TRUE
+                      THEN jsonb_insert(r.content, ('{' || record.peer_label || ', 0}')::text[], json_build_object('id', NEW.id, 's', NEW.schema_id, 'label', NEW.label )::jsonb)
+                      WHEN r.content->>record.peer_label  IS NULL AND record.peer_multiple IS TRUE
+                      THEN jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_array(json_build_object('id', NEW.id, 's', NEW.schema_id, 'label', NEW.label ))::jsonb)
+                    ELSE jsonb_set(r.content,('{' ||record.peer_label  || '}')::text[], json_build_object('id', NEW.id, 's', NEW.schema_id, 'label', NEW.label )::jsonb)
                     END
               ), updated_by=NEW.created_by, updated_at=NEW.created_at
       WHERE r.id IN ( SELECT 
@@ -2361,10 +2395,11 @@ CREATE TRIGGER after_delete_resource_content
 -- object: public.token | type: TABLE --
 -- DROP TABLE IF EXISTS public.token CASCADE;
 CREATE TABLE public.token (
-	sub text NOT NULL,
+	identity_id integer NOT NULL,
+	sub text,
 	token jsonb NOT NULL,
 	expire_at timestamp with time zone NOT NULL,
-	CONSTRAINT token_sub_pk PRIMARY KEY (sub)
+	CONSTRAINT token_pk PRIMARY KEY (identity_id)
 );
 -- ddl-end --
 ALTER TABLE public.token OWNER TO postgres;

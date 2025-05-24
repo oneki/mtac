@@ -260,12 +260,13 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
 
   }
 
-  public void update(String urn, U request) {
+  public E update(String urn, U request) {
     var userEntity = toUpdateEntity(urn, request);
     if (request.getPassword() != null) {
       userEntity.setPassword(passwordEncoder.encode(request.getPassword()));
     }
     resourceRepository.update(userEntity);
+    return userEntity;
   }
 
   public Set<Integer> listGroupSids(@NonNull User user) {

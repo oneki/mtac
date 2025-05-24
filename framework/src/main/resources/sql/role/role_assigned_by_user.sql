@@ -13,11 +13,11 @@ FROM (
                   ra.resource_id = t.id and 
                   t.schema_id = s.id and
                   s.label like 'tenant.%' and
-                  ra.identity_id in (88,92) and 
+                  ra.identity_id in (:identityIds) and 
                   rtt.descendant_id = t.id	and 
                   rtt.ancestor_id = rttr.id and 
                   rttr.schema_id = rtts.id
       ) t left join 
-            ace a join resource ro on a.role_id = ro.id and a.identity_id in (88,92) and a.source_id is null
+            ace a join resource ro on a.role_id = ro.id and a.identity_id in (:identityIds) and a.source_id is null
       on t.id = a.resource_id
 group by t.id, t.label, t.schema_label

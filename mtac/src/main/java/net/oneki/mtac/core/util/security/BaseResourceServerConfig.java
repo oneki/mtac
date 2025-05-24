@@ -8,9 +8,11 @@ import org.springframework.boot.autoconfigure.security.SecurityProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
@@ -123,8 +125,18 @@ public abstract class BaseResourceServerConfig {
         return new HttpStatusEntryPoint(HttpStatus.FORBIDDEN);
     }
 
-    protected void handleException(HttpServletRequest request, HttpServletResponse response, Exception exception) {
+    protected void handleException(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception) {
         try {
+            response.setStatus(HttpStatus.UNAUTHORIZED.value());
+            JsonUtil.object2Outputstream(exception, response.getOutputStream());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+        protected void handleException(HttpServletRequest request, HttpServletResponse response, AccessDeniedException exception) {
+        try {
+            response.setStatus(HttpStatus.FORBIDDEN.value());
             JsonUtil.object2Outputstream(exception, response.getOutputStream());
         } catch (Exception e) {
             throw new RuntimeException(e);

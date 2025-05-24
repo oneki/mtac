@@ -18,6 +18,7 @@ import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.framework.util.resource.ResourceUtils;
 import net.oneki.mtac.model.core.framework.HasSchema;
 import net.oneki.mtac.model.core.framework.ResourceEmbedded;
+import net.oneki.mtac.model.core.resource.Ref;
 import net.oneki.mtac.model.core.util.SetUtils;
 import net.oneki.mtac.model.framework.RelationLabel;
 import net.oneki.mtac.model.framework.RelationRefs;
@@ -50,12 +51,15 @@ public class RelationService {
 		for (var resource : resources) {
 			var resourceDesc = ResourceRegistry.getResourceDesc(resource.getClass());
 			var field = resourceDesc.getField(tokens[0]);
+			if (field == null) {
+				continue;
+			}
+			var value = field.getValue(resource);
 			if (field.isMultiple()) {
-				var value = field.getValue(resource);
 				if (value instanceof List) {
 					field.setValue(resource, ((List<?>) value).stream()
 						.map(item -> {
-							var relation = populateRelation(item, field, relations, subRelationName, true);
+							var relation = populateRelation((Resource) item, field, relations, subRelationName);
 							if (relation == null) return item;
 							return relation;
 						})
@@ -63,21 +67,26 @@ public class RelationService {
 					);
 				}
 			} else {
-				populateRelation(resource, field, relations, subRelationName, false);
+				var relation = populateRelation((Resource) value, field, relations, subRelationName);
+				field.setValue(resource, relation);
 			}
 		}
 
 		return resources;
 	}
 
-	private HasSchema populateRelation(Object resource, ResourceField field, Relations relations, String subRelationName, boolean inList) {
+	private HasSchema populateRelation(HasSchema relationRef, ResourceField field, Relations relations, String subRelationName) {
 		//if (ResourceUtils.isRef(resource)) {
-			switch(resource) {
+			if (relationRef == null) {
+				return null;
+			}
+			switch(relationRef) {
 				case Resource ref -> {
 					Resource relation = null;
 					if (ref.getId() != null) {
 						relation = relations.getResourceEntityById(ref.getId());
-					} else {
+					} 
+					else {
 						relation = relations.getResourceEntityByLabel(RelationLabel.builder()
 							.label(ref.getLabel())
 							.schema(ref.getClass())
@@ -88,9 +97,6 @@ public class RelationService {
 					if (relation != null) {
 						if(subRelationName != null) {
 							populateRelations(List.of(relation), subRelationName, relations);
-						}
-						if (!inList) {
-							field.setValue(resource, field.getValue(relation));
 						}
 						return relation;
 					}

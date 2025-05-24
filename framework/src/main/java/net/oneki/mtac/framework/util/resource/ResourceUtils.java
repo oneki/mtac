@@ -46,6 +46,9 @@ public class ResourceUtils {
 		var token = pathTokens.remove(0);
 		// get the field
 		var field = resourceDesc.getField(token);
+		if (field == null) {
+			return null;
+		}
 		// get the value
 		var value = field.getValue(resource);
 		if (value == null)
