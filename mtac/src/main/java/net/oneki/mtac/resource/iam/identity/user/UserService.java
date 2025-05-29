@@ -149,6 +149,10 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
   }
 
   public Claims userinfo(User user) {
+    return userinfo(user, false);
+  }
+
+  public Claims userinfo(User user, boolean includeRoleName) {
     var claims = tokenRegistry.get(user.getLabel());
     if (claims != null) {
       return claims;
@@ -174,7 +178,7 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
     var roleIndex = new HashMap<String, RoleUserInfo>();
     var tenantIndex = new HashMap<String, TenantUserInfo>();
     for (var tenantRole : tenantRoles) {
-      buildTenantRoleIndexes(tenantRole, roleIndex, tenantIndex);
+      buildTenantRoleIndexes(tenantRole, roleIndex, tenantIndex, includeRoleName);
       // var tenantId = tenantRole.getTenant().getId();
       // var ancestorTenants = ResourceRegistry.getTenantAncestors(tenantId);
       // var hierarchy = ancestorTenants.stream()
@@ -194,14 +198,18 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
   }
 
   private void buildTenantRoleIndexes(TenantRole tenantRole, Map<String, RoleUserInfo> roleIndex,
-      Map<String, TenantUserInfo> tenantIndex) {
+      Map<String, TenantUserInfo> tenantIndex, boolean includeRoleName) {
     if (tenantRole != null) {
-      tenantRole.getRoles().forEach(role -> {
-        roleIndex.put(role.getUid(), RoleUserInfo.builder()
+      for (var role : tenantRole.getRoles()) {
+        var roleUserInfo = RoleUserInfo.builder()
             .actions(role.getActions())
             .schemas(role.getSchemas())
-            .build());
-      });
+            .build();
+        if (includeRoleName == true) {
+          roleUserInfo.setLabel(role.getName());
+        }
+        roleIndex.put(role.getUid(), roleUserInfo);
+      }
       var tenant = tenantRole.getTenant();
 
       var child = tenantIndex.get(tenant.getUid());

@@ -15,6 +15,7 @@ import lombok.NoArgsConstructor;
 public class RoleUserInfo {
     @Builder.Default private List<String> schemas = new ArrayList<>();
     @Builder.Default private List<String> actions = new ArrayList<>();
+    private String label;
 
 
 }
