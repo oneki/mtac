@@ -12,9 +12,11 @@ import net.oneki.mtac.framework.cache.ResourceRegistry;
 import net.oneki.mtac.framework.introspect.ResourceDesc;
 import net.oneki.mtac.model.core.framework.HasSchema;
 import net.oneki.mtac.model.core.util.exception.UnexpectedException;
+import net.oneki.mtac.model.resource.Resource;
 
 public class ResourceUtils {
-	public  static Sqids sqids;
+	public static Sqids sqids;
+
 	public static <T extends HasSchema> List<Object> get(Collection<T> resource, String path) {
 		var result = new ArrayList<>();
 		for (var r : resource) {
@@ -22,7 +24,6 @@ public class ResourceUtils {
 		}
 		return result;
 	}
-	
 
 	public static <T extends HasSchema> Object get(T resource, String path) {
 		var resourceClass = resource.getClass();
@@ -78,7 +79,7 @@ public class ResourceUtils {
 
 	}
 
-	private static Set<String> refFields = Set.of("id", "label", "schema", "pub", "link", "urn", "tenant");
+	private static Set<String> refFields = Set.of("id", "uid", "label", "schema", "pub", "link", "tenant");
 
 	public static boolean isRef(Object resource) {
 		if (resource instanceof HasSchema) {
@@ -103,23 +104,50 @@ public class ResourceUtils {
 	public static void initSqids(String alphabet) {
 		if (sqids == null) {
 			sqids = Sqids.builder()
-				.minLength(7)
-				.alphabet(alphabet)
-				.build();
+					.minLength(7)
+					.alphabet(alphabet)
+					.build();
 		}
 	}
 
+	private static Set<String> toRefFields = Set.of("id", "uid", "label", "schemaId",  "tenantId", "schemaLabel", "tenantLabel");
+	public static <T extends Resource> T toRef(T resource) {
+		if (resource == null) {
+			return resource;
+		}
 
+		var resourceDesc = ResourceRegistry.getResourceDesc(resource.getClass());
+		// loop over all fields and set the value to null if not id, uid, label, schema or tenant
+		for (var field : resourceDesc.getFields()) {
+			if (field.getValue(resource) == null || toRefFields.contains(field.getLabel())) {
+				continue;
+			}
+			if (field.isMultiple()) {
+				field.setValue(resource, new ArrayList<>());
+			} else {
+				try {
+					field.getField().setAccessible(true);
+					field.setValue(resource, null);
+				} catch (Exception e) {
+					if (field.getValue(resource) instanceof Number) {
+						field.setValue(resource, 0);
+					}
+				}
+			}
+		}
+
+		return resource;
+	}
 
 	// public static void main(String[] args) {
-	// 	Sqids sqids = Sqids.builder()
-	// 		.minLength(7)
-	// 		.alphabet("FxnXM1kBN6cuhsAvjW3Co7l2RePyY8DwaU04Tzt9fHQrqSVKdpimLGIJOgb5ZE")
-	// 		.build();
-	// 		for (int i=0; i<100; i++) {
-	// 			String id = sqids.encode(Arrays.asList(Long.valueOf(Integer.MAX_VALUE-1)));
-	// 			System.out.println(id);
-	// 			System.out.println(sqids.decode(id));
-	// 		}
+	// Sqids sqids = Sqids.builder()
+	// .minLength(7)
+	// .alphabet("FxnXM1kBN6cuhsAvjW3Co7l2RePyY8DwaU04Tzt9fHQrqSVKdpimLGIJOgb5ZE")
+	// .build();
+	// for (int i=0; i<100; i++) {
+	// String id = sqids.encode(Arrays.asList(Long.valueOf(Integer.MAX_VALUE-1)));
+	// System.out.println(id);
+	// System.out.println(sqids.decode(id));
+	// }
 	// }
 }

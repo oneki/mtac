@@ -4,7 +4,7 @@ CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
 <dbmodel pgmodeler-ver="1.1.0" use-changelog="false" max-obj-count="51"
-	 last-position="0,147" last-zoom="1" scene-rect="-80,-40.5,1707.33,2074.22"
+	 last-position="0,146" last-zoom="1" scene-rect="-80,-40.5,1707.33,2074.22"
 	 default-owner="postgres"
 	 layers="Default"
 	 active-layers="0"
@@ -2545,6 +2545,11 @@ END;]]> </definition>
 	 table="public.resource_tenant_tree">
 		<function signature="public.after_delete_resource_tenant_tree()"/>
 </trigger>
+
+<sequence name="ssh_port_seq" cycle="false" start="20100" increment="1" min-value="0" max-value="39999" cache="1">
+	<schema name="public"/>
+	<role name="postgres"/>
+</sequence>
 
 <constraint name="role_schema_role_fk" type="fk-constr" comparison-type="MATCH FULL"
 	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.role_schema">

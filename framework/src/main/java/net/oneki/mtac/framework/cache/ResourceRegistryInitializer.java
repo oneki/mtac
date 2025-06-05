@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
@@ -15,6 +16,7 @@ import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.framework.repository.ResourceTenantTreeRepository;
 import net.oneki.mtac.framework.repository.SchemaDbSynchronizer;
 import net.oneki.mtac.framework.repository.SchemaRepository;
+import net.oneki.mtac.model.core.event.RegistryInitEvent;
 import net.oneki.mtac.model.resource.Resource;
 import net.oneki.mtac.model.resource.Tenant;
 import net.oneki.mtac.model.resource.iam.Role;
@@ -29,6 +31,7 @@ public class ResourceRegistryInitializer {
     protected final SchemaDbSynchronizer schemaDbSynchronizer;
     protected final InitRepository initRepository;
     protected final ResourceTenantTreeRepository resourceTenantTreeRepository;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Value("${mtac.scan.package}")
     private String scanBasePackage;
@@ -57,6 +60,5 @@ public class ResourceRegistryInitializer {
         cache.setRoles(roles);
 
         cache.setTenantAncestors(resourceTenantTreeRepository.listTenantAncestors());
-
     }
 }

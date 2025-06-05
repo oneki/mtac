@@ -34,4 +34,12 @@ public abstract class GroupService<U extends GroupUpsertRequest, E extends Group
         group.getMembers().addAll(members);
         update(group);
     }
+
+    public void addMembersUnsecure(E group, List<Identity> members) {
+        if (group.getMembers() == null) {
+            group.setMembers(new ArrayList<>());
+        }
+        group.getMembers().addAll(members);
+        updateUnsecure(group);
+    }
 }

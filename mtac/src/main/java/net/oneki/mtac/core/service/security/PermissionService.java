@@ -136,11 +136,17 @@ public class PermissionService {
     }
 
     public boolean hasCreatePermission(String tenantLabel, Class<? extends Resource> resourceToCreateClass) {
+        if (tenantLabel == null) {
+            tenantLabel = Constants.TENANT_ROOT_LABEL;
+        }
         var tenantId = ResourceRegistry.getTenantId(tenantLabel);
         return hasCreatePermission(tenantId, resourceToCreateClass);
     }
 
     public boolean hasCreatePermission(String tenantLabel, String schemaLabel) {
+        if (tenantLabel == null) {
+            tenantLabel = Constants.TENANT_ROOT_LABEL;
+        }        
         var tenantId = ResourceRegistry.getTenantId(tenantLabel);
         return hasCreatePermission(tenantId, schemaLabel);
     }
@@ -158,6 +164,9 @@ public class PermissionService {
      * @return
      */
     public boolean hasCreatePermission(Integer tenantId, Class<? extends Resource> resourceToCreateClass) {
+        if (tenantId == null) {
+            tenantId = Constants.TENANT_ROOT_ID;
+        }
         var schemaLabel = ResourceRegistry.getSchemaByClass(resourceToCreateClass);
         return hasCreatePermission(tenantId, schemaLabel);
     }
@@ -168,8 +177,7 @@ public class PermissionService {
                     "The schema with label " + schemaLabel + " doesnt't exist.");
         }
         if (tenantId == null) {
-            throw new BusinessException("TENANT_NOT_FOUND",
-                    "The tenant with id " + tenantId + " doesnt't exist.");
+            tenantId = Constants.TENANT_ROOT_ID;
         }
         // Retrieve all roles that are directly assigned to the given tenant for a user
         var roles = roleRepository.listCompiledRolesByTenant(tenantId);

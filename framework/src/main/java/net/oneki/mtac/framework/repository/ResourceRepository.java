@@ -76,10 +76,8 @@ public class ResourceRepository extends AbstractRepository {
             String createdBy) {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         var sql = SqlUtils.getSQL("resource/resource_insert_link.sql");
-        var targetTenantLabel = ResourceRegistry.getTenantLabel(targetTenantId);
         Map<String, Object> parameters = Map.of(
                 "label", source.getLabel(),
-                "urn", "urn:" + targetTenantLabel + ":" + source.getSchemaLabel() + ":" + source.getLabel(),
                 "pub", pub,
                 "linkId", source.getId(),
                 "linkType", linkType.ordinal(),

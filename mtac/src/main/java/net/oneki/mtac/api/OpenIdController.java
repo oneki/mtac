@@ -2,7 +2,9 @@ package net.oneki.mtac.api;
 
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -16,11 +18,12 @@ import net.oneki.mtac.framework.service.JwtTokenService;
 import net.oneki.mtac.model.core.openid.JwksResponse;
 import net.oneki.mtac.model.core.openid.LoginRequest;
 import net.oneki.mtac.resource.iam.identity.user.DefaultUserService;
+import net.oneki.mtac.resource.iam.identity.user.UserService;
 
 @RequiredArgsConstructor
 public class OpenIdController {
 
-    protected final DefaultUserService userService;
+    protected final UserService userService;
     protected final JwtTokenService tokenService;
     protected final PermissionService permissionService;
     private final RequestMappingHandlerMapping handlerMapping;
@@ -81,14 +84,18 @@ public class OpenIdController {
 
     }
 
-    public Map<String, Object> auth(@RequestBody LoginRequest request) throws Exception {
-        return userService.login(request.getClient_id(), request.getClient_secret());
+    public ResponseEntity<?> auth(@RequestBody LoginRequest request) throws Exception {
+        var result = userService.login(request.getClient_id(), request.getClient_secret());
+        var response = ResponseEntity.ok(result);  
+        return response;
     }
 
-    public Map<String, Object> auth(@RequestParam(value = "client_id", required = true) String client_id,
+    public ResponseEntity<?> auth(@RequestParam(value = "client_id", required = true) String client_id,
             @RequestParam(value = "client_secret", required = true) String client_secret,
             @RequestParam(value = "grant_type", required = false) String grant_type) throws Exception {
-        return userService.login(client_id, client_secret);
+        var result = userService.login(client_id, client_secret);
+        var response = ResponseEntity.ok(result);  
+        return response;
     }
 
     public Map<String, Object> userinfo() throws Exception {

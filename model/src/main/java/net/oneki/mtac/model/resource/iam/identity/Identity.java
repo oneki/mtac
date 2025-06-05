@@ -18,10 +18,10 @@ import net.oneki.mtac.model.resource.iam.identity.group.Group;
 @Entity("iam.identity")
 @EqualsAndHashCode(callSuper = true)
 public class Identity extends Resource {
-    private String email;
+    protected String email;
 
     @Peer("members")
-    private List<Group> memberOf;
+    protected List<Group> memberOf;
 
     // @Lookup
     // public abstract void labelize();

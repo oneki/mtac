@@ -1,6 +1,7 @@
 package net.oneki.mtac.api;
-
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.atteo.evo.inflector.English;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,7 +45,7 @@ public abstract class ResourceController<U extends UpsertRequest, R extends Reso
                     .produces(MediaType.APPLICATION_JSON_VALUE)
                     .build(),
             this,
-            ResourceController.class.getDeclaredMethod("getByUid", String.class)
+            ResourceController.class.getDeclaredMethod("getByUid", String.class, Set.class)
         ); 
         
 
@@ -101,9 +102,12 @@ public abstract class ResourceController<U extends UpsertRequest, R extends Reso
         );
     }
 
-    public R getByUid(@PathVariable("uid") String uid) {
-        var result =  getService().getByUid(uid);
-        return result;
+    public R getByUid(@PathVariable("uid") String uid, @RequestParam(name="relations", required = false) Set<String> relations) {
+        if (relations == null || relations.isEmpty()) {
+            return getService().getByUid(uid);
+        } else {
+            return getService().getByUid(uid, relations);
+        } 
     }
 
     public U getParameters(@PathVariable("uid") String uid) {
@@ -153,7 +157,7 @@ public abstract class ResourceController<U extends UpsertRequest, R extends Reso
         if (name.endsWith("Controller")) name = name.substring(0, name.length() - 10);
 
         var path = result + StringUtils.pascalToKebab(English.plural(name));
-        log.debug("Registering API path: {}", path);
+        log.info("Registering API path: {}", path);
         return path;
     }
 

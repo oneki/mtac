@@ -207,9 +207,6 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
         } else {
             throw new BusinessException("INVALID_ENTITY", "The entity " + resourceEntity + " must have a tenant");
         }
-        if (resourceEntity.getCreatedBy() == null) {
-            resourceEntity.setCreatedBy(securityContext.getUsername());
-        }
         // Verify if the user has the permission to create the resource
         if (!permissionService.hasCreatePermission(resourceEntity.getTenantLabel(),
                 resourceEntity.getSchemaLabel())) {
@@ -219,11 +216,21 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
         return resourceRepository.create(resourceEntity);
     }
 
-    public Integer createLink(String sourceUrn, Integer targetTenantId, LinkType linkType, boolean pub) {
-        var sourceEntity = resourceRepository.getByUrn(sourceUrn, Resource.class);
+    public E createUnsecure(E resourceEntity) {
+        if (resourceEntity.getTenantId() != null || resourceEntity.getTenantLabel() != null) {
+            R.fillMeta(resourceEntity);
+        } else {
+            throw new BusinessException("INVALID_ENTITY", "The entity " + resourceEntity + " must have a tenant");
+        }
+
+        return resourceRepository.create(resourceEntity);
+    }
+
+    public Integer createLink(Integer sourceId, Integer targetTenantId, LinkType linkType, boolean pub) {
+        var sourceEntity = resourceRepository.getById(sourceId, Resource.class);
         if (sourceEntity == null) {
             throw new ForbiddenException(
-                    "Failed to create link because source with urn=" + sourceUrn + " was not found");
+                    "Failed to create link because source with id=" + sourceId + " was not found");
         }
         return createLink(sourceEntity, targetTenantId, linkType, pub);
     }
@@ -250,6 +257,13 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
         // Verify if the user has the permission to update the resource
         if (!permissionService.hasPermission(resourceEntity.getId(), "update")) {
             throw new BusinessException("FORBIDDEN", "Forbidden access");
+        }
+        resourceRepository.update(resourceEntity);
+    }
+
+    public void updateUnsecure(E resourceEntity) {
+        if (resourceEntity.getUpdatedBy() == null) {
+            resourceEntity.setUpdatedBy(securityContext != null ? securityContext.getUsername(): "");
         }
         resourceRepository.update(resourceEntity);
     }
@@ -416,6 +430,14 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
         return result;
     }
 
+    public E getByUniqueLabelOrReturnNull(String label) {
+        return resourceRepository.getByUniqueLabel(label, getEntityClass());
+    }
+
+    public E getByUniqueLabelUnsecureOrReturnNull(String label) {
+        return resourceRepository.getByUniqueLabelUnsecure(label, getEntityClass());
+    }
+
     public E getByLabel(String label, String tenantLabel, Set<String> relations) {
         E result = resourceRepository.getByLabel(label, tenantLabel, getEntityClass());
         if (result == null) {
@@ -460,7 +482,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
 
     public U getRequestByUid(String uid, Set<String> relations) {
         return getRequestById(Resource.fromUid(uid), relations);
-    }    
+    }
 
     // public E getByLabelOrUrn(String label) {
     // return getByLabelOrUrn(label, null);

@@ -3,14 +3,12 @@ package net.oneki.mtac.framework.util.resource;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.util.List;
 
 import org.springframework.jdbc.core.RowMapper;
 
 import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.framework.cache.ResourceRegistry;
 import net.oneki.mtac.framework.json.JsonEntityMapper;
-import net.oneki.mtac.model.core.framework.Urn;
 import net.oneki.mtac.model.core.security.Ace;
 import net.oneki.mtac.model.core.security.Acl;
 import net.oneki.mtac.model.core.util.json.JsonUtil;
@@ -26,7 +24,7 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
         String json = null;
         var schemaLabel = ResourceRegistry.getSchemaById(rs.getInt("schema_id")).getLabel();
         var clazz = (Class<T>) ResourceRegistry.getClassBySchema(schemaLabel);
-
+        var id = rs.getInt("id");
         if (rs.getInt("link_id") == 0) {
             json = rs.getString("content");
         } else if (rs.getInt("link_type") == LinkType.Ref.ordinal()) {
@@ -72,6 +70,11 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
         for (int col = 1; col <= rsmd.getColumnCount(); col++) {
             String columnName = rsmd.getColumnName(col);
             mapColumn(rs, columnName, resource);
+        }
+
+        // if the resource is a link of type Ref, only keep the id, label, and tenant
+        if (resource.isLinkRef()) {
+            resource = ResourceUtils.toRef(resource);
         }
 
         return resource;

@@ -17,9 +17,9 @@ import net.oneki.mtac.model.resource.iam.identity.Identity;
 @EqualsAndHashCode(callSuper = true)
 @Entity("iam.identity.user")
 public class User extends Identity {
-    @Secret(type=SecretType.HASHING) private String password;
-    private String firstName;
-    private String lastName;
+    @Secret(type=SecretType.HASHING) protected String password;
+    protected String firstName;
+    protected String lastName;
 
 
 

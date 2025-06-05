@@ -17,9 +17,10 @@ import net.oneki.mtac.model.resource.iam.identity.Identity;
 @SuperBuilder
 @EqualsAndHashCode(callSuper = true)
 public abstract class BaseGroupUpsertRequest<G extends Group> extends UpsertRequest {
-    private String name;
-    private List<G> memberOf;
+    protected String description;
+    protected List<G> memberOf;
     protected List<Identity> members;
+
 
     public abstract Class<? extends Group> getGroupClass();
 }

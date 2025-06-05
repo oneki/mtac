@@ -4,8 +4,6 @@
 -- Project Site: pgmodeler.io
 -- Model Author: ---
 
--- Database creation must be performed outside a multi lined SQL file. 
--- These commands were put in this file only as a convenience.
 
 -- Appended SQL commands --
 SELECT now();
@@ -925,11 +923,8 @@ CREATE FUNCTION public.after_update_schema_label ()
 DECLARE
 	v_count integer;
 BEGIN
-
 	
-	SELECT COUNT(*) INTO v_count FROM "schema" WHERE id = NEW.id;
-	
-	IF v_count > 0 THEN
+	IF NEW.schema_id = 1 THEN
 		-- get all role having acces to the old schema
 		DROP TABLE IF EXISTS role_schema_old_temp;
 		CREATE TEMP TABLE role_schema_old_temp AS
@@ -1952,9 +1947,7 @@ WITH SCHEMA public;
 -- DROP INDEX IF EXISTS public.resource_label_gin_index CASCADE;
 CREATE INDEX resource_label_gin_index ON public.resource
 USING gin
-(
-	label gin_trgm_ops
-);
+	(label gin_trgm_ops);
 -- ddl-end --
 
 -- object: after_insert_schema | type: TRIGGER --
@@ -2519,6 +2512,21 @@ CREATE TRIGGER after_delete_resource_tenant_tree
 	ON public.resource_tenant_tree
 	FOR EACH ROW
 	EXECUTE PROCEDURE public.after_delete_resource_tenant_tree();
+-- ddl-end --
+
+-- object: public.ssh_port_seq | type: SEQUENCE --
+-- DROP SEQUENCE IF EXISTS public.ssh_port_seq CASCADE;
+CREATE SEQUENCE public.ssh_port_seq
+	INCREMENT BY 1
+	MINVALUE 0
+	MAXVALUE 39999
+	START WITH 20100
+	CACHE 1
+	NO CYCLE
+	OWNED BY NONE;
+
+-- ddl-end --
+ALTER SEQUENCE public.ssh_port_seq OWNER TO postgres;
 -- ddl-end --
 
 -- object: role_schema_role_fk | type: CONSTRAINT --
