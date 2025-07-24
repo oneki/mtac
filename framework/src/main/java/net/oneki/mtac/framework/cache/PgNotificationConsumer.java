@@ -113,7 +113,8 @@ public class PgNotificationConsumer implements Consumer<PGNotification> {
                             tokenRegistry.remove(sub);
                             break;
                         case "create":
-                            log.info("Add token id={} to cache", sub);
+                        case "update":
+                            log.info(action + " token id={} to cache", sub);
                             var claims = tokenRepository.getToken(sub);
                             if (claims != null) {
                                 tokenRegistry.put(sub, claims);

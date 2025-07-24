@@ -1,7 +1,9 @@
 package net.oneki.mtac.model.resource.iam.identity;
 
+import java.util.ArrayList;
 import java.util.List;
 
+import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -21,7 +23,7 @@ public class Identity extends Resource {
     protected String email;
 
     @Peer("members")
-    protected List<Group> memberOf;
+    @Builder.Default protected List<Group> memberOf = new ArrayList<>();
 
     // @Lookup
     // public abstract void labelize();

@@ -70,8 +70,18 @@ public class JwtIssuerAuthenticationManagerResolver implements AuthenticationMan
 		return authenticationManager;
 	}
 
-	private static class JwtClaimIssuerConverter
+	public static class JwtClaimIssuerConverter
 			implements Converter<HttpServletRequest, String> {
+
+    private BearerTokenResolver resolver;
+
+		public JwtClaimIssuerConverter() {
+			this.resolver = new BearerTokenResolver();
+		}
+
+		public JwtClaimIssuerConverter(BearerTokenResolver resolver) {
+        this.resolver = resolver;
+    }
 
 
 		@Override
@@ -92,8 +102,7 @@ public class JwtIssuerAuthenticationManagerResolver implements AuthenticationMan
 			throw new InvalidBearerTokenException("Missing issuer");
 		}
 
-        private TokenResolverOutput resolve(HttpServletRequest request) {
-            org.springframework.security.oauth2.server.resource.web.BearerTokenResolver resolver = new BearerTokenResolver();
+        private TokenResolverOutput resolve(HttpServletRequest request) { 
             String token = resolver.resolve(request);
             String issuer = request.getHeader("X-Token-Issuer");
             return new TokenResolverOutput(token, issuer);

@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.core.service.RelationService;
@@ -180,11 +181,13 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
     // return create(resourceEntity);
     // }
 
+    @Transactional
     public E create(U request) {
         E entity = toCreateEntity(request);
         return create(entity);
     }
 
+    @Transactional
     public E update(String uid, U request) {
         E entity = toUpdateEntity(uid, request);
         update(entity);
@@ -201,6 +204,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
      * @param resourceEntity: The entity to persist
      * @return The entity containing the auto generated id
      */
+    @Transactional
     public E create(E resourceEntity) {
         if (resourceEntity.getTenantId() != null || resourceEntity.getTenantLabel() != null) {
             R.fillMeta(resourceEntity);
@@ -216,6 +220,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
         return resourceRepository.create(resourceEntity);
     }
 
+    @Transactional
     public E createUnsecure(E resourceEntity) {
         if (resourceEntity.getTenantId() != null || resourceEntity.getTenantLabel() != null) {
             R.fillMeta(resourceEntity);
@@ -226,6 +231,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
         return resourceRepository.create(resourceEntity);
     }
 
+    @Transactional
     public Integer createLink(Integer sourceId, Integer targetTenantId, LinkType linkType, boolean pub) {
         var sourceEntity = resourceRepository.getById(sourceId, Resource.class);
         if (sourceEntity == null) {
@@ -235,6 +241,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
         return createLink(sourceEntity, targetTenantId, linkType, pub);
     }
 
+    @Transactional
     public Integer createLink(Resource sourceEntity, Integer targetTenantId, LinkType linkType, boolean pub) {
         // Do we need to check permission ?
         return resourceRepository.createLink(sourceEntity, targetTenantId, linkType, pub,
@@ -250,6 +257,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
      * @param resourceEntity: The entity to persist
      * @return void
      */
+    @Transactional
     public void update(E resourceEntity) {
         if (resourceEntity.getUpdatedBy() == null) {
             resourceEntity.setUpdatedBy(securityContext.getUsername());
@@ -276,6 +284,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
      * @param entityClass: the class of the entity
      * @return void
      */
+    @Transactional
     public void deleteById(Integer id) {
         E entity = resourceRepository.getById(id, getEntityClass());
         if (entity == null) {
@@ -284,22 +293,27 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
         delete(entity);
     }
 
+    @Transactional
     public void deleteByIdUnsecure(Integer id) {
         resourceRepository.delete(id);
     }
 
+    @Transactional
     public void deleteByIdsUnsecure(List<Integer> ids) {
         resourceRepository.delete(ids);
     }
 
+    @Transactional
     public void deleteByUid(String uid) {
         deleteById(Resource.fromUid(uid));
     }
 
+    @Transactional
     public void deleteByUidUnsecure(String uid) {
         deleteByIdUnsecure(Resource.fromUid(uid));
     }
 
+    @Transactional
     public void deleteByUidsUnsecure(List<String> uids) {
         if (uids == null || uids.isEmpty()) {
             return;
@@ -358,6 +372,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
      * @param resourceEntity: the entity to delete
      * @return void
      */
+    @Transactional
     public void delete(E resourceEntity) {
         if (resourceEntity == null) {
             return;

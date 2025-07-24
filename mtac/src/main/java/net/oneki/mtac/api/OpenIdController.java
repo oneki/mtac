@@ -2,7 +2,6 @@ package net.oneki.mtac.api;
 
 import java.util.Map;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -17,13 +16,11 @@ import net.oneki.mtac.core.service.security.PermissionService;
 import net.oneki.mtac.framework.service.JwtTokenService;
 import net.oneki.mtac.model.core.openid.JwksResponse;
 import net.oneki.mtac.model.core.openid.LoginRequest;
-import net.oneki.mtac.resource.iam.identity.user.DefaultUserService;
 import net.oneki.mtac.resource.iam.identity.user.UserService;
 
 @RequiredArgsConstructor
-public class OpenIdController {
+public abstract class OpenIdController {
 
-    protected final UserService userService;
     protected final JwtTokenService tokenService;
     protected final PermissionService permissionService;
     private final RequestMappingHandlerMapping handlerMapping;
@@ -85,7 +82,7 @@ public class OpenIdController {
     }
 
     public ResponseEntity<?> auth(@RequestBody LoginRequest request) throws Exception {
-        var result = userService.login(request.getClient_id(), request.getClient_secret());
+        var result = getUserService().login(request.getClient_id(), request.getClient_secret());
         var response = ResponseEntity.ok(result);  
         return response;
     }
@@ -93,20 +90,23 @@ public class OpenIdController {
     public ResponseEntity<?> auth(@RequestParam(value = "client_id", required = true) String client_id,
             @RequestParam(value = "client_secret", required = true) String client_secret,
             @RequestParam(value = "grant_type", required = false) String grant_type) throws Exception {
-        var result = userService.login(client_id, client_secret);
+        var result = getUserService().login(client_id, client_secret);
         var response = ResponseEntity.ok(result);  
         return response;
     }
 
     public Map<String, Object> userinfo() throws Exception {
-        return userService.userinfo();
+        return getUserService().userinfo();
     }
 
-    public void logout() throws Exception {
-        userService.logout();
+    public ResponseEntity<?> logout() throws Exception {
+        getUserService().logout();
+        return ResponseEntity.ok().build();
     }
 
     public JwksResponse getJwks() {
         return JwksResponse.builder().key(tokenService.getJwkAsJsonObject()).build();
     }
+
+    protected abstract UserService<?, ?> getUserService();
 }

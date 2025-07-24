@@ -5,6 +5,7 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import net.oneki.mtac.framework.cache.PgNotifierService;
 import net.oneki.mtac.framework.query.Query;
 import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
@@ -22,6 +23,9 @@ public abstract class TenantService<U extends UpsertRequest, E extends Tenant> e
 
     @Autowired
     protected DefaultGroupService groupService;
+
+    @Autowired
+    protected PgNotifierService pgNotifierService;
 
     @Override
     public void delete(E tenant) {
@@ -54,17 +58,22 @@ public abstract class TenantService<U extends UpsertRequest, E extends Tenant> e
     }
 
     protected Group createGroup(String displayName, Integer tenantId, Integer groupRefTenantId) {
+        return createGroup(displayName, tenantId, groupRefTenantId, false);
+    }
+
+    protected Group createGroup(String displayName, Integer tenantId, Integer groupRefTenantId, boolean unsecure) {
         var group = Group.builder()
                 .label(displayName)
                 .tenantId(tenantId)
                 .build();
-        return groupService.create(group, groupRefTenantId);
+        return groupService.create(group, groupRefTenantId, unsecure);
     }
 
     protected void deleteGroup(Tenant tenant, String rgName, String groupName) {
         try {
             // TODO
-            // groupService.deleteByLabel(rgName + "@" + Resource.toSuffix(tenant.getLabel()), groupName);
+            // groupService.deleteByLabel(rgName + "@" +
+            // Resource.toSuffix(tenant.getLabel()), groupName);
         } catch (NotFoundException e) {
         }
     }

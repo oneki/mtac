@@ -39,7 +39,7 @@ VALUES ( 'iam.identity.group', true, 4, null, 1, to_json('{"name":"Group","paren
 
 -- Create the user root@local
 INSERT INTO resource (label, pub, tenant_id, link_id, schema_id, content, created_at, updated_at, created_by, updated_by)
-VALUES ('root@local', false, 4, null, 7, to_json('{"password":"$2a$10$y3V99Oz9G9Vsg9xgfclZXOO8gABVuQJSlBh8/je2XmRzIpso6N4He"}'::JSON), NOW(), NOW(), 'root@local', 'root@local');
+VALUES ('root@local', false, 4, null, 7, to_json('{"password":"$2a$10$y3V99Oz9G9Vsg9xgfclZXOO8gABVuQJSlBh8/je2XmRzIpso6N4He","lastName":"root","email":"root@local"}'::JSON), NOW(), NOW(), 'root@local', 'root@local');
 
 -- Create the group super-admins
 INSERT INTO resource (label, pub, tenant_id, link_id, schema_id, content, created_at, updated_at, created_by, updated_by)
@@ -67,6 +67,11 @@ VALUES ('iam-admin', true, 4, null, 5, to_json('{"name":"IAM Administrator","sch
 -- Create the role role_viewer
 INSERT INTO resource (label, pub, tenant_id, link_id, schema_id, content, created_at, updated_at, created_by, updated_by)
 VALUES ('readonly', true, 4, null, 5, to_json('{"name":"Read only","schemas":["*"],"actions":[],"fields":["*"]}'::JSON), NOW(), NOW(), 'root@local', 'root@local');
+
+-- Create the role role_viewer
+INSERT INTO resource (label, pub, tenant_id, link_id, schema_id, content, created_at, updated_at, created_by, updated_by)
+VALUES ('Public', true, 4, null, 5, to_json('{"name":"Public","schemas":["*"],"actions":[],"fields":["*"]}'::JSON), NOW(), NOW(), 'root@local', 'root@local');
+
 
 -- Grant role role_admin to group super-admins on tenant root
 INSERT INTO ace(identity_id, resource_id, role_id)

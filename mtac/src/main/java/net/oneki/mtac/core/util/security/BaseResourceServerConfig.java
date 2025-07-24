@@ -4,16 +4,21 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.security.SecurityProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.annotation.Order;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.task.DelegatingSecurityContextAsyncTaskExecutor;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
@@ -24,6 +29,7 @@ import org.springframework.security.web.util.matcher.RequestMatcher;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -47,6 +53,7 @@ public abstract class BaseResourceServerConfig {
     protected RequestMatcher protectedUrls = null;
 
     protected abstract List<RequestMatcher> getPublicUrls();
+
     protected abstract HttpSecurity configureFilterChain(HttpSecurity http) throws Exception;
 
     private List<RequestMatcher> allPublicUrls;
@@ -62,57 +69,66 @@ public abstract class BaseResourceServerConfig {
     protected TokenRepository tokenRepository;
 
     @Bean
+    public BearerTokenResolver bearerTokenResolver(@Value("${mtac.iam.token-location:header}") String tokenLocation,
+            @Value("${mtac.iam.cookie-name:mtac.token}") String cookieName) {
+        return new BearerTokenResolver(tokenLocation, cookieName);
+    }
+
+    @Bean
     @Order(SecurityProperties.BASIC_AUTH_ORDER)
-    public SecurityFilterChain filterChain(HttpSecurity http, UserService userService) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http, UserService userService,
+            BearerTokenResolver bearerTokenResolver) throws Exception {
         http.exceptionHandling(c -> {
             c.accessDeniedHandler((request, response, accessDeniedException) -> {
                 handleException(request, response, accessDeniedException);
             })
-            .authenticationEntryPoint((request, response, authException) -> {
-                handleException(request, response, authException);
-            });          
+                    .authenticationEntryPoint((request, response, authException) -> {
+                        handleException(request, response, authException);
+                    });
         })
-        .csrf(c -> c.disable())
-        .formLogin(f -> f.disable())
-        .httpBasic(h -> h.disable())
-        .logout(l -> l.disable())
-        .headers(h -> h.frameOptions(f -> f.sameOrigin()));
+                .csrf(c -> c.disable())
+                .formLogin(f -> f.disable())
+                .httpBasic(h -> h.disable())
+                .logout(l -> l.disable())
+                .headers(h -> h.frameOptions(f -> f.sameOrigin()));
         http = configureFilterChain(http);
 
-
         // http.sessionManagement()
-        //     .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+        // .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
         // .and()
-        // .exceptionHandling()        
-        //     //.defaultAuthenticationEntryPointFor(forbiddenEntryPoint(), getProtectedUrls())
-        //     .accessDeniedHandler((request, response, accessDeniedException) -> {
-        //         handleException(request, response, accessDeniedException);
-        //     })
-        //     .authenticationEntryPoint((request, response, authException) -> {
-        //         handleException(request, response, authException);
-        //     })              
+        // .exceptionHandling()
+        // //.defaultAuthenticationEntryPointFor(forbiddenEntryPoint(),
+        // getProtectedUrls())
+        // .accessDeniedHandler((request, response, accessDeniedException) -> {
+        // handleException(request, response, accessDeniedException);
+        // })
+        // .authenticationEntryPoint((request, response, authException) -> {
+        // handleException(request, response, authException);
+        // })
         // .and()
         // .csrf().disable()
         // .formLogin().disable()
         // .httpBasic().disable()
         // .logout().disable()
         // .headers()
-        //     .frameOptions()
-        //     .sameOrigin();
-        
-        resourceServer(http, userService);
+        // .frameOptions()
+        // .sameOrigin();
+
+        resourceServer(http, userService, bearerTokenResolver);
         return http.build();
     }
 
-    protected void resourceServer(final HttpSecurity http, UserService userService) throws Exception {
+    protected void resourceServer(final HttpSecurity http, UserService userService,
+            BearerTokenResolver bearerTokenResolver) throws Exception {
         http.oauth2ResourceServer(o -> {
+            o.bearerTokenResolver(bearerTokenResolver);
             o.jwt(j -> {
-               j.authenticationManager(getAuthenticationManager(userService));
+                j.authenticationManager(getAuthenticationManager(userService));
             });
         });
         // http.oauth2ResourceServer()
-        //     .jwt()
-        //         .authenticationManager(getAuthenticationManager());
+        // .jwt()
+        // .authenticationManager(getAuthenticationManager());
     }
 
     @Bean
@@ -125,7 +141,8 @@ public abstract class BaseResourceServerConfig {
         return new HttpStatusEntryPoint(HttpStatus.FORBIDDEN);
     }
 
-    protected void handleException(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception) {
+    protected void handleException(HttpServletRequest request, HttpServletResponse response,
+            AuthenticationException exception) {
         try {
             response.setStatus(HttpStatus.UNAUTHORIZED.value());
             JsonUtil.object2Outputstream(exception, response.getOutputStream());
@@ -134,7 +151,8 @@ public abstract class BaseResourceServerConfig {
         }
     }
 
-        protected void handleException(HttpServletRequest request, HttpServletResponse response, AccessDeniedException exception) {
+    protected void handleException(HttpServletRequest request, HttpServletResponse response,
+            AccessDeniedException exception) {
         try {
             response.setStatus(HttpStatus.FORBIDDEN.value());
             JsonUtil.object2Outputstream(exception, response.getOutputStream());
@@ -143,40 +161,42 @@ public abstract class BaseResourceServerConfig {
         }
     }
 
-
-    // protected void handleException(HttpServletRequest request, HttpServletResponse response,
-    //         Exception exception) {
-    //     String code = "";
-    //     String message = "";
-    //     HttpStatus httpStatus = null;
-    //     if (exception instanceof AccessDeniedException) {
-    //         code = "BSN_ACCESS_DENIED";
-    //         message = "Access denied";
-    //         httpStatus = HttpStatus.FORBIDDEN;
-    //     } else if (exception instanceof AuthenticationException) {
-    //         code = "BSN_AUTH_ERROR";
-    //         message = "Authentication error";
-    //         httpStatus = HttpStatus.UNAUTHORIZED;
-    //     } else {
-    //         code = "BSN_AUTH_UNEXPECTED";
-    //         message = "Authentication unexpected error";
-    //         httpStatus = HttpStatus.UNAUTHORIZED;
-    //     }
-    //     String id = RandomUtil.randomString(8);
-    //     JsonException.JsonExceptionBuilder<?, ?>  builder = JsonException.builder().id(id).code(code).message(message);
-    //     JsonException jsonException = builder.build();
-    //     String principal = "N/A";
-    //     List<String> roles = new ArrayList<>();
-    //     if (securityContext != null && securityContext.getSubject() != null) {
-    //         principal = securityContext.getSubject();
-    //         Collection<? extends GrantedAuthority> authorities = securityContext.getAuthorities();
-    //         if (authorities != null) {
-    //             for (GrantedAuthority authority : authorities) {
-    //                 roles.add(authority.getAuthority());
-    //             }
-    //         }
-    //     }
-    //     if (logw != null) {
+    // protected void handleException(HttpServletRequest request,
+    // HttpServletResponse response,
+    // Exception exception) {
+    // String code = "";
+    // String message = "";
+    // HttpStatus httpStatus = null;
+    // if (exception instanceof AccessDeniedException) {
+    // code = "BSN_ACCESS_DENIED";
+    // message = "Access denied";
+    // httpStatus = HttpStatus.FORBIDDEN;
+    // } else if (exception instanceof AuthenticationException) {
+    // code = "BSN_AUTH_ERROR";
+    // message = "Authentication error";
+    // httpStatus = HttpStatus.UNAUTHORIZED;
+    // } else {
+    // code = "BSN_AUTH_UNEXPECTED";
+    // message = "Authentication unexpected error";
+    // httpStatus = HttpStatus.UNAUTHORIZED;
+    // }
+    // String id = RandomUtil.randomString(8);
+    // JsonException.JsonExceptionBuilder<?, ?> builder =
+    // JsonException.builder().id(id).code(code).message(message);
+    // JsonException jsonException = builder.build();
+    // String principal = "N/A";
+    // List<String> roles = new ArrayList<>();
+    // if (securityContext != null && securityContext.getSubject() != null) {
+    // principal = securityContext.getSubject();
+    // Collection<? extends GrantedAuthority> authorities =
+    // securityContext.getAuthorities();
+    // if (authorities != null) {
+    // for (GrantedAuthority authority : authorities) {
+    // roles.add(authority.getAuthority());
+    // }
+    // }
+    // }
+    // if (logw != null) {
     //         // @formatter:off
     //         logw.errorFull(
     //             log, 
@@ -198,17 +218,17 @@ public abstract class BaseResourceServerConfig {
     //             false
     //         );
     //         // @formatter:on
-    //     }
+    // }
 
-    //     response.setStatus(httpStatus.value());
-    //     response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-    //     response.setCharacterEncoding(StandardCharsets.UTF_8.toString());
+    // response.setStatus(httpStatus.value());
+    // response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+    // response.setCharacterEncoding(StandardCharsets.UTF_8.toString());
 
-    //     try {
-    //         JsonUtil.object2Outputstream(jsonException, response.getOutputStream());
-    //     } catch (Exception e) {
-    //         throw new RuntimeException(e);
-    //     }
+    // try {
+    // JsonUtil.object2Outputstream(jsonException, response.getOutputStream());
+    // } catch (Exception e) {
+    // throw new RuntimeException(e);
+    // }
     // }
 
     protected RequestMatcher getProtectedUrls() {
@@ -220,19 +240,20 @@ public abstract class BaseResourceServerConfig {
 
     protected JwtAuthoritiesExtractor getJwtAuthoritiesExtractor() {
         return new DefaultJwtAuthoritiesExtractor(
-            new AuthorityKey("roles", true),
-            new AuthorityKey("scope"),
-            new AuthorityKey("cognito:groups", true),
-            new AuthorityKey("groups", true)
-        );
+                new AuthorityKey("roles", true),
+                new AuthorityKey("scope"),
+                new AuthorityKey("cognito:groups", true),
+                new AuthorityKey("groups", true));
     }
 
     protected AuthenticationManager getAuthenticationManager(UserService userService) {
-        return new JwtAuthenticationManager(getJwtAuthoritiesExtractor(), jwtDecoder, tokenRegistry, tokenRepository, userService);
+        return new JwtAuthenticationManager(getJwtAuthoritiesExtractor(), jwtDecoder, tokenRegistry, tokenRepository,
+                userService);
     }
 
     protected List<RequestMatcher> getPublicMatchers() {
-        if (allPublicUrls != null) return allPublicUrls;
+        if (allPublicUrls != null)
+            return allPublicUrls;
         allPublicUrls = new ArrayList<>();
         List<RequestMatcher> matchers = getPublicUrls();
         if (matchers != null) {
@@ -244,5 +265,5 @@ public abstract class BaseResourceServerConfig {
         allPublicUrls.add(new AntPathRequestMatcher("/v2/api-docs"));
         return allPublicUrls;
     }
-    
+
 }

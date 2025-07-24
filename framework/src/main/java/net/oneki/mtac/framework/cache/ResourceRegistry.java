@@ -315,6 +315,18 @@ public class ResourceRegistry {
                 .collect(Collectors.toList());
     }
 
+    public static Tenant getTenantAncestor(Integer tenantId, String tenantSchemaLabel) {
+        return cache.getTenantAncestors(tenantId).stream()
+                .map(ancestorId -> getTenantById(ancestorId))
+                .filter(tenant -> {
+                    System.out.println("Checking tenant " + tenant.getSchemaLabel() + " against " + tenantSchemaLabel);
+                    return tenant.getSchemaLabel().equals(tenantSchemaLabel);
+                })
+                .findFirst()
+                .orElseThrow(() -> new NotFoundException("TENANT_NOT_FOUND",
+                        "The tenant with label " + tenantSchemaLabel + " is not found in the ancestors of tenant " + tenantId));
+    }
+
     // ------------------------------------------------- protected methods
     // protected void scanEntities(String basePackage, ReflectorContext
     // reflectorContext) throws ClassNotFoundException {

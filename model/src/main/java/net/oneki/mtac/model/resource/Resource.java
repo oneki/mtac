@@ -132,7 +132,7 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 	public static void initSqids(String alphabet) {
 		if (sqids == null) {
 			sqids = Sqids.builder()
-				.minLength(7)
+				.minLength(8)
 				.alphabet(alphabet)
 				.build();
 		}

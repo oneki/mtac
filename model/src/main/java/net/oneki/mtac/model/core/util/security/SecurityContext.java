@@ -39,6 +39,17 @@ public class SecurityContext {
         }
     }
 
+    public boolean isTokenRefreshed() {
+        if (SecurityContextHolder.getContext() != null
+                && SecurityContextHolder.getContext().getAuthentication() != null) {
+            Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            if (principal instanceof DefaultOAuth2User) {
+                return ((DefaultOAuth2User) principal).isTokenRefreshed();
+            }
+        }
+        return false;
+    }
+
     public Map<String, Object> getAttributes() {
         Map<String, Object> result = new HashMap<>();
         Object principal = getPrincipal();
@@ -72,6 +83,20 @@ public class SecurityContext {
 
     public List<Integer> getTenantSids() {
         return getAttribute("tenantSids");
+    }
+
+    public List<Integer> getAllSids() {
+        // combine getSids and getTenantSids
+        List<Integer> allSids = new ArrayList<>();
+        List<Integer> sids = getSids();
+        if (sids != null) {
+            allSids.addAll(sids);
+        } 
+        List<Integer> tenantSids = getTenantSids();
+        if (tenantSids != null) {
+            allSids.addAll(tenantSids);
+        }
+        return allSids;
     }
 
     public UserDetails getUserDetails() {
@@ -110,6 +135,16 @@ public class SecurityContext {
             return SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         }
         return null;
+    }
+
+    public void setPrincipal(OAuth2AuthenticationToken principal) {
+        if (SecurityContextHolder.getContext() != null) {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication != null) {
+                authentication.setAuthenticated(true);
+            }
+            SecurityContextHolder.getContext().setAuthentication(principal);
+        }
     }
 
     public Object getContext(String key) {
@@ -170,7 +205,7 @@ public class SecurityContext {
         if (SecurityContextHolder.getContext() != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             Map<String, Object> attributes = new HashMap<>();
             attributes.put("sub", "Not Authenticated");
-            OAuth2User principal = new DefaultOAuth2User(new ArrayList<>(), attributes, "sub", null);
+            OAuth2User principal = new DefaultOAuth2User(new ArrayList<>(), attributes, "sub", null, false);
             Authentication authentication = new OAuth2AuthenticationToken(principal, new ArrayList<>(), "default");
             SecurityContextHolder.getContext().setAuthentication(authentication);
         }

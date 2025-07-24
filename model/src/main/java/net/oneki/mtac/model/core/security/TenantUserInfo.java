@@ -19,6 +19,7 @@ public class TenantUserInfo {
   private String label;
   @JsonProperty("schema")
   private String schemaLabel;  
+  private String address;
   @Builder.Default private Set<String> roles = new HashSet<>(); // List of role UIDs
   @Builder.Default private Set<TenantUserInfo> children = new HashSet<>();
 }

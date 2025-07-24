@@ -6,6 +6,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +16,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.framework.cache.ResourceRegistry;
@@ -27,6 +31,7 @@ import net.oneki.mtac.model.core.security.TenantUserInfo;
 import net.oneki.mtac.model.core.security.TenantWithHierarchy;
 import net.oneki.mtac.model.core.security.TenantWithHierarchy.TenantHierarchy;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
+import net.oneki.mtac.model.core.util.exception.UnauthenticatedException;
 import net.oneki.mtac.model.core.util.security.Claims;
 import net.oneki.mtac.model.core.util.security.SecurityContext;
 import net.oneki.mtac.model.resource.Resource;
@@ -49,12 +54,17 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
   private GroupMembershipRepository groupMembershipRepository;
   private GroupRepository groupRepository;
   // private final TenantRepository tenantRepository;
-  private JwtTokenService tokenService;
+  protected JwtTokenService tokenService;
   private ResourceRepository resourceRepository;
   private RoleRepository roleRepository;
   private SecurityContext securityContext;
   private TokenRegistry tokenRegistry;
   private TokenRepository tokenRepository;
+
+  @Value("${mtac.iam.tenants-in-idtoken.enabled:false}")
+  private boolean storeTenantsInIdToken;
+  @Value("${mtac.iam.tenants-in-idtoken.schema-labels:}")
+  private Set<String> storeTenantsSchemaLabels;
 
   @Autowired
   public final void setPasswordEncoder(PasswordEncoder passwordEncoder) {
@@ -102,7 +112,10 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
   }
 
   @Value("${jwt.expiration-sec:86400}")
-  protected int expirationSec;
+  protected int accessTokenExpirationSec;
+
+  @Value("${jwt.refresh-expiration-sec:2678400}")
+  protected int refreshTokenExpirationSec;
 
   public E getByLabel(String tenantLabel, String userLabel) {
     return resourceRepository.getByLabel(userLabel, tenantLabel, getEntityClass());
@@ -124,10 +137,25 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
     accessTokenClaims.put("sub", sub);
     accessTokenClaims.put("username", user.getLabel());
 
-    var idTokenClaims = userinfo(sub);
+    var idTokenClaims = userinfo(sub, true);
+
+    // Refresh token expiration
+    user.setRefreshExp(System.currentTimeMillis() / 1000 + refreshTokenExpirationSec);
+    updateUnsecure(user);
 
     return tokenService.generateExpiringToken(accessTokenClaims, idTokenClaims);
 
+  }
+
+  private String generatecAccessToken(User user) {
+     var accessTokenClaims = new Claims();
+    accessTokenClaims.put("jti", UUID.randomUUID().toString());
+    var sub = Resource.toUid(user.getId());
+    accessTokenClaims.put("sub", sub);
+    accessTokenClaims.put("username", user.getLabel());
+
+
+    return tokenService.newToken(accessTokenClaims);
   }
 
   public void logout() {
@@ -135,25 +163,53 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
     tokenRepository.deleteToken(securityContext.getSubject());
   }
 
-  public Claims userinfo() {
-    return userinfo(securityContext.getSubject());
+  public void triggerResetPassword(String email, String resetLink, BiConsumer<String, User> resetLinkSender) {
+    E user = null;
+    try {
+      user = getByUniqueLabelUnsecureOrReturnNull(email);
+    } catch (Exception e) {
+      // user not found, do nothing
+      return;
+    }
+
+    if (user == null)
+      return;
+    var resetToken = UUID.randomUUID().toString();
+    // generete JWT token that contains the reset token
+    var jwtToken = tokenService.newToken(Map.of("resetToken", resetToken, "email", email), 86400);
+    // update user attribute to store the reset token
+    user.setResetPasswordToken(resetToken);
+    updateUnsecure(user);
+    if (!resetLink.contains("?"))
+      resetLink += "?";
+    ;
+    resetLink += "resetToken=" + jwtToken;
+    resetLinkSender.accept(resetLink, user);
   }
 
-  public Claims userinfo(String sub) {
+  public Claims userinfo() {
+    return userinfo(false);
+  }
+  public Claims userinfo(boolean forceRefresh) {
+    return userinfo(securityContext.getSubject(), forceRefresh);
+  }
+
+  public Claims userinfo(String sub, boolean forceRefresh) {
     var claims = tokenRegistry.get(sub);
     if (claims != null) {
       return claims;
     }
     var user = getByUidUnsecure(sub);
-    return userinfo(user);
+    return userinfo(user, forceRefresh);
   }
 
-  public Claims userinfo(User user) {
-    return userinfo(user, false);
+  public Claims userinfo(User user, boolean forceRefresh) {
+    return userinfo(user, false, forceRefresh);
   }
 
-  public Claims userinfo(User user, boolean includeRoleName) {
-    var claims = tokenRegistry.get(user.getLabel());
+
+  public Claims userinfo(User user, boolean includeRoleName, boolean forceRefresh) {
+    var claims = tokenRegistry.get(user.getUid());
     if (claims != null) {
       return claims;
     } else {
@@ -182,19 +238,51 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
       // var tenantId = tenantRole.getTenant().getId();
       // var ancestorTenants = ResourceRegistry.getTenantAncestors(tenantId);
       // var hierarchy = ancestorTenants.stream()
-      //     .map(ancestor -> (TenantHierarchy) TenantHierarchy.builder()
-      //         .uid(ancestor.getUid())
-      //         .label(ancestor.getLabel())
-      //         .schemaLabel(ancestor.getSchemaLabel())
-      //         .build())
-      //     .toList();
+      // .map(ancestor -> (TenantHierarchy) TenantHierarchy.builder()
+      // .uid(ancestor.getUid())
+      // .label(ancestor.getLabel())
+      // .schemaLabel(ancestor.getSchemaLabel())
+      // .build())
+      // .toList();
       // tenantRole.getTenant().setHierarchy(hierarchy);
     }
     claims.put("roles", roleIndex);
     claims.put("tenants", tenantIndex.get(Resource.toUid(Constants.TENANT_ROOT_ID)));
-    tokenRepository.upsertToken(user.getId(), user.getUid(), claims, Instant.now().plusSeconds(expirationSec));
+    if (storeTenantsInIdToken) {
+      // build a Set of tenantIds from the tenantIndex
+      var tenantUids = tenantIndex.values().stream()
+          .filter(tenantUserInfo -> {
+            return tenantUserInfo.getSchemaLabel() != null
+                && storeTenantsSchemaLabels.contains(tenantUserInfo.getSchemaLabel());
+          })
+          .map(TenantUserInfo::getUid)
+          .collect(Collectors.toSet());
+      claims.put("tenantUids", tenantUids);
+    }
+    fillUserInfo(claims, user);
+    // store the token in the cache
+    tokenRegistry.put(user.getUid(), claims);
+    tokenRepository.upsertToken(user.getId(), user.getUid(), claims, Instant.now().plusSeconds(accessTokenExpirationSec));
 
     return claims;
+  }
+
+  public String refreshToken(String sub, String token) {
+    var user = getByUidUnsecure(sub);
+    var refreshExp = user.getRefreshExp();
+    if (refreshExp == null || refreshExp < System.currentTimeMillis() / 1000) {
+      throw new UnauthenticatedException();
+    }
+    // generate a new access token
+    var accessToken = generatecAccessToken(user);
+
+    //  generate a new id token
+    userinfo(sub, true);
+
+    return accessToken;
+  }
+
+  protected void fillUserInfo(Claims claims, User user) {
   }
 
   private void buildTenantRoleIndexes(TenantRole tenantRole, Map<String, RoleUserInfo> roleIndex,

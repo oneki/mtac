@@ -15,12 +15,12 @@ import net.oneki.mtac.resource.iam.identity.user.DefaultUserService;
 @ConditionalOnProperty(prefix = "mtac.openid.server", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class OpenIdConfig {
 
-    @RestController
-    public class DefaultOpenIdAPI extends OpenIdController {
+    // @RestController
+    // public class DefaultOpenIdAPI extends OpenIdController {
 
-        public DefaultOpenIdAPI(DefaultUserService userService, JwtTokenService tokenService,
-                PermissionService permissionService, RequestMappingHandlerMapping handlerMapping, @Value("${mtac.api.base-path:/api}") String apiBasePath) {
-            super(userService, tokenService, permissionService, handlerMapping, apiBasePath);
-        }
-    }
+    //     public DefaultOpenIdAPI(DefaultUserService userService, JwtTokenService tokenService,
+    //             PermissionService permissionService, RequestMappingHandlerMapping handlerMapping, @Value("${mtac.api.base-path:/api}") String apiBasePath) {
+    //         super(userService, tokenService, permissionService, handlerMapping, apiBasePath);
+    //     }
+    // }
 }

@@ -1,8 +1,10 @@
 package net.oneki.mtac.model.resource.iam.identity.group;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -21,6 +23,6 @@ public class Group extends Identity {
 	private String description;
 
 	@Peer("memberOf")
-	protected List<Identity> members;
+	@Builder.Default protected List<Identity> members = new ArrayList<>();
 
 }

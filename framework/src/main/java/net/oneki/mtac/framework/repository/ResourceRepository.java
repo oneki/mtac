@@ -164,7 +164,7 @@ public class ResourceRepository extends AbstractRepository {
         // sids represent the id of the logged-in user + all the groups in which he/she
         // is present
         if (securityContext != null) {
-            args.put("sids", securityContext.getSids());
+            args.put("sids", securityContext.getAllSids());
         }
         try {
             return jdbcTemplate.queryForObject(sql, args, new ResourceRowMapper<T>(jsonEntityMapper));
@@ -218,7 +218,7 @@ public class ResourceRepository extends AbstractRepository {
         // sids represent the id of the logged-in user + all the groups in which he/she
         // is present
         if (securityContext != null) {
-            args.put("sids", securityContext.getSids());
+            args.put("sids", securityContext.getAllSids());
         }
         try {
             var result =  jdbcTemplate.queryForObject(sql, args, new ResourceRowMapper<T>(jsonEntityMapper));
@@ -278,7 +278,7 @@ public class ResourceRepository extends AbstractRepository {
         // sids represent the id of the logged-in user + all the groups in which he/she
         // is present
         if (securityContext != null) {
-            args.put("sids", securityContext.getSids());
+            args.put("sids", securityContext.getAllSids());
         }
 
         try {
@@ -379,7 +379,7 @@ public class ResourceRepository extends AbstractRepository {
             String sql, Query query,
             Map<String, Object> args) {
         if (securityContext != null) {
-            return list(tenantId, contentClass, sql, query, args, securityContext.getSids(), securityContext.getTenantSids());
+            return list(tenantId, contentClass, sql, query, args, securityContext.getAllSids(), securityContext.getTenantSids());
         } else {
             return list(tenantId, contentClass, sql, query, args, null, null);
         }
@@ -620,7 +620,7 @@ public class ResourceRepository extends AbstractRepository {
         var sql = SqlUtils.getSQL("resource/resource_get_by_ids.sql");
         args.put("ids", ids);
         if (securityContext != null) {
-            args.put("sids", securityContext.getSids());
+            args.put("sids", securityContext.getAllSids());
         }
         List<Resource> entities = jdbcTemplate.query(sql, args, new ResourceRowMapper<Resource>(jsonEntityMapper));
         return entities;
@@ -631,7 +631,7 @@ public class ResourceRepository extends AbstractRepository {
         var sql = SqlUtils.getSQL("resource/resource_get_by_urns.sql");
         args.put("urns", urns);
         if (securityContext != null) {
-            args.put("sids", securityContext.getSids());
+            args.put("sids", securityContext.getAllSids());
         }
         List<Resource> entities = jdbcTemplate.query(sql, args, new ResourceRowMapper<Resource>(jsonEntityMapper));
         return entities;

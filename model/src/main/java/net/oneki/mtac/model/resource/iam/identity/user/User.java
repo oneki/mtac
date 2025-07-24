@@ -20,7 +20,6 @@ public class User extends Identity {
     @Secret(type=SecretType.HASHING) protected String password;
     protected String firstName;
     protected String lastName;
-
-
-
+    protected String resetPasswordToken;
+    protected Long refreshExp; // Expiration time for the refresh token in seconds
 }

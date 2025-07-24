@@ -28,8 +28,9 @@ public class DefaultOAuth2User implements OAuth2User {
     private Collection<? extends GrantedAuthority> authorities;
 	private String nameAttributeKey;
 	private String token;
+	private boolean tokenRefreshed = false;
 
-    public DefaultOAuth2User(Collection<? extends GrantedAuthority> authorities, Map<String, Object> attributes, String nameAttributeKey, String token) {
+    public DefaultOAuth2User(Collection<? extends GrantedAuthority> authorities, Map<String, Object> attributes, String nameAttributeKey, String token, boolean tokenRefreshed) {
 		if (!attributes.containsKey(nameAttributeKey)) {
 			throw new IllegalArgumentException("Missing attribute '" + nameAttributeKey + "' in attributes");
 		}
@@ -37,6 +38,7 @@ public class DefaultOAuth2User implements OAuth2User {
 		this.attributes = Collections.unmodifiableMap(new LinkedHashMap<>(attributes));
 		this.nameAttributeKey = nameAttributeKey;
 		this.token = token;
+		this.tokenRefreshed = tokenRefreshed;
 		// this.setContext(ThreadLocalContext.getContext() != null ? ThreadLocalContext.getContext() : new HashMap<>());
 	}
 

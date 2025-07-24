@@ -1,31 +1,38 @@
 package net.oneki.mtac.core.util.security;
 
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
-import org.springframework.stereotype.Component;
 
 import jakarta.servlet.http.HttpServletRequest;
 
-@Component("bearerTokenResolver")
+// @Component("bearerTokenResolver")
 public class BearerTokenResolver implements org.springframework.security.oauth2.server.resource.web.BearerTokenResolver {
+    String tokenLocation;
+    String cookieName;
+
+    public BearerTokenResolver() {
+        System.out.println("defaeult BearerTokenResolver");
+    }
+    public BearerTokenResolver(String tokenLocation, String cookieName) {
+        this.tokenLocation = tokenLocation;
+        this.cookieName = cookieName;
+    }
 
     @Override
     public String resolve(HttpServletRequest request) {
-        String issuer = request.getHeader("X-Token-Issuer");
-
-        if (StringUtils.isNotBlank(issuer)) {
-            String authorization = request.getHeader("Authorization");
-            if (authorization != null) {
-                String[] tokens = authorization.split(" ");
-                if (tokens.length != 2) throw new RuntimeException("The authorization header is invalid");
-                return tokens[1];
-            } else {
-                throw new RuntimeException("The authorization header is invalid");
+         if ("cookie".equalsIgnoreCase(tokenLocation)) {
+            if (request.getCookies() != null) {
+                for (var cookie : request.getCookies()) {
+                    if (cookieName.equals(cookie.getName())) {
+                        return cookie.getValue();
+                    }
+                }
             }
-        } else {
-            DefaultBearerTokenResolver defaultBearerTokenResolver = new DefaultBearerTokenResolver();
-            return defaultBearerTokenResolver.resolve(request);
         }
+
+        DefaultBearerTokenResolver defaultBearerTokenResolver = new DefaultBearerTokenResolver();
+        var result = defaultBearerTokenResolver.resolve(request);
+        return result;
+        
     }
 
 }

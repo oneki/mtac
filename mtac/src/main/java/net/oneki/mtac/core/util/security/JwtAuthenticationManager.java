@@ -2,6 +2,7 @@ package net.oneki.mtac.core.util.security;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -19,12 +20,18 @@ import org.springframework.security.oauth2.server.resource.BearerTokenError;
 import org.springframework.security.oauth2.server.resource.BearerTokenErrorCodes;
 import org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthenticationToken;
 
+import com.nimbusds.jwt.JWTParser;
+import com.nimbusds.jwt.SignedJWT;
+
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.framework.cache.TokenRegistry;
 import net.oneki.mtac.framework.repository.TokenRepository;
+import net.oneki.mtac.model.core.util.exception.UnauthenticatedException;
 import net.oneki.mtac.model.core.util.security.DefaultOAuth2User;
 import net.oneki.mtac.model.core.util.security.JwtAuthoritiesExtractor;
+import net.oneki.mtac.resource.iam.identity.user.DefaultUserService;
 import net.oneki.mtac.resource.iam.identity.user.UserService;
 
 /**
@@ -48,16 +55,33 @@ public class JwtAuthenticationManager implements AuthenticationManager {
 		}
 		BearerTokenAuthenticationToken bearer = (BearerTokenAuthenticationToken) authentication;
 		Jwt jwt;
+		var accessToken = bearer.getToken();
+		var tokenRefreshed = false;
 		try {
-			jwt = this.jwtDecoder.decode(bearer.getToken());
+/* 			// check first if the token is not expired
+			// if it's the case, try to refresh it
+			try {
+				var parsedJwt = SignedJWT.parse(accessToken);
+				var exp = parsedJwt.getJWTClaimsSet().getExpirationTime();
+				var sub = parsedJwt.getJWTClaimsSet().getSubject();
+				if (exp != null && exp.before(new Date())) {
+					// token is expired, try to refresh it
+					accessToken = userService.refreshToken(sub, accessToken);
+					tokenRefreshed = true;
+				}
+			} catch (Exception e) {
+				// if the refresh fails, do nothing, the token will be considered invalid
+			} */
+			
+			jwt = this.jwtDecoder.decode(accessToken);
 			var sub = jwt.getClaimAsString("sub");
 			if (sub == null) {
 				throw new JwtException("Missing claim 'sub' in JWT token");
 			}
-			var claims = userService.userinfo(sub);
+			var claims = userService.userinfo(sub, false);
 			Collection<GrantedAuthority> authorities = new ArrayList<>(); // TODO
 
-			OAuth2User principal = new DefaultOAuth2User(authorities, claims, nameAttributeKey, bearer.getToken());
+			OAuth2User principal = new DefaultOAuth2User(authorities, claims, nameAttributeKey, accessToken, tokenRefreshed);
 			return new OAuth2AuthenticationToken(principal, authorities, "default");
 		} catch (JwtException failed) {
 			OAuth2Error invalidToken = invalidToken(failed.getMessage());

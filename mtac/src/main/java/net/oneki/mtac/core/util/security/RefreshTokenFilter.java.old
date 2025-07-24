@@ -1,0 +1,40 @@
+package net.oneki.mtac.core.util.security;
+
+import java.io.IOException;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import net.oneki.mtac.model.core.util.security.SecurityContext;
+
+@Order(Ordered.LOWEST_PRECEDENCE - 100) // Ensure this filter runs after the JwtAuthenticationManager
+@RequiredArgsConstructor
+public class RefreshTokenFilter extends OncePerRequestFilter {
+  @Value("${mtac.iam.token-location:header}") String tokenLocation;
+  @Value("${mtac.iam.cookie-name:mtac.token}") String cookieName;
+  private final SecurityContext securityContext;
+
+  @Override
+  protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+      throws ServletException, IOException {
+    chain.doFilter(request, response);
+
+    // Check if the token was refreshed
+    var token = securityContext.getJwtToken();
+    var tokenRefreshed = securityContext.isTokenRefreshed();
+    if (!tokenRefreshed) return;
+    if (tokenLocation.equalsIgnoreCase("cookie")) {
+      response.addHeader("Set-Cookie", cookieName + "=" + token + "; Path=/; SameSite=Strict; httpOnly");
+    } else if (tokenLocation.equalsIgnoreCase("header")) {
+      response.addHeader("x-access-token", token);
+    }
+  }
+
+}

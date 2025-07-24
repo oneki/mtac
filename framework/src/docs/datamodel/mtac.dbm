@@ -3,8 +3,8 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="1.1.0" use-changelog="false" max-obj-count="51"
-	 last-position="0,146" last-zoom="1" scene-rect="-80,-40.5,1707.33,2074.22"
+<dbmodel pgmodeler-ver="1.1.0" use-changelog="false" max-obj-count="52"
+	 last-position="-80,142" last-zoom="1" scene-rect="-80,-40.5,1707.33,2074.22"
 	 default-owner="postgres"
 	 layers="Default"
 	 active-layers="0"
@@ -2250,7 +2250,9 @@ BEGIN
       SET    content =content #- ('{' ||r2.peer_label  || ',' || r2.pos || '}')::text[], updated_by=NEW.updated_by
       FROM (
         SELECT   r.id, ordinality - 1 AS pos, record.peer_label as peer_label
-        FROM     resource r, jsonb_array_elements(r.content->record.peer_label) with ordinality
+        FROM     resource r, jsonb_array_elements(case jsonb_typeof(r.content->record.peer_label) 
+							        when 'array' then r.content->record.peer_label
+							        else '[]' end) with ordinality
         WHERE r.id IN ( SELECT 
                           CASE WHEN link_id is null THEN id
                                ELSE link_id
@@ -2540,7 +2542,7 @@ END;]]> </definition>
 		<function signature="public.after_insert_resource_tenant_tree()"/>
 </trigger>
 
-<trigger name="after_delete_resource_tenant_tree" firing-type="BEFORE" per-line="true" constraint="false"
+<trigger name="after_delete_resource_tenant_tree" firing-type="AFTER" per-line="true" constraint="false"
 	 ins-event="false" del-event="true" upd-event="false" trunc-event="false"
 	 table="public.resource_tenant_tree">
 		<function signature="public.after_delete_resource_tenant_tree()"/>
@@ -2550,6 +2552,33 @@ END;]]> </definition>
 	<schema name="public"/>
 	<role name="postgres"/>
 </sequence>
+
+<function name="after_update_token"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition> <![CDATA[BEGIN
+    PERFORM pg_notify('token_channel', 'update,' || NEW.sub);
+	RETURN NULL;
+END;]]> </definition>
+</function>
+
+<trigger name="after_update_token" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="false" del-event="false" upd-event="true" trunc-event="false"
+	 table="public.token">
+		<function signature="public.after_update_token()"/>
+</trigger>
 
 <constraint name="role_schema_role_fk" type="fk-constr" comparison-type="MATCH FULL"
 	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.role_schema">

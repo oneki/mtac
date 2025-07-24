@@ -55,20 +55,22 @@ public class TokenRepository extends AbstractRepository {
 
   // insert token
   public static final String SQL_INSERT_TOKEN = "INSERT INTO token (identity_id, sub, token, expire_at) VALUES (:identity_id, :sub, to_json(:token::JSON), :expire_at)";
+  public static final String SQL_UPDATE_TOKEN = "UPDATE token SET token=to_json(:token::JSON), expire_at=:expire_at WHERE identity_id = :identity_id";
 
   public void upsertToken(Integer identityId, String sub, Object token, Instant expireAt) {
     var currentToken = getToken(identityId);
-    if (currentToken != null) {
-      deleteToken(identityId);
-    }
-
     var params = new HashMap<String, Object>();
     params.put("identity_id", identityId);
     params.put("sub", sub);
     params.put("token", JsonUtil.object2Json(token));
     params.put("expire_at", Timestamp.from(expireAt));
 
-    jdbcTemplate.update(SQL_INSERT_TOKEN, params);
+    if (currentToken != null) {
+      jdbcTemplate.update(SQL_UPDATE_TOKEN, params);
+    } else {
+      jdbcTemplate.update(SQL_INSERT_TOKEN, params);
+    }
+
   }
 
   public Date now() {

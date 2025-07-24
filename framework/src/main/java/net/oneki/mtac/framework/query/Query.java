@@ -2,23 +2,21 @@ package net.oneki.mtac.framework.query;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import net.oneki.mtac.framework.cache.ResourceRegistry;
-import net.oneki.mtac.framework.introspect.ResourceDesc;
-import net.oneki.mtac.framework.query.Filter;
-import net.oneki.mtac.framework.query.Query;
-import net.oneki.mtac.framework.query.QueryContext;
-import net.oneki.mtac.framework.query.Sort;
-import net.oneki.mtac.model.core.util.exception.BusinessException;
-import net.oneki.mtac.model.resource.Resource;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import net.oneki.mtac.framework.cache.ResourceRegistry;
+import net.oneki.mtac.framework.introspect.ResourceDesc;
+import net.oneki.mtac.framework.query.Filter.Operator;
+import net.oneki.mtac.model.core.util.exception.BusinessException;
+import net.oneki.mtac.model.resource.Resource;
 
 @Data
 @AllArgsConstructor
@@ -62,7 +60,19 @@ public class Query {
       var value = entry.getValue();
       switch (k) {
         case "filter":
-          query.setFilter(Filter.fromRest(type, value, queryContext));
+          var currentFilter = query.getFilter();
+          var urlFilter = Filter.fromRest(type, value, queryContext);
+          var subFilters = new ArrayList<Filter>();
+          subFilters.add(urlFilter);
+          if (currentFilter == null) {
+            query.setFilter(Filter.builder()
+                .operator(Operator.AND)
+                .subFilters(subFilters)
+                .context(queryContext)
+                .build());
+          } else {
+            currentFilter.addSubfilter(urlFilter);
+          }
           break;
         case "sortBy":
           try {
@@ -77,7 +87,7 @@ public class Query {
           var limit = Integer.parseInt(value);
           if (limit > maxLimit) {
             throw new BusinessException("LIMIT_TOO_HIGH", "the query param limit cannot be higher than " + maxLimit);
-          } 
+          }
           query.setLimit(Integer.parseInt(value));
           break;
         case "offset":
@@ -100,6 +110,25 @@ public class Query {
           break;
         case "tenant":
           query.setTenant(Integer.parseInt(value));
+          break;
+        case "search":
+          var filter = query.getFilter();
+          var criteria = FilterCriteria.builder()
+              .field("label")
+              .operator(net.oneki.mtac.framework.query.FilterCriteria.Operator.I_LIKE)
+              .value(value)
+              .build();
+          var criterias = new ArrayList<FilterCriteria>();
+          criterias.add(criteria);
+          if (filter == null) {
+            query.setFilter(Filter.builder()
+                .operator(Operator.AND)
+                .context(queryContext)
+                .criterias(criterias)
+                .build());
+          } else {
+            filter.getCriterias().add(criteria);
+          }
           break;
       }
 

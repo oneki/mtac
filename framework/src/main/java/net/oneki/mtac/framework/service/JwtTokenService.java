@@ -112,7 +112,11 @@ public class JwtTokenService implements Clock {
 		return result;
 	}
 
-	private String newToken(final Map<String, Object> attributes, final int expiresInSec) {
+	public String newToken(final Map<String, Object> attributes) {
+		return newToken(attributes, expirationSec);
+	}
+
+	public String newToken(final Map<String, Object> attributes, final int expiresInSec) {
 		final DateTime now = DateTime.now(DateTimeZone.UTC);
 		final Claims claims = Jwts.claims().setIssuer(issuer).setIssuedAt(now.toDate());
 
