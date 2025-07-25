@@ -22,7 +22,7 @@ public abstract class BaseUserUpsertRequest<G extends Group> extends UpsertReque
     private String firstName;
     private String lastName;
     private List<G> memberOf;
-
+    private Boolean mfa;
 
     public abstract Class<? extends Group> getGroupClass();
 }

@@ -4,7 +4,7 @@ CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
 <dbmodel pgmodeler-ver="1.1.0" use-changelog="false" max-obj-count="52"
-	 last-position="-80,142" last-zoom="1" scene-rect="-80,-40.5,1707.33,2074.22"
+	 last-position="0,141" last-zoom="1" scene-rect="-80,-40.5,1707.33,2074.22"
 	 default-owner="postgres"
 	 layers="Default"
 	 active-layers="0"
@@ -2579,6 +2579,24 @@ END;]]> </definition>
 	 table="public.token">
 		<function signature="public.after_update_token()"/>
 </trigger>
+
+<table name="totp" layers="0" collapse-mode="2" max-obj-count="3" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<position x="840" y="1160"/>
+	<column name="user_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="totp" not-null="true">
+		<type name="char" length="6"/>
+	</column>
+	<column name="interval" not-null="true">
+		<type name="bigint" length="0"/>
+	</column>
+	<constraint name="totp_pk" type="pk-constr" table="public.totp">
+		<columns names="user_id,totp,interval" ref-type="src-columns"/>
+	</constraint>
+</table>
 
 <constraint name="role_schema_role_fk" type="fk-constr" comparison-type="MATCH FULL"
 	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.role_schema">

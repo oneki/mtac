@@ -17,9 +17,18 @@ import net.oneki.mtac.model.resource.iam.identity.Identity;
 @EqualsAndHashCode(callSuper = true)
 @Entity("iam.identity.user")
 public class User extends Identity {
-    @Secret(type=SecretType.HASHING) protected String password;
+    @Secret(type = SecretType.HASHING)
+    protected String password;
+    @Secret(type = SecretType.ENCRYPTION)
+    protected String totpSecret;
+    protected String refreshToken;
+    protected String resetPasswordToken;
+    protected Boolean mfa;
+    protected Boolean mfaActive;
+    @Secret(type = SecretType.ENCRYPTION)
+    protected String verificationCode; // totp secret: format "code:expiresAt(timestamp in millisec)", example
+                                       // 12345678:1753378999000
     protected String firstName;
     protected String lastName;
-    protected String resetPasswordToken;
-    protected Long refreshExp; // Expiration time for the refresh token in seconds
+
 }

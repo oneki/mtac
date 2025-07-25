@@ -1,6 +1,7 @@
 package net.oneki.mtac.model.core;
 
 public class Constants {
+    public static final Integer MFA_DEFAULT_DELAY = 30;
     public static Integer SCHEMA_SCHEMA_ID = 1;
     public static String SCHEMA_SCHEMA_LABEL = "schema";
     public static String SCHEMA_TENANT_LABEL = "tenant";

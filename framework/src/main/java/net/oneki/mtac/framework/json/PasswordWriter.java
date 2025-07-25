@@ -48,7 +48,8 @@ public class PasswordWriter extends BeanPropertyWriter {
             String encrypted = null;
             var secretType = resourceField.getSecret().getType();
             if (secretType == SecretType.HASHING) {
-                encrypted = passwordUtil.hash(plainText);
+                // encrypted = passwordUtil.hash(plainText);
+                encrypted = plainText;
             } else if (secretType == SecretType.ENCRYPTION) {
                 encrypted = passwordUtil.encrypt(plainText);
             } else {

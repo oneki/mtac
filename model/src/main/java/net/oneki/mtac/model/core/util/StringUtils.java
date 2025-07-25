@@ -57,4 +57,24 @@ public class StringUtils {
         name = name.toLowerCase();
         return name;
     }
+
+    public static boolean isStringLong(String l) {
+        try {
+            Long.parseLong(l);
+        } catch (NumberFormatException e) {
+            return false;
+        }
+        return true;
+    }
+
+    public static Boolean toBoolean(String s) {
+        if (s == null)
+            return null;
+        if (s.equalsIgnoreCase("true"))
+            return true;
+        if (s.equalsIgnoreCase("false"))
+            return false;
+        return null;
+    }
+
 }
