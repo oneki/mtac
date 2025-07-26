@@ -62,7 +62,6 @@ public class DtoModule extends SimpleModule {
             @Override
             public List<BeanPropertyWriter> changeProperties(SerializationConfig config,
                     BeanDescription beanDesc, List<BeanPropertyWriter> beanProperties) {
-
                 if (Resource.class.isAssignableFrom(beanDesc.getBeanClass()) ||
                         Ref.class.isAssignableFrom(beanDesc.getBeanClass())) {
                     var result = new ArrayList<BeanPropertyWriter>();

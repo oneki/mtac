@@ -22,6 +22,8 @@ public class PasswordUtil {
     return stringEncryptor.decrypt(encryptedText);
   }
 
-  
+  public boolean matches(String plainText, String hashedPassword) {
+    return passwordEncoder.matches(plainText, hashedPassword);
+  }
 
 }

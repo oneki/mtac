@@ -3,7 +3,6 @@ package net.oneki.mtac.framework.cache;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
@@ -16,7 +15,7 @@ import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.framework.repository.ResourceTenantTreeRepository;
 import net.oneki.mtac.framework.repository.SchemaDbSynchronizer;
 import net.oneki.mtac.framework.repository.SchemaRepository;
-import net.oneki.mtac.model.core.event.RegistryInitEvent;
+import net.oneki.mtac.model.core.config.MtacProperties;
 import net.oneki.mtac.model.resource.Resource;
 import net.oneki.mtac.model.resource.Tenant;
 import net.oneki.mtac.model.resource.iam.Role;
@@ -32,17 +31,18 @@ public class ResourceRegistryInitializer {
     protected final InitRepository initRepository;
     protected final ResourceTenantTreeRepository resourceTenantTreeRepository;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private final MtacProperties mtacProperties;
 
-    @Value("${mtac.scan.package}")
-    private String scanBasePackage;
+    // @Value("${mtac.scan.base-package}")
+    // private String scanBasePackage;
 
-    @Value("${mtac.sqids.alphabet}")
-    private String sqidsAlphabet;
+    // @Value("${mtac.sqids.alphabet}")
+    // private String sqidsAlphabet;
 
     @PostConstruct
     public void initResourceRegistry() throws ClassNotFoundException {
-        Resource.initSqids(sqidsAlphabet);
-        ResourceRegistry.init(scanBasePackage);
+        Resource.initSqids(mtacProperties.getSqids().getAlphabet());
+        ResourceRegistry.init(mtacProperties.getScan().getBasePackage());
         initRepository.initSchema();
         
         List<Schema> schemas = schemaRepository.listAllSchemasUnsecure();

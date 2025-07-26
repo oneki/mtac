@@ -248,7 +248,6 @@ public class ResourceRegistry {
     public static Tenant getTenantById(Integer id) {
         var result = cache.getTenantById(id);
         if (result == null && resourceRepositoryStatic != null) {
-            System.out.println("lazy load tenant " + id);
             result = resourceRepositoryStatic.getByIdUnsecure(id, Tenant.class);
             if (result != null) {
                 cache.addTenant(result);
@@ -319,7 +318,6 @@ public class ResourceRegistry {
         return cache.getTenantAncestors(tenantId).stream()
                 .map(ancestorId -> getTenantById(ancestorId))
                 .filter(tenant -> {
-                    System.out.println("Checking tenant " + tenant.getSchemaLabel() + " against " + tenantSchemaLabel);
                     return tenant.getSchemaLabel().equals(tenantSchemaLabel);
                 })
                 .findFirst()

@@ -7,6 +7,8 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
+import net.oneki.mtac.model.core.util.introspect.annotation.Secret;
+import net.oneki.mtac.model.core.util.introspect.annotation.Secret.SecretType;
 import net.oneki.mtac.model.resource.UpsertRequest;
 import net.oneki.mtac.model.resource.iam.identity.group.Group;
 
@@ -18,6 +20,7 @@ import net.oneki.mtac.model.resource.iam.identity.group.Group;
 @EqualsAndHashCode(callSuper = true)
 public abstract class BaseUserUpsertRequest<G extends Group> extends UpsertRequest {
     private String email;
+    @Secret(type = SecretType.HASHING)
     private String password;
     private String firstName;
     private String lastName;

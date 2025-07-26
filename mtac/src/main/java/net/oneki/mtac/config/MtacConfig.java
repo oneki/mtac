@@ -1,5 +1,6 @@
 package net.oneki.mtac.config;
 
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
@@ -13,6 +14,7 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import net.oneki.mtac.core.util.json.DtoModule;
+import net.oneki.mtac.model.core.config.MtacProperties;
 import net.oneki.mtac.model.core.util.security.SecurityContext;
 
 @Configuration
@@ -36,4 +38,11 @@ public class MtacConfig {
     public SecurityContext securityContext() {
         return new SecurityContext();
     }
+
+    @Bean
+    @ConfigurationProperties(prefix = "mtac")
+    public MtacProperties mtacProperties() {
+        return new MtacProperties();
+    }
+
 }

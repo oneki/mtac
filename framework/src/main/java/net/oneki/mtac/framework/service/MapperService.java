@@ -100,7 +100,7 @@ public class MapperService {
                     continue;
 
                 var value = entityField.getField().get(entity);
-                if (value == null && requestField.isSecret()) {
+                if (value == null || requestField.isSecret()) {
                     continue;
                 }
 

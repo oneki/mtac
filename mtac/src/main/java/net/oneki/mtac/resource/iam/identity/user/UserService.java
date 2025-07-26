@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,8 @@ import net.oneki.mtac.framework.repository.TokenRepository;
 import net.oneki.mtac.framework.service.JwtTokenService;
 import net.oneki.mtac.framework.util.security.PasswordUtil;
 import net.oneki.mtac.model.core.Constants;
+import net.oneki.mtac.model.core.config.MtacProperties;
+import net.oneki.mtac.model.core.openid.ResetPasswordRequest;
 import net.oneki.mtac.model.core.security.RoleUserInfo;
 import net.oneki.mtac.model.core.security.TenantRole;
 import net.oneki.mtac.model.core.security.TenantUserInfo;
@@ -58,6 +61,7 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
   protected TokenRegistry tokenRegistry;
   protected TokenRepository tokenRepository;
   protected PasswordUtil passwordUtil;
+  protected MtacProperties mtacProperties;
 
   @Value("${mtac.iam.tenants-in-idtoken.enabled:false}")
   private boolean storeTenantsInIdToken;
@@ -114,6 +118,11 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
     this.passwordUtil = passwordUtil;
   }
 
+  @Autowired
+  public final void setMtacProperties(MtacProperties mtacProperties) {
+    this.mtacProperties = mtacProperties;
+  }
+
   @Value("${jwt.expiration-sec:86400}")
   protected int accessTokenExpirationSec;
 
@@ -124,210 +133,231 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
     return resourceRepository.getByLabel(userLabel, tenantLabel, getEntityClass());
   }
 
-  public Map<String, Object> login(String username, String password) {
-    if (password == null || password.equals("")) {
-      throw new BusinessException("INVALID_PASSWORD", "Password cannot be blank");
-    }
+  // public Map<String, Object> login(String username, String password) {
+  //   if (password == null || password.equals("")) {
+  //     throw new BusinessException("INVALID_PASSWORD", "Password cannot be blank");
+  //   }
 
-    var user = resourceRepository.getByLabelOrUrnUnsecure(username, getEntityClass());
-    if (user == null || !passwordEncoder.matches(password, user.getPassword())) {
-      throw new BusinessException("INVALID_CREDENTIALS", "User/Password incorrect");
-    }
+  //   var user = resourceRepository.getByLabelOrUrnUnsecure(username, getEntityClass());
+  //   if (user == null || !passwordEncoder.matches(password, user.getPassword())) {
+  //     throw new BusinessException("INVALID_CREDENTIALS", "User/Password incorrect");
+  //   }
 
-    var isMfaRequired = user.getMfa();
-    var totpSecret = user.getTotpSecret();
+  //   var isMfaRequired = user.getMfa();
+  //   var totpSecret = user.getTotpSecret();
 
-    if (isMfaRequired != null && isMfaRequired == true) {
+  //   if (isMfaRequired != null && isMfaRequired == true) {
 
-      if (totpSecret == null) {
-        user.setTotpSecret(Base32.random());
-        updateUnsecure(user);
-      }
+  //     if (totpSecret == null) {
+  //       user.setTotpSecret(Base32.random());
+  //       updateUnsecure(user);
+  //     }
 
-      return tokenService.generateMfaToken(user.getUid(), user.getLabel(), user.getMfaActive() ? null : totpSecret,
-          null);
-    }
+  //     return tokenService.generateMfaToken(user.getUid(), user.getLabel(),
+  //         (user.getMfaActive() == null || user.getMfaActive() == false) ? totpSecret : null,
+  //         null);
+  //   }
 
-    var accessTokenClaims = new Claims();
-    accessTokenClaims.put("jti", UUID.randomUUID().toString());
-    var sub = Resource.toUid(user.getId());
-    accessTokenClaims.put("sub", sub);
-    accessTokenClaims.put("username", user.getLabel());
+  //   var accessTokenClaims = new Claims();
+  //   accessTokenClaims.put("jti", UUID.randomUUID().toString());
+  //   var sub = Resource.toUid(user.getId());
+  //   accessTokenClaims.put("sub", sub);
+  //   accessTokenClaims.put("username", user.getLabel());
 
-    var idTokenClaims = userinfo(sub, true);
+  //   var idTokenClaims = userinfo(sub, true);
 
-    var result = tokenService.generateExpiringToken(accessTokenClaims, idTokenClaims);
+  //   var result = tokenService.generateExpiringToken(accessTokenClaims, idTokenClaims);
 
-    // generate refresh token
-    // the refresh token is simply the string "<sub>:<expirationTimestampInSeconds>:<randomUUID>"
-    // the <randomUUID> is stored in the user profile in DB to be able to revoke it
-    var randomUUID = UUID.randomUUID().toString();
-    var refreshToken =  sub + ":" + Instant.now().plusSeconds(refreshTokenExpirationSec).getEpochSecond() + ":" + randomUUID;
+  //   // generate refresh token
+  //   // the refresh token is simply the string
+  //   // "<sub>:<expirationTimestampInSeconds>:<randomUUID>"
+  //   // the <randomUUID> is stored in the user profile in DB to be able to revoke it
+  //   var randomUUID = UUID.randomUUID().toString();
+  //   var refreshToken = sub + ":" + Instant.now().plusSeconds(refreshTokenExpirationSec).getEpochSecond() + ":"
+  //       + randomUUID;
 
-    // encrypt the refresh token
-    refreshToken = passwordUtil.encrypt(refreshToken);
+  //   // encrypt the refresh token
+  //   refreshToken = passwordUtil.encrypt(refreshToken);
 
-    result.put("refresh_token", refreshToken);
-    result.put("refresh_token_expires_in", refreshTokenExpirationSec);
+  //   result.put("refresh_token", refreshToken);
+  //   result.put("refresh_token_expires_in", refreshTokenExpirationSec);
 
-    user.setRefreshToken(randomUUID);
-    updateUnsecure(user);
+  //   user.setRefreshToken(randomUUID);
+  //   updateUnsecure(user);
 
-    return result;
-  }
+  //   return result;
+  // }
 
-  public Map<String, Object> refreshToken(String refreshToken) {
-    // decrypt the refresh token
-    refreshToken = passwordUtil.decrypt(refreshToken);
-    var parts = refreshToken.split(":");
-    if (parts.length != 3) {
-      throw new BadCredentialsException("Invalid refresh token format");
-    }
-    var sub = parts[0];
-    var expirationTimestamp = Long.parseLong(parts[1]);
-    var randomUUID = parts[2];
+  // public Map<String, Object> refreshToken(String refreshToken) {
+  //   // decrypt the refresh token
+  //   refreshToken = passwordUtil.decrypt(refreshToken);
+  //   var parts = refreshToken.split(":");
+  //   if (parts.length != 3) {
+  //     throw new BadCredentialsException("Invalid refresh token format");
+  //   }
+  //   var sub = parts[0];
+  //   var expirationTimestamp = Long.parseLong(parts[1]);
+  //   var randomUUID = parts[2];
 
-    if (expirationTimestamp < System.currentTimeMillis() / 1000) {
-      throw new BadCredentialsException("Refresh token has expired");
-    }
+  //   if (expirationTimestamp < System.currentTimeMillis() / 1000) {
+  //     throw new BadCredentialsException("Refresh token has expired");
+  //   }
 
-    var user = getByUidUnsecure(sub);
-    if (user == null) {
-      throw new BadCredentialsException("User not found for the provided refresh token");
-    }
+  //   var user = getByUidUnsecure(sub);
+  //   if (user == null) {
+  //     throw new BadCredentialsException("User not found for the provided refresh token");
+  //   }
 
-    if (!user.getRefreshToken().equals(randomUUID)) {
-      throw new BadCredentialsException("Invalid refresh token");
-    }
+  //   if (!user.getRefreshToken().equals(randomUUID)) {
+  //     throw new BadCredentialsException("Invalid refresh token");
+  //   }
 
-    var accessTokenClaims = new Claims();
-    accessTokenClaims.put("jti", UUID.randomUUID().toString());
-    accessTokenClaims.put("sub", sub);
-    accessTokenClaims.put("username", user.getLabel());
-    var result = new HashMap<String, Object>();
-    result.put("access_token", tokenService.newToken(accessTokenClaims, accessTokenExpirationSec));
-    result.put("token_type", "Bearer");
-    result.put("expires_in", accessTokenExpirationSec);
-    return result;
-  }
+  //   var accessTokenClaims = new Claims();
+  //   accessTokenClaims.put("jti", UUID.randomUUID().toString());
+  //   accessTokenClaims.put("sub", sub);
+  //   accessTokenClaims.put("username", user.getLabel());
+  //   var result = new HashMap<String, Object>();
+  //   result.put("access_token", tokenService.newToken(accessTokenClaims, accessTokenExpirationSec));
+  //   result.put("token_type", "Bearer");
+  //   result.put("expires_in", accessTokenExpirationSec);
+  //   return result;
+  // }
 
-  public Map<String, Object> verifyTotp(String verificationCode, String mfaToken, Boolean trusted, String noMfaToken) {
-    var claims = tokenService.verify(mfaToken);
-    var audience = claims.getAudience();
-    if (audience == null || !audience.contains("mfa")) {
-      throw new BadCredentialsException(
-          "Invalid audience. The provided authorization token is not a valid MFA authorization token");
-    }
-    var sub = claims.getSubject();
-    var user = getByUidUnsecure(sub);
+  // public Map<String, Object> verifyTotp(String verificationCode, String mfaToken, Boolean trusted, String noMfaToken) {
+  //   var claims = tokenService.verify(mfaToken);
+  //   var audience = claims.getAudience();
+  //   if (audience == null || !audience.contains("mfa")) {
+  //     throw new BadCredentialsException(
+  //         "Invalid audience. The provided authorization token is not a valid MFA authorization token");
+  //   }
+  //   var sub = claims.getSubject();
+  //   var user = getByUidUnsecure(sub);
 
-    if (verificationCode == null) {
-      // The user is using a trusted device, so we check the noMfaToken and not the
-      // verification code
-      if (noMfaToken == null) {
-        throw new BadCredentialsException("Invalid verification code");
-      }
-      // check if the noMfaToken is valid (this token is used to not re-ask the
-      // verification code up to x days)
-      var noMfaClaims = tokenService.verify(noMfaToken);
-      if (!noMfaClaims.getSubject().equals(claims.getSubject())) {
-        throw new BadCredentialsException("The subject of the no_mfa_token is invalid");
-      }
+  //   if (verificationCode == null) {
+  //     // The user is using a trusted device, so we check the noMfaToken and not the
+  //     // verification code
+  //     if (noMfaToken == null) {
+  //       throw new BadCredentialsException("Invalid verification code");
+  //     }
+  //     // check if the noMfaToken is valid (this token is used to not re-ask the
+  //     // verification code up to x days)
+  //     var noMfaClaims = tokenService.verify(noMfaToken);
+  //     if (!noMfaClaims.getSubject().equals(claims.getSubject())) {
+  //       throw new BadCredentialsException("The subject of the no_mfa_token is invalid");
+  //     }
 
-    } else if (verificationCode.length() == 8) {
-      // it's a code sent by mail / sms
+  //   } else if (verificationCode.length() == 8) {
+  //     // it's a code sent by mail / sms
 
-      String dbVerificationCode = user.getVerificationCode();
-      if (dbVerificationCode == null) {
-        throw new BadCredentialsException("The mail verification code has been revoked");
-      }
+  //     String dbVerificationCode = user.getVerificationCode();
+  //     if (dbVerificationCode == null) {
+  //       throw new BadCredentialsException("The mail verification code has been revoked");
+  //     }
 
-      var dbVerificationCodeValue = dbVerificationCode.split(":")[0];
-      var dbVerificationCodeExpiresAt = Long.valueOf(dbVerificationCode.split(":")[1]);
+  //     var dbVerificationCodeValue = dbVerificationCode.split(":")[0];
+  //     var dbVerificationCodeExpiresAt = Long.valueOf(dbVerificationCode.split(":")[1]);
 
-      if (dbVerificationCodeValue.equals(verificationCode)) {
-        if (dbVerificationCodeExpiresAt < System.currentTimeMillis()) {
-          throw new BadCredentialsException("This verification code has been expired");
-        }
-      } else {
-        throw new BadCredentialsException("Invalid verification code");
-      }
-      user.setVerificationCode(null);
-      update(user);
-    } else {
-      // we received a TOTP code
-      var totpSecret = user.getTotpSecret();
-      if (totpSecret == null) {
-        throw new RuntimeException("There is no TOTP secret defined for the user " + sub);
-      }
+  //     if (dbVerificationCodeValue.equals(verificationCode)) {
+  //       if (dbVerificationCodeExpiresAt < System.currentTimeMillis()) {
+  //         throw new BadCredentialsException("This verification code has been expired");
+  //       }
+  //     } else {
+  //       throw new BadCredentialsException("Invalid verification code");
+  //     }
+  //     user.setVerificationCode(null);
+  //     updateUnsecure(user);
+  //   } else {
+  //     // we received a TOTP code
+  //     var totpSecret = user.getTotpSecret();
+  //     if (totpSecret == null) {
+  //       throw new RuntimeException("There is no TOTP secret defined for the user " + sub);
+  //     }
 
-      Totp totp = new Totp(totpSecret);
+  //     Totp totp = new Totp(totpSecret);
 
-      if (!StringUtils.isStringLong(verificationCode) || !totp.verify(verificationCode)) {
-        throw new BadCredentialsException("Invalid verification code");
-      }
+  //     if (!StringUtils.isStringLong(verificationCode) || !totp.verify(verificationCode)) {
+  //       throw new BadCredentialsException("Invalid verification code");
+  //     }
 
-      if (tokenService.isTotpRevoked(user.getId(), verificationCode)) {
-        throw new BadCredentialsException("The verification code has already been used and is revoked");
-      }
+  //     if (tokenService.isTotpRevoked(user.getId(), verificationCode)) {
+  //       throw new BadCredentialsException("The verification code has already been used and is revoked");
+  //     }
 
-      // revoke totp
-      tokenService.revokeTotp(user.getId(), verificationCode);
+  //     // revoke totp
+  //     tokenService.revokeTotp(user.getId(), verificationCode);
 
-      if (!user.getMfaActive()) {
-        user.setMfaActive(true);
-        update(user);
-      }
-    }
+  //     if (user.getMfaActive() == null || user.getMfaActive() == false) {
+  //       user.setMfaActive(true);
+  //       updateUnsecure(user);
+  //     }
+  //   }
 
-    var accessTokenClaims = new Claims();
-    accessTokenClaims.put("jti", UUID.randomUUID().toString());
-    accessTokenClaims.put("sub", sub);
-    accessTokenClaims.put("username", user.getLabel());
-    var idTokenClaims = userinfo(sub, true);
-    var result = tokenService.generateExpiringToken(accessTokenClaims, idTokenClaims);
+  //   var accessTokenClaims = new Claims();
+  //   accessTokenClaims.put("jti", UUID.randomUUID().toString());
+  //   accessTokenClaims.put("sub", sub);
+  //   accessTokenClaims.put("username", user.getLabel());
+  //   var idTokenClaims = userinfo(sub, true);
+  //   var result = tokenService.generateExpiringToken(accessTokenClaims, idTokenClaims);
 
-    if (trusted != null && trusted) {
-      var noMfaExpirationSec = 86400 * 30; // 30 days
-      var noMfaClaims = new HashMap<String, Object>();
-      noMfaClaims.put("sub", sub);
-      noMfaClaims.put("aud", "mfa");
-      noMfaToken = tokenService.newToken(noMfaClaims, noMfaExpirationSec);
-      result.put("no_mfa_token", noMfaToken);
-      result.put("no_mfa_token_expires_in", noMfaExpirationSec);
-    }
+  //   // generate refresh token
+  //   // the refresh token is simply the string
+  //   // "<sub>:<expirationTimestampInSeconds>:<randomUUID>"
+  //   // the <randomUUID> is stored in the user profile in DB to be able to revoke it
+  //   var randomUUID = UUID.randomUUID().toString();
+  //   var refreshToken = sub + ":" + Instant.now().plusSeconds(refreshTokenExpirationSec).getEpochSecond() + ":"
+  //       + randomUUID;
 
-    return result;
-  }
+  //   // encrypt the refresh token
+  //   refreshToken = passwordUtil.encrypt(refreshToken);
 
-  public void logout() {
-    tokenRegistry.remove(securityContext.getSubject());
-    tokenRepository.deleteToken(securityContext.getSubject());
-  }
+  //   result.put("refresh_token", refreshToken);
+  //   result.put("refresh_token_expires_in", refreshTokenExpirationSec);
 
-  public void triggerResetPassword(String email, String resetLink, BiConsumer<String, User> resetLinkSender) {
-    E user = null;
-    try {
-      user = getByUniqueLabelUnsecureOrReturnNull(email);
-    } catch (Exception e) {
-      // user not found, do nothing
-      return;
-    }
+  //   user.setRefreshToken(randomUUID);
+  //   updateUnsecure(user);
 
-    if (user == null)
-      return;
-    var resetToken = UUID.randomUUID().toString();
-    // generete JWT token that contains the reset token
-    var jwtToken = tokenService.newToken(Map.of("resetToken", resetToken, "email", email), 86400);
-    // update user attribute to store the reset token
-    user.setResetPasswordToken(resetToken);
-    updateUnsecure(user);
-    if (!resetLink.contains("?"))
-      resetLink += "?";
-    ;
-    resetLink += "resetToken=" + jwtToken;
-    resetLinkSender.accept(resetLink, user);
-  }
+  //   if (trusted != null && trusted) {
+  //     var noMfaExpirationSec = 86400 * 30; // 30 days
+  //     var noMfaClaims = new HashMap<String, Object>();
+  //     noMfaClaims.put("sub", sub);
+  //     noMfaClaims.put("aud", "mfa");
+  //     noMfaToken = tokenService.newToken(noMfaClaims, noMfaExpirationSec);
+  //     result.put("no_mfa_token", noMfaToken);
+  //     result.put("no_mfa_token_expires_in", noMfaExpirationSec);
+  //   }
+
+  //   return result;
+  // }
+
+  // public void logout() {
+  //   tokenRegistry.remove(securityContext.getSubject());
+  //   tokenRepository.deleteToken(securityContext.getSubject());
+  // }
+
+  // public void triggerResetPassword(String email, BiConsumer<String, User> resetLinkSender) {
+  //   var resetLink = mtacProperties.getResetPassword().getLink();
+  //   E user = null;
+  //   try {
+  //     user = getByUniqueLabelUnsecureOrReturnNull(email);
+  //   } catch (Exception e) {
+  //     // user not found, do nothing
+  //     return;
+  //   }
+
+  //   if (user == null)
+  //     return;
+  //   var resetToken = UUID.randomUUID().toString();
+  //   // generete JWT token that contains the reset token
+  //   var jwtToken = tokenService.newToken(Map.of("resetToken", resetToken, "email", email), 86400);
+  //   // update user attribute to store the reset token
+  //   user.setResetPasswordToken(resetToken);
+  //   updateUnsecure(user);
+  //   if (!resetLink.contains("?"))
+  //     resetLink += "?";
+  //   ;
+  //   resetLink += "resetToken=" + jwtToken;
+  //   resetLinkSender.accept(resetLink, user);
+  // }
 
   public Claims userinfo() {
     return userinfo(false);
@@ -409,6 +439,39 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
 
     return claims;
   }
+
+  // public void verifyResetToken(String resetToken) {
+  //   try {
+  //     tokenService.verify(resetToken);
+  //   } catch (Exception e) {
+  //     throw new BusinessException("INVALID_RESET_TOKEN", "Invalid or expired reset token");
+  //   }
+  // }
+
+  // @Transactional
+  // public void resetPassword(ResetPasswordRequest request) {
+  //   try {
+  //     var claims = tokenService.verify(request.getResetToken());
+  //     var email = claims.get("email", String.class);
+  //     var resetToken = claims.get("resetToken", String.class);
+  //     if (email == null || resetToken == null) {
+  //       throw new BusinessException("INVALID_RESET_TOKEN", "Invalid reset token");
+  //     }
+  //     var user = getByUniqueLabelUnsecureOrReturnNull(email);
+  //     if (user == null) {
+  //       throw new BusinessException("USER_NOT_FOUND", "User not found for the provided email");
+  //     }
+  //     if (user.getResetPasswordToken() == null || !user.getResetPasswordToken().equals(resetToken)) {
+  //       throw new BusinessException("INVALID_RESET_TOKEN", "Invalid reset token");
+  //     }
+  //     user.setPassword(passwordUtil.hash(request.getNewPassword()));
+  //     user.setResetPasswordToken(null);
+  //     updateUnsecure(user);
+
+  //   } catch (Exception e) {
+  //     throw new BusinessException("RESET_PASSWORD_FAILED", "Failed to reset password: " + e.getMessage());
+  //   }
+  // }
 
   protected void fillUserInfo(Claims claims, User user) {
   }
