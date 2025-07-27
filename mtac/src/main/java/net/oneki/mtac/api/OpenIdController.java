@@ -12,15 +12,19 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
+import org.springframework.web.util.WebUtils;
 
 import jakarta.annotation.PostConstruct;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import net.oneki.mtac.core.service.openid.ImpersonateService;
 import net.oneki.mtac.core.service.openid.MfaService;
 import net.oneki.mtac.core.service.openid.OpenIdService;
 import net.oneki.mtac.core.service.openid.ResetPasswordService;
 import net.oneki.mtac.core.service.security.PermissionService;
 import net.oneki.mtac.framework.service.JwtTokenService;
 import net.oneki.mtac.model.core.config.MtacProperties;
+import net.oneki.mtac.model.core.openid.ImpersonateUserRequest;
 import net.oneki.mtac.model.core.openid.JwksResponse;
 import net.oneki.mtac.model.core.openid.LoginRequest;
 import net.oneki.mtac.model.core.openid.ResetPasswordRequest;
@@ -41,6 +45,7 @@ public abstract class OpenIdController {
   protected DefaultUserService userService;
   protected RequestMappingHandlerMapping handlerMapping;
   protected MtacProperties mtacProperties;
+  protected ImpersonateService impersonateService;
 
   @PostConstruct
   public void init() throws NoSuchMethodException {
@@ -129,6 +134,26 @@ public abstract class OpenIdController {
             .build(),
         this,
         OpenIdController.class.getDeclaredMethod("resetPassword", ResetPasswordRequest.class));
+
+    // Impersonate user
+    handlerMapping.registerMapping(
+        RequestMappingInfo.paths(getApiBasePath() + "/login/impersonate")
+            .methods(RequestMethod.POST)
+            .consumes(MediaType.APPLICATION_JSON_VALUE)
+            .produces(MediaType.APPLICATION_JSON_VALUE)
+            .build(),
+        this,
+        OpenIdController.class.getDeclaredMethod("impersonate", ImpersonateUserRequest.class));
+
+    // Exit impersonation
+    handlerMapping.registerMapping(
+        RequestMappingInfo.paths(getApiBasePath() + "/login/exit-impersonation")
+            .methods(RequestMethod.POST)
+            .consumes(MediaType.APPLICATION_JSON_VALUE)
+            .produces(MediaType.APPLICATION_JSON_VALUE)
+            .build(),
+        this,
+        OpenIdController.class.getDeclaredMethod("exitImpersonation", HttpServletRequest.class));
   }
 
   public ResponseEntity<TokenResponse> auth(@RequestBody LoginRequest request) throws Exception {
@@ -136,7 +161,7 @@ public abstract class OpenIdController {
     var tokenLocation = mtacProperties.getIam().getTokenLocation();
     var httpHeaders = new HttpHeaders();
     if ("cookie".equals(tokenLocation)) {
-      var cookieName = mtacProperties.getIam().getCookieName();
+      var cookieName = mtacProperties.getIam().getAccessTokenCookieName();
       httpHeaders.add("Set-Cookie",
           cookieName + "=" + result.getAccessToken() + "; Path=/; SameSite=Strict; httpOnly");
     }
@@ -160,7 +185,7 @@ public abstract class OpenIdController {
     var tokenLocation = mtacProperties.getIam().getTokenLocation();
     var httpHeaders = new HttpHeaders();
     if ("cookie".equals(tokenLocation)) {
-      var cookieName = mtacProperties.getIam().getCookieName();
+      var cookieName = mtacProperties.getIam().getAccessTokenCookieName();
       httpHeaders.add("Set-Cookie",
           cookieName + "=" + result.getAccessToken() + "; Path=/; SameSite=Strict; httpOnly");
     }
@@ -196,7 +221,7 @@ public abstract class OpenIdController {
     var tokenLocation = mtacProperties.getIam().getTokenLocation();
     var httpHeaders = new HttpHeaders();
     if ("cookie".equals(tokenLocation)) {
-      var cookieName = mtacProperties.getIam().getCookieName();
+      var cookieName = mtacProperties.getIam().getAccessTokenCookieName();
       httpHeaders.add("Set-Cookie",
           cookieName + "=" + result.getAccessToken() + "; Path=/; SameSite=Strict; httpOnly");
     }
@@ -214,6 +239,33 @@ public abstract class OpenIdController {
 
   public void resetPassword(@RequestBody ResetPasswordRequest request) {
     getResetPasswordService().resetPassword(request);
+  }
+
+  public ResponseEntity<?> impersonate(@RequestBody ImpersonateUserRequest request) {
+    var result = getImpersonateService().impersonateUser(request);
+    var cookieName = mtacProperties.getIam().getAccessTokenCookieName();
+    var httpHeaders = new HttpHeaders();
+    httpHeaders.add("Set-Cookie", cookieName + "=" + result.getAccessToken() + "; Path=/; SameSite=Strict; httpOnly");
+    httpHeaders.add("Set-Cookie",
+        "fuzz.imptoken=" + result.getOriginalAccessToken() + "; Path=/; SameSite=Strict; httpOnly");
+
+    // redirect the user to the home page via a 302 response
+    return ResponseEntity.ok().headers(httpHeaders).body(result);
+  }
+
+  public ResponseEntity<?> exitImpersonation(HttpServletRequest request) {
+    var impTokenCookie = WebUtils.getCookie(request, mtacProperties.getIam().getImpersonateTokenCookieName());
+    if (impTokenCookie == null) {
+      return ResponseEntity.badRequest().body("No impersonation token found");
+    }
+    var impToken = impTokenCookie.getValue();
+    var httpHeaders = new HttpHeaders();
+    httpHeaders.add("Set-Cookie",
+        mtacProperties.getIam().getAccessTokenCookieName() + "=" + impToken + "; Path=/; SameSite=Strict; httpOnly");
+    httpHeaders.add("Set-Cookie",
+        mtacProperties.getIam().getImpersonateTokenCookieName()
+            + "=deleted; Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict; httpOnly");
+    return ResponseEntity.ok().headers(httpHeaders).build();
   }
 
   // @PostMapping(value = "/v1/totp/mail")
@@ -260,10 +312,19 @@ public abstract class OpenIdController {
     this.handlerMapping = handlerMapping;
   }
 
+  @Autowired
+  public void setImpersonateService(ImpersonateService impersonateService) {
+    this.impersonateService = impersonateService;
+  }
+
   protected void cleanCookies(HttpHeaders httpHeaders) {
-    var cookieName = mtacProperties.getIam().getCookieName();
+    var cookieName = mtacProperties.getIam().getAccessTokenCookieName();
     httpHeaders.add("Set-Cookie",
         cookieName + "=deleted; Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict; httpOnly");
+    httpHeaders.add("Set-Cookie",
+        mtacProperties.getIam().getImpersonateTokenCookieName()
+            + "=deleted; Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict; httpOnly");
+    httpHeaders.add("Set-Cookie", mtacProperties.getIam().getImpersonateActiveCookieName() + "=deleted; Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict");
   }
 
   protected abstract UserService<?, ?> getUserService();
@@ -282,5 +343,9 @@ public abstract class OpenIdController {
 
   protected String getApiBasePath() {
     return mtacProperties.getApiBasePath();
+  }
+
+  protected ImpersonateService getImpersonateService() {
+    return impersonateService;
   }
 }

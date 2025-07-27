@@ -35,6 +35,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import net.oneki.mtac.framework.cache.TokenRegistry;
 import net.oneki.mtac.framework.repository.TokenRepository;
+import net.oneki.mtac.model.core.config.MtacProperties;
 import net.oneki.mtac.model.core.util.json.JsonUtil;
 import net.oneki.mtac.model.core.util.security.DefaultJwtAuthoritiesExtractor;
 import net.oneki.mtac.model.core.util.security.JwtAuthoritiesExtractor;
@@ -69,14 +70,14 @@ public abstract class BaseResourceServerConfig {
     protected TokenRepository tokenRepository;
 
     @Bean
-    public BearerTokenResolver bearerTokenResolver(@Value("${mtac.iam.token-location:header}") String tokenLocation,
-            @Value("${mtac.iam.cookie-name:mtac.token}") String cookieName) {
-        return new BearerTokenResolver(tokenLocation, cookieName);
+    public BearerTokenResolver bearerTokenResolver(MtacProperties mtacProperties) {
+                var config = mtacProperties.getIam();
+        return new BearerTokenResolver(config.getTokenLocation(), config.getAccessTokenCookieName());
     }
 
     @Bean
     @Order(SecurityProperties.BASIC_AUTH_ORDER)
-    public SecurityFilterChain filterChain(HttpSecurity http, UserService userService,
+    public SecurityFilterChain filterChain(HttpSecurity http, UserService<?,?> userService,
             BearerTokenResolver bearerTokenResolver) throws Exception {
         http.exceptionHandling(c -> {
             c.accessDeniedHandler((request, response, accessDeniedException) -> {

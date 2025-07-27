@@ -32,14 +32,17 @@ public class MtacProperties {
     private MtacOpenIdServer server = new MtacOpenIdServer();
   }
 
-  @Data static class MtacOpenIdServer {
+  @Data
+  static class MtacOpenIdServer {
     private boolean enabled = false;
   }
 
   @Data
   public static class MtacIam {
     private String tokenLocation = "header";
-    private String cookieName = "mtac";
+    private String accessTokenCookieName = "mtac";
+    private String impersonateTokenCookieName = "mtac_impersonate";
+    private String impersonateActiveCookieName = "mtac_impersonate_active";
     private MtacIamTenantsInIdtoken tenantsInIdtoken = new MtacIamTenantsInIdtoken();
   }
 
