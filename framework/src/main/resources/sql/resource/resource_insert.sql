@@ -5,6 +5,7 @@ INSERT INTO "resource" (
   schema_id,
   created_by,
   updated_by,
+  resource_type,
   content
 )
 VALUES(
@@ -14,5 +15,6 @@ VALUES(
   :schemaId,
   :createdBy,
   :updatedBy,
+  :resourceType,
   to_json(:content::JSON)
 );

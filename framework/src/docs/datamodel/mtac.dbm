@@ -4,7 +4,7 @@ CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
 <dbmodel pgmodeler-ver="1.1.0" use-changelog="false" max-obj-count="52"
-	 last-position="0,141" last-zoom="1" scene-rect="-80,-40.5,1707.33,2074.22"
+	 last-position="0,264" last-zoom="1" scene-rect="-80,-40.5,1707.33,2074.22"
 	 default-owner="postgres"
 	 layers="Default"
 	 active-layers="0"
@@ -772,21 +772,21 @@ END;]]> </definition>
     --------------------------------------------
     -- Manage resource type
     -------------------------------------------- 
-    UPDATE resource SET "type" = (
-	  SELECT (
-		CASE 
-		  WHEN s.label LIKE 'service.%' THEN 1 
-		  WHEN s.label LIKE 'tenant.%' THEN 2 
-		  WHEN s.label LIKE 'provider.%' THEN 3 
-		  WHEN s.label LIKE 'blueprint.%' THEN 5 
-		  WHEN s.label = 'schema' THEN 6 
-          WHEN s.label LIKE 'request.%' THEN 10 
-		  ELSE 4 
-		END	
-	  ) 
-	  FROM resource r, resource s
-	  WHERE r.id = NEW.id AND r.schema_id = s.id
-    ) WHERE id = NEW.id;
+    -- UPDATE resource SET "type" = (
+	  -- SELECT (
+		-- CASE 
+		--   WHEN s.label LIKE 'service.%' THEN 1 
+		--   WHEN s.label LIKE 'tenant.%' THEN 2 
+		--   WHEN s.label LIKE 'provider.%' THEN 3 
+		--   WHEN s.label LIKE 'blueprint.%' THEN 5 
+		--   WHEN s.label = 'schema' THEN 6 
+    --       WHEN s.label LIKE 'request.%' THEN 10 
+		--   ELSE 4 
+		-- END	
+	  -- ) 
+	  -- FROM resource r, resource s
+	  -- WHERE r.id = NEW.id AND r.schema_id = s.id
+    -- ) WHERE id = NEW.id;
 
     --------------------------------------------
     -- Add entry in audit log
@@ -1426,7 +1426,7 @@ END;
 	<column name="schema_id">
 		<type name="integer" length="0"/>
 	</column>
-	<column name="type" default-value="4">
+	<column name="resource_type" default-value="4">
 		<type name="smallint" length="0"/>
 	</column>
 	<column name="content">
@@ -1950,7 +1950,7 @@ A role contains another role if he have at least
 	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
 	 index-type="btree" factor="0">
 		<idxelement use-sorting="false">
-			<column name="type"/>
+			<column name="resource_type"/>
 		</idxelement>
 		<idxelement use-sorting="false">
 			<column name="label"/>
@@ -2823,9 +2823,9 @@ END;]]> </definition>
 	 dst-table="public.resource" reference-fk="resource_link_fk"
 	 src-required="false" dst-required="false">
 	<line>
-		<position x="754.95" y="579.575"/>
-	<position x="754.95" y="447"/>
-	<position x="614.633" y="447"/>
+		<position x="770.95" y="579.575"/>
+	<position x="770.95" y="447"/>
+	<position x="625.3" y="447"/>
 	</line>
 </relationship>
 
@@ -2834,9 +2834,9 @@ END;]]> </definition>
 	 dst-table="public.resource" reference-fk="resource_tenant_fk"
 	 src-required="false" dst-required="false">
 	<line>
-		<position x="778.848" y="603.473"/>
-	<position x="778.848" y="423.102"/>
-	<position x="590.735" y="423.102"/>
+		<position x="794.848" y="603.473"/>
+	<position x="794.848" y="423.102"/>
+	<position x="601.402" y="423.102"/>
 	</line>
 </relationship>
 
@@ -2845,9 +2845,9 @@ END;]]> </definition>
 	 dst-table="public.resource" reference-fk="resource_schema_fk"
 	 src-required="false" dst-required="false">
 	<line>
-		<position x="802.746" y="627.371"/>
-	<position x="802.746" y="399.204"/>
-	<position x="566.837" y="399.204"/>
+		<position x="818.746" y="627.371"/>
+	<position x="818.746" y="399.204"/>
+	<position x="577.504" y="399.204"/>
 	</line>
 </relationship>
 

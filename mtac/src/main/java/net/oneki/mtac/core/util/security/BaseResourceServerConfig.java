@@ -4,21 +4,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.security.SecurityProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.annotation.Order;
-import org.springframework.core.task.TaskExecutor;
 import org.springframework.http.HttpStatus;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.task.DelegatingSecurityContextAsyncTaskExecutor;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
@@ -29,7 +24,6 @@ import org.springframework.security.web.util.matcher.RequestMatcher;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -38,10 +32,10 @@ import net.oneki.mtac.framework.repository.TokenRepository;
 import net.oneki.mtac.model.core.config.MtacProperties;
 import net.oneki.mtac.model.core.util.json.JsonUtil;
 import net.oneki.mtac.model.core.util.security.DefaultJwtAuthoritiesExtractor;
+import net.oneki.mtac.model.core.util.security.DefaultJwtAuthoritiesExtractor.AuthorityKey;
 import net.oneki.mtac.model.core.util.security.JwtAuthoritiesExtractor;
 import net.oneki.mtac.model.core.util.security.SecurityContext;
 import net.oneki.mtac.resource.iam.identity.user.UserService;
-import net.oneki.mtac.model.core.util.security.DefaultJwtAuthoritiesExtractor.AuthorityKey;
 
 /**
  * BaseResourceServerConfig Expecting this config spring: security: oauth2:

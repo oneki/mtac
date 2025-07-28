@@ -12,11 +12,13 @@ import net.oneki.mtac.core.service.RelationService;
 import net.oneki.mtac.core.service.security.PermissionService;
 import net.oneki.mtac.framework.cache.ResourceRegistry;
 import net.oneki.mtac.framework.introspect.ResourceField;
+import net.oneki.mtac.framework.query.FilterCriteria;
 import net.oneki.mtac.framework.query.Query;
 import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.framework.service.MapperService;
 import net.oneki.mtac.framework.util.resource.R;
 import net.oneki.mtac.model.core.framework.Urn;
+import net.oneki.mtac.model.core.resource.SearchDto;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
 import net.oneki.mtac.model.core.util.exception.ForbiddenException;
 import net.oneki.mtac.model.core.util.exception.NotFoundException;
@@ -24,6 +26,7 @@ import net.oneki.mtac.model.core.util.security.SecurityContext;
 import net.oneki.mtac.model.framework.Page;
 import net.oneki.mtac.model.resource.LinkType;
 import net.oneki.mtac.model.resource.Resource;
+import net.oneki.mtac.model.resource.Tenant;
 import net.oneki.mtac.model.resource.UpsertRequest;
 
 @RequiredArgsConstructor
@@ -573,6 +576,40 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
         }
         return Page.<E>builder()
                 .data(resources)
+                .limit(query.getLimit())
+                .offset(query.getOffset())
+                .hasNext(query.getLimit() != null && resources.size() >= query.getLimit())
+                .build();
+    }
+
+    public Page<SearchDto> search(Query query) {
+        // Add a filter to remove resources with type >= 1000
+        query.getFilter().addCriteria(FilterCriteria.builder()
+                .field("resource_type")
+                .operator(FilterCriteria.Operator.LESSER)
+                .value("1000")
+                .build());
+        query.getFilter().addCriteria(FilterCriteria.builder()
+                .field("link_type")
+                .operator(FilterCriteria.Operator.EQUALS)
+                .value("0")
+                .build());                
+        var resources = resourceRepository.search(query);
+
+        // map resources to List of searchDto
+        var dtos = resources.stream()
+                .map(resource -> SearchDto.builder()
+                        .uid(resource.getUid())
+                        .label(resource.getLabel())
+                        .resourceType(resource.getResourceType())
+                        .tenantUid(resource.getTenantId() != null ? Resource.toUid(resource.getTenantId()) : null)
+                        .tenantLabel(resource.getTenantLabel())
+                        .schema(resource.getSchemaLabel())
+                        .build())
+                .toList();
+
+        return Page.<SearchDto>builder()
+                .data(dtos)
                 .limit(query.getLimit())
                 .offset(query.getOffset())
                 .hasNext(query.getLimit() != null && resources.size() >= query.getLimit())

@@ -18,6 +18,7 @@ import net.oneki.mtac.model.resource.Resource;
 @RequiredArgsConstructor
 public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
     private final JsonEntityMapper jsonEntityMapper;
+    private Boolean hasContent;
 
     @SuppressWarnings("unchecked")
     public T mapRow(ResultSet rs, int rowNum) throws SQLException {
@@ -25,14 +26,23 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
         var schemaLabel = ResourceRegistry.getSchemaById(rs.getInt("schema_id")).getLabel();
         var clazz = (Class<T>) ResourceRegistry.getClassBySchema(schemaLabel);
         var id = rs.getInt("id");
-        if (rs.getInt("link_id") == 0) {
-            json = rs.getString("content");
-        } else if (rs.getInt("link_type") == LinkType.Ref.ordinal()) {
-                json = "{}";
+        T resource = null;
+        if (hasContentColumn(rs)) {
+            if (rs.getInt("link_id") == 0) {
+                json = rs.getString("content");
+            } else if (rs.getInt("link_type") == LinkType.Ref.ordinal()) {
+                    json = "{}";
+            } else {
+                json = rs.getString("link_content");
+            }
+            resource = jsonEntityMapper.json2Object(json, clazz);
         } else {
-            json = rs.getString("link_content");
+            try {
+                resource = clazz.getDeclaredConstructor().newInstance();
+            } catch (Exception e) {
+                throw new SQLException("Error instantiating resource class: " + clazz.getName(), e);
+            }
         }
-        var resource = jsonEntityMapper.json2Object(json, clazz);
         // var relationFields = ResourceRegistry.getRelations(clazz);
         // for (var relationField : relationFields) {
         //     relationField.getField().setAccessible(true);
@@ -107,6 +117,10 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
                 columnName = isLink ? "link_pub" : "pub";
                 resource.setPub(rs.getBoolean(columnName));
                 break;
+            case "resource_type":
+                columnName = isLink ? "link_resource_type" : "resource_type";
+                resource.setResourceType(rs.getInt(columnName));
+                break;                 
             case "created_at":
                 columnName = isLink ? "link_created_at" : "created_at";
                 resource.setCreatedAt(
@@ -217,5 +231,21 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
             default:
                 break;
         }
+    }
+
+    private boolean hasContentColumn(ResultSet rs) throws SQLException {
+        if (hasContent != null) {
+            return hasContent;
+        }
+        ResultSetMetaData rsmd = rs.getMetaData();
+        for (int col = 1; col <= rsmd.getColumnCount(); col++) {
+            String columnName = rsmd.getColumnName(col);
+            if (columnName.equals("content") || columnName.equals("link_content")) {
+                hasContent = true;
+                return true;
+            }
+        }
+        hasContent = false;
+        return false;
     }
 }

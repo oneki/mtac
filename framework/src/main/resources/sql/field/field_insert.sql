@@ -1,6 +1,6 @@
 INSERT INTO "field" (
   label,
-  "type",
+  resource_type,
   "owner",
   peer_id,
   multiple,
@@ -14,7 +14,7 @@ INSERT INTO "field" (
 )
 VALUES(
   :label,
-  :type,
+  :resourceType,
   :owner,
   :peerId,
   :multiple,

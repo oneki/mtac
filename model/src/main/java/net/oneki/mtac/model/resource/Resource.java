@@ -19,7 +19,6 @@ import net.oneki.mtac.model.core.resource.HasLabel;
 import net.oneki.mtac.model.core.resource.Ref;
 import net.oneki.mtac.model.core.security.Acl;
 import net.oneki.mtac.model.core.util.exception.UnexpectedException;
-import net.oneki.mtac.model.resource.schema.Schema;
 
 @Data
 @AllArgsConstructor
@@ -75,6 +74,8 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 
 	@JsonIgnore
 	protected LinkType linkType;
+
+	protected Integer resourceType = ResourceType.INTERNAL_RESOURCE;
 
 	/*
 	 * The datetime at which the resource was created

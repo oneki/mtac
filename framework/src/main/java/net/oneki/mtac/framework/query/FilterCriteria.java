@@ -198,6 +198,7 @@ public class FilterCriteria {
     Set<String> dateFields = Set.of("created_at", "updated_at");
     // We support only a subset of operators for dates
     Set<Operator> dateOperators = Set.of(Operator.IN, Operator.GREATER, Operator.GREATER_OR_EQUALS, Operator.LESSER, Operator.LESSER_OR_EQUALS, Operator.EQUALS);
+    Set<Operator> numberOperators = Set.of(Operator.GREATER, Operator.GREATER_OR_EQUALS, Operator.LESSER, Operator.LESSER_OR_EQUALS);
     if (operator == Operator.IN) {
       // if the operator is IN, we convert ids to integer because ids are sometimes used for joining tables
       // We convert dates to ISO format to be compliant with values stored in postgres
@@ -239,6 +240,16 @@ public class FilterCriteria {
       return "%" + value;
     }
 
+    if (numberOperators.contains(operator)) {
+      // If the operator is a number operator, we convert the value to an integer
+      String k = field.substring(field.lastIndexOf('.') + 1);
+      try {
+        return Integer.parseInt(value);
+      } catch (NumberFormatException e) {
+        return Double.parseDouble(value);
+      }
+    }
+
     if (operator == Operator.EQUALS) {
       switch (value.toLowerCase()) {
         case "true":
@@ -249,7 +260,7 @@ public class FilterCriteria {
         default:
           // the value is always converted ton a string exception if it's the id (which is converted to an integer)
           String k = field.substring(field.lastIndexOf('.') + 1);
-          if (k.equals("id")) {
+          if (k.equals("id") || k.equals("link_type")) {
             try {
               return Integer.parseInt(value.toString());
             } catch (NumberFormatException e) {}
