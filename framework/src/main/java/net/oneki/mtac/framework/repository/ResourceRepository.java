@@ -86,7 +86,7 @@ public class ResourceRepository extends AbstractRepository {
                 "linkType", linkType.ordinal(),
                 "tenantId", targetTenantId,
                 "schemaId", source.getSchemaId(),
-                "type", source.getResourceType() != null ? source.getResourceType() : ResourceType.INTERNAL_RESOURCE,
+                "resourceType", source.getResourceType() != null ? source.getResourceType() : ResourceType.INTERNAL_RESOURCE,
                 "createdBy", createdBy);
         jdbcTemplate.update(sql, new MapSqlParameterSource(parameters), keyHolder);
         if (keyHolder.getKeyList() != null && keyHolder.getKeyList().size() > 0) {
@@ -610,7 +610,7 @@ public class ResourceRepository extends AbstractRepository {
                 .replace("\"<placeholder for dynamic temporary tables />\"", temporaryTablesSql);
 
 
-        log.info(SqlUtils.formatSqlQuery(sql, args));
+        log.debug(SqlUtils.formatSqlQuery(sql, args));
         var resources = jdbcTemplate.query(sql, args, new ResourceRowMapper<T>(jsonEntityMapper));
 
         return resources;

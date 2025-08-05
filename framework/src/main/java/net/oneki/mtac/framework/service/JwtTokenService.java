@@ -54,10 +54,13 @@ public class JwtTokenService implements Clock {
 	}
 
 	public String generateAccessToken(String sub, String username) {
-		return generateAccessToken(sub, username, null);
+		return generateAccessToken(sub, username, null, null);
 	}
 
-	public String generateAccessToken(String sub, String username, Map<String, Object> additionalClaims) {
+	public String generateAccessToken(String sub, String username, Integer expirationSec, Map<String, Object> additionalClaims) {
+		if (expirationSec == null) {
+			expirationSec = mtacProperties.getJwt().getExpirationSec();
+		}
 		var claims = new Claims();
 		claims.put("jti", UUID.randomUUID().toString());
 		claims.put("sub", sub);
@@ -67,7 +70,7 @@ public class JwtTokenService implements Clock {
 		if (additionalClaims != null) {
 			claims.putAll(additionalClaims);
 		}
-		return newToken(claims, mtacProperties.getJwt().getExpirationSec());
+		return newToken(claims, expirationSec);
 	}
 
 	// id token

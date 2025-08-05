@@ -10,12 +10,14 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 import net.oneki.mtac.model.core.framework.HasSchema;
 import net.oneki.mtac.model.core.resource.HasId;
 import net.oneki.mtac.model.core.resource.HasLabel;
+import net.oneki.mtac.model.core.resource.HasUid;
 import net.oneki.mtac.model.core.resource.Ref;
 import net.oneki.mtac.model.core.security.Acl;
 import net.oneki.mtac.model.core.util.exception.UnexpectedException;
@@ -24,7 +26,7 @@ import net.oneki.mtac.model.core.util.exception.UnexpectedException;
 @AllArgsConstructor
 @NoArgsConstructor
 @SuperBuilder(toBuilder = true)
-public abstract class Resource implements HasLabel, HasId, HasSchema {
+public abstract class Resource implements HasLabel, HasId, HasUid, HasSchema {
 	public static Sqids sqids; // short UID generator from Integer (7 chars length)
 	/*
 	 * Internal id of the resource. Auto generated during the first insertion in the
@@ -75,6 +77,7 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 	@JsonIgnore
 	protected LinkType linkType;
 
+	@Builder.Default
 	protected Integer resourceType = ResourceType.INTERNAL_RESOURCE;
 
 	/*
@@ -140,6 +143,17 @@ public abstract class Resource implements HasLabel, HasId, HasSchema {
 	}
 
 	public static String toUid(Integer id) {
+		if (sqids == null) {
+			throw new UnexpectedException("SQIDS_NOT_INITIALIZED",
+					"Sqids is not initialized. Please call initSqids() before using this method.");
+		}
+		if (id == null) {
+			return null;
+		}
+		return sqids.encode(Arrays.asList(Long.valueOf(id)));
+	}
+
+		public static String toUid(Long id) {
 		if (sqids == null) {
 			throw new UnexpectedException("SQIDS_NOT_INITIALIZED",
 					"Sqids is not initialized. Please call initSqids() before using this method.");

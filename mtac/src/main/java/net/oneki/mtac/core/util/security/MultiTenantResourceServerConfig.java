@@ -13,13 +13,13 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
+import net.oneki.mtac.core.service.openid.OpenIdService;
 import net.oneki.mtac.core.util.security.JwtIssuerAuthenticationManagerResolver.JwtClaimIssuerConverter;
 import net.oneki.mtac.framework.cache.TokenRegistry;
 import net.oneki.mtac.framework.config.IssuerConfig.IssuersProperties;
 import net.oneki.mtac.framework.config.IssuerConfig.IssuersProperties.IssuerProperties;
 import net.oneki.mtac.framework.repository.TokenRepository;
 import net.oneki.mtac.model.core.util.security.JwtAuthoritiesExtractor;
-import net.oneki.mtac.resource.iam.identity.user.UserService;
 
 public abstract class MultiTenantResourceServerConfig extends BaseResourceServerConfig {
     @Autowired
@@ -28,11 +28,11 @@ public abstract class MultiTenantResourceServerConfig extends BaseResourceServer
     @Autowired
     private ApplicationContext appContext;
 
-    protected void resourceServer(final HttpSecurity http, UserService userService,
+    protected void resourceServer(final HttpSecurity http, OpenIdService openIdService,
             BearerTokenResolver bearerTokenResolver) throws Exception {
         var trustedIssuerJwtAuthenticationManagerResolver = new TrustedIssuerJwtAuthenticationManagerResolver(
                 issuersProperties, getJwtAuthoritiesExtractor(),
-                appContext, tokenRegistry, tokenRepository, userService);
+                appContext, tokenRegistry, tokenRepository, openIdService);
         var issuerConverter = new JwtClaimIssuerConverter(bearerTokenResolver);
 
         JwtIssuerAuthenticationManagerResolver resolver = new JwtIssuerAuthenticationManagerResolver(
@@ -56,15 +56,15 @@ public abstract class MultiTenantResourceServerConfig extends BaseResourceServer
         private final ApplicationContext appContext;
         private final TokenRegistry tokenRegistry;
         private final TokenRepository tokenRepository;
-        private final UserService userService;
+        private final OpenIdService openIdService;
 
         public TrustedIssuerJwtAuthenticationManagerResolver(IssuersProperties issuersProperties,
                 JwtAuthoritiesExtractor jwtAuthoritiesExtractor, ApplicationContext appContext,
                 TokenRegistry tokenRegistry, TokenRepository tokenRepository,
-                UserService userService) {
+                OpenIdService openIdService) {
             this.tokenRegistry = tokenRegistry;
             this.tokenRepository = tokenRepository;
-            this.userService = userService;
+            this.openIdService = openIdService;
             this.trustedIssuers = new HashMap<>();
             if (issuersProperties != null) {
                 Map<String, IssuerProperties> trustedIssuers = issuersProperties.getTrustedIssuers();
@@ -91,7 +91,7 @@ public abstract class MultiTenantResourceServerConfig extends BaseResourceServer
                 }
                 return this.authenticationManagers.computeIfAbsent(issuer,
                         k -> new JwtAuthenticationManager(jwtAuthoritiesExtractor, jwtDecoder, tokenRegistry,
-                                tokenRepository, userService));
+                                tokenRepository, openIdService));
             }
             return null;
         }

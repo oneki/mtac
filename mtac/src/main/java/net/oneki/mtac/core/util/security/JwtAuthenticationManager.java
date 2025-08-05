@@ -2,7 +2,6 @@ package net.oneki.mtac.core.util.security;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Date;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -20,18 +19,13 @@ import org.springframework.security.oauth2.server.resource.BearerTokenError;
 import org.springframework.security.oauth2.server.resource.BearerTokenErrorCodes;
 import org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthenticationToken;
 
-import com.nimbusds.jwt.JWTParser;
-import com.nimbusds.jwt.SignedJWT;
-
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import net.oneki.mtac.core.service.openid.OpenIdService;
 import net.oneki.mtac.framework.cache.TokenRegistry;
 import net.oneki.mtac.framework.repository.TokenRepository;
-import net.oneki.mtac.model.core.util.exception.UnauthenticatedException;
 import net.oneki.mtac.model.core.util.security.DefaultOAuth2User;
 import net.oneki.mtac.model.core.util.security.JwtAuthoritiesExtractor;
-import net.oneki.mtac.resource.iam.identity.user.DefaultUserService;
 import net.oneki.mtac.resource.iam.identity.user.UserService;
 
 /**
@@ -44,7 +38,7 @@ public class JwtAuthenticationManager implements AuthenticationManager {
 	private final JwtDecoder jwtDecoder;
 	private final TokenRegistry tokenRegistry;
 	private final TokenRepository tokenRepository;
-	private final UserService userService;
+	private final OpenIdService openIdService;
 	private String nameAttributeKey = "username";
 	private String authorizedClientRegistrationId = "default";
 
@@ -78,7 +72,7 @@ public class JwtAuthenticationManager implements AuthenticationManager {
 			if (sub == null) {
 				throw new JwtException("Missing claim 'sub' in JWT token");
 			}
-			var claims = userService.userinfo(sub, false);
+			var claims = openIdService.userinfo(sub, false);
 			Collection<GrantedAuthority> authorities = new ArrayList<>(); // TODO
 
 			OAuth2User principal = new DefaultOAuth2User(authorities, claims, nameAttributeKey, accessToken, tokenRefreshed);

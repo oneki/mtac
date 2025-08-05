@@ -10,11 +10,10 @@ import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
 import net.oneki.mtac.model.resource.Tenant;
 import net.oneki.mtac.model.resource.UpsertRequest;
-import net.oneki.mtac.resource.ResourceService;
 
 @Service
 @RequiredArgsConstructor
-public class DefaultTenantService extends ResourceService<UpsertRequest, Tenant> {
+public class DefaultTenantService extends TenantService<UpsertRequest, Tenant> {
     private final ResourceRepository resourceRepository;
 
     public void deleteTenant(Integer tenantId) {

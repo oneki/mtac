@@ -81,6 +81,13 @@
       </dependency>
     </dependencies>
   </dependencyManagement>
+  <distributionManagement>
+    <repository>
+      <id>github</id>
+      <name>brunofranki</name>
+      <url>https://maven.pkg.github.com/oneki/mtac</url>
+    </repository>
+  </distributionManagement>
   <build>
     <plugins>
       <plugin>

@@ -1,4 +1,4 @@
-package net.oneki.mtac.resource.iam.identity.user;
+package net.oneki.mtac.resource.iam.identity.application;
 
 import java.time.Instant;
 import java.util.Set;
@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import net.oneki.mtac.framework.cache.TokenRegistry;
 import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.framework.repository.TokenRepository;
@@ -20,19 +19,18 @@ import net.oneki.mtac.model.core.util.exception.BusinessException;
 import net.oneki.mtac.model.core.util.security.Claims;
 import net.oneki.mtac.model.core.util.security.SecurityContext;
 import net.oneki.mtac.model.resource.Resource;
+import net.oneki.mtac.model.resource.iam.identity.application.Application;
+import net.oneki.mtac.model.resource.iam.identity.application.BaseApplicationUpsertRequest;
 import net.oneki.mtac.model.resource.iam.identity.group.Group;
-import net.oneki.mtac.model.resource.iam.identity.user.BaseUserUpsertRequest;
-import net.oneki.mtac.model.resource.iam.identity.user.User;
 import net.oneki.mtac.resource.ResourceService;
 import net.oneki.mtac.resource.iam.RoleRepository;
 import net.oneki.mtac.resource.iam.identity.group.GroupMembershipRepository;
 import net.oneki.mtac.resource.iam.identity.group.GroupRepository;
 import net.oneki.mtac.resource.tenant.DefaultTenantService;
 
-@Service("mtacUserService")
-@Slf4j
+@Service("mtacApplicationService")
 @RequiredArgsConstructor
-public abstract class UserService<U extends BaseUserUpsertRequest<? extends Group>, E extends User>
+public abstract class ApplicationService<U extends BaseApplicationUpsertRequest<? extends Group>, E extends Application>
     extends ResourceService<U, E> {
   // private final UserRepository userRepository;
   protected GroupMembershipRepository groupMembershipRepository;
@@ -121,7 +119,6 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
 
   
   public Claims userinfo() {
-    log.debug("Inside userinfo() method");
     return userinfo(false);
   }
 
@@ -130,133 +127,43 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
   }
 
   public Claims userinfo(String sub, boolean forceRefresh) {
-    log.debug("Inside userinfo() method, get from tokenRegistry for sub: {}", sub);
     var claims = tokenRegistry.get(sub);
-    log.debug("Claims from tokenRegistry: {}", claims);
     if (claims != null) {
       return claims;
     }
-    var user = getByUidUnsecure(sub);
-    return userinfo(user, forceRefresh);
+    var application = getByUidUnsecure(sub);
+    return userinfo(application, forceRefresh);
   }
 
-  public Claims userinfo(User user, boolean forceRefresh) {
-    return userinfo(user, false, forceRefresh);
+  public Claims userinfo(Application application, boolean forceRefresh) {
+    return userinfo(application, false, forceRefresh);
   }
 
-  public Claims userinfo(User user, boolean includeRoleName, boolean forceRefresh) {
-    var claims = tokenRegistry.get(user.getUid());
+  public Claims userinfo(Application application, boolean includeRoleName, boolean forceRefresh) {
+    var claims = tokenRegistry.get(application.getUid());
     if (claims != null) {
       return claims;
     } else {
       claims = new Claims();
     }
-    claims.put("sub", user.getUid());
-    claims.put("username", user.getLabel());
-    claims.put("email", user.getEmail());
-    claims.put("firstName", user.getFirstName());
-    claims.put("lastName", user.getLastName());
-    claims.putAll(tenantService.getTenantClaims(user, includeRoleName).asClaims());
+    claims.put("sub", application.getUid());
+    claims.put("username", application.getLabel());
+    claims.put("name", application.getName());
 
-    fillUserInfo(claims, user);
+    claims.putAll(tenantService.getTenantClaims(application, includeRoleName).asClaims());
 
+    fillUserInfo(claims, application);
     // store the token in the cache
-    tokenRegistry.put(user.getUid(), claims);
-    tokenRepository.upsertToken(user.getId(), user.getUid(), claims,
-        Instant.now().plusSeconds(accessTokenExpirationSec));
-    log.debug("User info claims stored in tokenRepository for user: {}", user.getUid());
+    tokenRegistry.put(application.getUid(), claims);
+    var expireAt = Instant.now().plusSeconds(application.getTokenExpiresIn() != null
+            ? application.getTokenExpiresIn() : accessTokenExpirationSec);
+    tokenRepository.upsertToken(application.getId(), application.getUid(), claims, expireAt);
+
     return claims;
   }
 
-  // public void verifyResetToken(String resetToken) {
-  //   try {
-  //     tokenService.verify(resetToken);
-  //   } catch (Exception e) {
-  //     throw new BusinessException("INVALID_RESET_TOKEN", "Invalid or expired reset token");
-  //   }
-  // }
-
-  // @Transactional
-  // public void resetPassword(ResetPasswordRequest request) {
-  //   try {
-  //     var claims = tokenService.verify(request.getResetToken());
-  //     var email = claims.get("email", String.class);
-  //     var resetToken = claims.get("resetToken", String.class);
-  //     if (email == null || resetToken == null) {
-  //       throw new BusinessException("INVALID_RESET_TOKEN", "Invalid reset token");
-  //     }
-  //     var user = getByUniqueLabelUnsecureOrReturnNull(email);
-  //     if (user == null) {
-  //       throw new BusinessException("USER_NOT_FOUND", "User not found for the provided email");
-  //     }
-  //     if (user.getResetPasswordToken() == null || !user.getResetPasswordToken().equals(resetToken)) {
-  //       throw new BusinessException("INVALID_RESET_TOKEN", "Invalid reset token");
-  //     }
-  //     user.setPassword(passwordUtil.hash(request.getNewPassword()));
-  //     user.setResetPasswordToken(null);
-  //     updateUnsecure(user);
-
-  //   } catch (Exception e) {
-  //     throw new BusinessException("RESET_PASSWORD_FAILED", "Failed to reset password: " + e.getMessage());
-  //   }
-  // }
-
-  protected void fillUserInfo(Claims claims, User user) {
+  protected void fillUserInfo(Claims claims, Application application) {
   }
-
-  // private void buildTenantRoleIndexes(TenantRole tenantRole, Map<String, RoleUserInfo> roleIndex,
-  //     Map<String, TenantUserInfo> tenantIndex, boolean includeRoleName) {
-  //   if (tenantRole != null) {
-  //     for (var role : tenantRole.getRoles()) {
-  //       var roleUserInfo = RoleUserInfo.builder()
-  //           .actions(role.getActions())
-  //           .schemas(role.getSchemas())
-  //           .build();
-  //       if (includeRoleName == true) {
-  //         roleUserInfo.setLabel(role.getName());
-  //       }
-  //       roleIndex.put(role.getUid(), roleUserInfo);
-  //     }
-  //     var tenant = tenantRole.getTenant();
-
-  //     var child = tenantIndex.get(tenant.getUid());
-  //     if (child != null) {
-  //       child.setRoles(tenantRole.getRoles().stream()
-  //           .map(role -> role.getUid())
-  //           .collect(Collectors.toSet()));
-  //     } else {
-  //       child = TenantUserInfo.builder()
-  //           .uid(tenant.getUid())
-  //           .label(tenant.getLabel())
-  //           .schemaLabel(tenant.getSchemaLabel())
-  //           .roles(tenantRole.getRoles().stream()
-  //               .map(role -> role.getUid())
-  //               .collect(Collectors.toSet()))
-  //           .build();
-  //       tenantIndex.put(tenant.getUid(), child);
-
-  //       var tenantId = tenant.getId();
-  //       var ancestorTenants = ResourceRegistry.getTenantAncestors(tenantId);
-
-  //       for (var ancestor : ancestorTenants) {
-  //         var parentTenantUserInfo = tenantIndex.get(ancestor.getUid());
-  //         if (parentTenantUserInfo != null) {
-  //           parentTenantUserInfo.getChildren().add(child);
-  //           break;
-  //         } else {
-  //           parentTenantUserInfo = TenantUserInfo.builder()
-  //               .uid(ancestor.getUid())
-  //               .label(ancestor.getLabel())
-  //               .schemaLabel(ancestor.getSchemaLabel())
-  //               .build();
-  //           parentTenantUserInfo.getChildren().add(child);
-  //           tenantIndex.put(ancestor.getUid(), parentTenantUserInfo);
-  //           child = parentTenantUserInfo;
-  //         }
-  //       }
-  //     }
-  //   }
-  // }
 
   public E create(U request) {
     var userEntity = toCreateEntity(request);

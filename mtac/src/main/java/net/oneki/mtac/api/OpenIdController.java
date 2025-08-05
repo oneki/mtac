@@ -24,6 +24,7 @@ import net.oneki.mtac.core.service.openid.ResetPasswordService;
 import net.oneki.mtac.core.service.security.PermissionService;
 import net.oneki.mtac.framework.service.JwtTokenService;
 import net.oneki.mtac.model.core.config.MtacProperties;
+import net.oneki.mtac.model.core.dto.SuccessErrorResponse;
 import net.oneki.mtac.model.core.openid.ImpersonateUserRequest;
 import net.oneki.mtac.model.core.openid.JwksResponse;
 import net.oneki.mtac.model.core.openid.LoginRequest;
@@ -157,15 +158,15 @@ public abstract class OpenIdController {
   }
 
   public ResponseEntity<TokenResponse> auth(@RequestBody LoginRequest request) throws Exception {
-    var result = getOpenIdService().login(request.getClient_id(), request.getClient_secret());
-    var tokenLocation = mtacProperties.getIam().getTokenLocation();
-    var httpHeaders = new HttpHeaders();
-    if ("cookie".equals(tokenLocation)) {
-      var cookieName = mtacProperties.getIam().getAccessTokenCookieName();
-      httpHeaders.add("Set-Cookie",
-          cookieName + "=" + result.getAccessToken() + "; Path=/; SameSite=Strict; httpOnly");
-    }
-    return ResponseEntity.ok().headers(httpHeaders).body(result);
+    var result = getOpenIdService().login(request.getClient_id(), request.getClient_secret(), false, false);
+    // var tokenLocation = mtacProperties.getIam().getTokenLocation();
+    // var httpHeaders = new HttpHeaders();
+    // if ("cookie".equals(tokenLocation)) {
+    //   var cookieName = mtacProperties.getIam().getAccessTokenCookieName();
+    //   httpHeaders.add("Set-Cookie",
+    //       cookieName + "=" + result.getAccessToken() + "; Path=/; SameSite=Strict; httpOnly");
+    // }
+    return ResponseEntity.ok().body(result);
   }
 
   public ResponseEntity<TokenResponse> auth(
@@ -178,19 +179,19 @@ public abstract class OpenIdController {
     if ("refresh_token".equals(grant_type)) {
       result = getOpenIdService().refreshToken(refresh_token);
     } else if ("client_credentials".equals(grant_type)) {
-      result = getOpenIdService().login(client_id, client_secret);
+      result = getOpenIdService().login(client_id, client_secret, false, false);
     } else {
       throw new IllegalArgumentException("Unsupported grant_type: " + grant_type);
     }
-    var tokenLocation = mtacProperties.getIam().getTokenLocation();
-    var httpHeaders = new HttpHeaders();
-    if ("cookie".equals(tokenLocation)) {
-      var cookieName = mtacProperties.getIam().getAccessTokenCookieName();
-      httpHeaders.add("Set-Cookie",
-          cookieName + "=" + result.getAccessToken() + "; Path=/; SameSite=Strict; httpOnly");
-    }
+    // var tokenLocation = mtacProperties.getIam().getTokenLocation();
+    // var httpHeaders = new HttpHeaders();
+    // if ("cookie".equals(tokenLocation)) {
+    //   var cookieName = mtacProperties.getIam().getAccessTokenCookieName();
+    //   httpHeaders.add("Set-Cookie",
+    //       cookieName + "=" + result.getAccessToken() + "; Path=/; SameSite=Strict; httpOnly");
+    // }
 
-    return ResponseEntity.ok().headers(httpHeaders).body(result);
+    return ResponseEntity.ok().body(result);
   }
 
   public Map<String, Object> userinfo() throws Exception {
@@ -233,8 +234,8 @@ public abstract class OpenIdController {
     getResetPasswordService().triggerResetPassword(request.getEmail());
   }
 
-  public void verifyResetPassword(@RequestParam("resetToken") String resetToken) {
-    getResetPasswordService().verifyResetToken(resetToken);
+  public SuccessErrorResponse verifyResetPassword(@RequestParam("resetToken") String resetToken) {
+    return getResetPasswordService().verifyResetToken(resetToken);
   }
 
   public void resetPassword(@RequestBody ResetPasswordRequest request) {

@@ -27,6 +27,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import net.oneki.mtac.core.service.openid.OpenIdService;
 import net.oneki.mtac.framework.cache.TokenRegistry;
 import net.oneki.mtac.framework.repository.TokenRepository;
 import net.oneki.mtac.model.core.config.MtacProperties;
@@ -71,7 +72,7 @@ public abstract class BaseResourceServerConfig {
 
     @Bean
     @Order(SecurityProperties.BASIC_AUTH_ORDER)
-    public SecurityFilterChain filterChain(HttpSecurity http, UserService<?,?> userService,
+    public SecurityFilterChain filterChain(HttpSecurity http, OpenIdService openIdService,
             BearerTokenResolver bearerTokenResolver) throws Exception {
         http.exceptionHandling(c -> {
             c.accessDeniedHandler((request, response, accessDeniedException) -> {
@@ -109,16 +110,16 @@ public abstract class BaseResourceServerConfig {
         // .frameOptions()
         // .sameOrigin();
 
-        resourceServer(http, userService, bearerTokenResolver);
+        resourceServer(http, openIdService, bearerTokenResolver);
         return http.build();
     }
 
-    protected void resourceServer(final HttpSecurity http, UserService userService,
+    protected void resourceServer(final HttpSecurity http, OpenIdService openIdService,
             BearerTokenResolver bearerTokenResolver) throws Exception {
         http.oauth2ResourceServer(o -> {
             o.bearerTokenResolver(bearerTokenResolver);
             o.jwt(j -> {
-                j.authenticationManager(getAuthenticationManager(userService));
+                j.authenticationManager(getAuthenticationManager(openIdService));
             });
         });
         // http.oauth2ResourceServer()
@@ -241,9 +242,9 @@ public abstract class BaseResourceServerConfig {
                 new AuthorityKey("groups", true));
     }
 
-    protected AuthenticationManager getAuthenticationManager(UserService userService) {
+    protected AuthenticationManager getAuthenticationManager(OpenIdService openIdService) {
         return new JwtAuthenticationManager(getJwtAuthoritiesExtractor(), jwtDecoder, tokenRegistry, tokenRepository,
-                userService);
+                openIdService);
     }
 
     protected List<RequestMatcher> getPublicMatchers() {

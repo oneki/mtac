@@ -13,6 +13,8 @@ import lombok.extern.slf4j.Slf4j;
 import net.oneki.mtac.framework.service.JwtTokenService;
 import net.oneki.mtac.framework.util.security.PasswordUtil;
 import net.oneki.mtac.model.core.config.MtacProperties;
+import net.oneki.mtac.model.core.dto.SuccessErrorResponse;
+import net.oneki.mtac.model.core.dto.SuccessErrorResponse.Status;
 import net.oneki.mtac.model.core.openid.ResetPasswordRequest;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
 import net.oneki.mtac.model.resource.iam.identity.user.User;
@@ -77,11 +79,19 @@ public class ResetPasswordService {
     resetLinkSender.accept(resetLink, user);
   }
 
-  public void verifyResetToken(String resetToken) {
+  public SuccessErrorResponse verifyResetToken(String resetToken) {
     try {
       tokenService.verify(resetToken);
+      return SuccessErrorResponse.builder()
+          .status(Status.Success)
+          .message("Reset token is valid")
+          .build();
     } catch (Exception e) {
-      throw new BusinessException("INVALID_RESET_TOKEN", "Invalid or expired reset token");
+      return SuccessErrorResponse.builder()
+          .status(Status.Error)
+          .errorCode("INVALID_RESET_TOKEN")
+          .message("Invalid reset token: " + e.getMessage())
+          .build();
     }
   }
 

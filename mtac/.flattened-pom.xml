@@ -6,7 +6,6 @@
     <groupId>net.oneki</groupId>
     <artifactId>mtac-parent</artifactId>
     <version>1.0.0-SNAPSHOT</version>
-    <relativePath></relativePath>
   </parent>
   <groupId>net.oneki</groupId>
   <artifactId>mtac</artifactId>
@@ -82,10 +81,6 @@
       <artifactId>spring-security-oauth2-client</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.postgresql</groupId>
-      <artifactId>postgresql</artifactId>
-    </dependency>
-    <dependency>
       <groupId>org.projectlombok</groupId>
       <artifactId>lombok</artifactId>
       <optional>true</optional>
@@ -109,6 +104,10 @@
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.jboss.aerogear</groupId>
+      <artifactId>aerogear-otp-java</artifactId>
     </dependency>
   </dependencies>
   <build>

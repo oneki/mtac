@@ -4,10 +4,6 @@
 -- Project Site: pgmodeler.io
 -- Model Author: ---
 
--- Database creation must be performed outside a multi lined SQL file. 
--- These commands were put in this file only as a convenience.
--- 
--- object: registry | type: DATABASE --
 
 -- Appended SQL commands --
 SELECT now();
@@ -779,21 +775,21 @@ BEGIN
     --------------------------------------------
     -- Manage resource type
     -------------------------------------------- 
-    -- UPDATE resource SET "type" = (
-	  -- SELECT (
-		-- CASE 
-		--   WHEN s.label LIKE 'service.%' THEN 1 
-		--   WHEN s.label LIKE 'tenant.%' THEN 2 
-		--   WHEN s.label LIKE 'provider.%' THEN 3 
-		--   WHEN s.label LIKE 'blueprint.%' THEN 5 
-		--   WHEN s.label = 'schema' THEN 6 
-    --       WHEN s.label LIKE 'request.%' THEN 10 
-		--   ELSE 4 
-		-- END	
-	  -- ) 
-	  -- FROM resource r, resource s
-	  -- WHERE r.id = NEW.id AND r.schema_id = s.id
-    -- ) WHERE id = NEW.id;
+    UPDATE resource SET "type" = (
+	  SELECT (
+		CASE 
+		  WHEN s.label LIKE 'service.%' THEN 1 
+		  WHEN s.label LIKE 'tenant.%' THEN 2 
+		  WHEN s.label LIKE 'provider.%' THEN 3 
+		  WHEN s.label LIKE 'blueprint.%' THEN 5 
+		  WHEN s.label = 'schema' THEN 6 
+          WHEN s.label LIKE 'request.%' THEN 10 
+		  ELSE 4 
+		END	
+	  ) 
+	  FROM resource r, resource s
+	  WHERE r.id = NEW.id AND r.schema_id = s.id
+    ) WHERE id = NEW.id;
 
     --------------------------------------------
     -- Add entry in audit log
@@ -1392,7 +1388,7 @@ CREATE TABLE public.resource (
 	link_id integer,
 	link_type smallint DEFAULT 0,
 	schema_id integer,
-	resource_type smallint DEFAULT 4,
+	type smallint DEFAULT 4,
 	content jsonb,
 	created_at timestamp with time zone DEFAULT now(),
 	updated_at timestamp with time zone,
@@ -1936,7 +1932,7 @@ ALTER TABLE public.role_hierarchy OWNER TO postgres;
 CREATE INDEX resource_type_idx ON public.resource
 USING btree
 (
-	resource_type,
+	type,
 	label
 );
 -- ddl-end --
@@ -1951,9 +1947,7 @@ WITH SCHEMA public;
 -- DROP INDEX IF EXISTS public.resource_label_gin_index CASCADE;
 CREATE INDEX resource_label_gin_index ON public.resource
 USING gin
-(
-	label gin_trgm_ops
-);
+	(label gin_trgm_ops);
 -- ddl-end --
 
 -- object: after_insert_schema | type: TRIGGER --
@@ -2213,9 +2207,7 @@ BEGIN
       SET    content =content #- ('{' ||r2.peer_label  || ',' || r2.pos || '}')::text[], updated_by=NEW.updated_by
       FROM (
         SELECT   r.id, ordinality - 1 AS pos, record.peer_label as peer_label
-        FROM     resource r, jsonb_array_elements(case jsonb_typeof(r.content->record.peer_label) 
-							        when 'array' then r.content->record.peer_label
-							        else '[]' end) with ordinality
+        FROM     resource r, jsonb_array_elements(r.content->record.peer_label) with ordinality
         WHERE r.id IN ( SELECT 
                           CASE WHEN link_id is null THEN id
                                ELSE link_id
@@ -2516,7 +2508,7 @@ CREATE TRIGGER after_insert_resource_tenant_tree
 -- object: after_delete_resource_tenant_tree | type: TRIGGER --
 -- DROP TRIGGER IF EXISTS after_delete_resource_tenant_tree ON public.resource_tenant_tree CASCADE;
 CREATE TRIGGER after_delete_resource_tenant_tree
-	AFTER DELETE 
+	BEFORE DELETE 
 	ON public.resource_tenant_tree
 	FOR EACH ROW
 	EXECUTE PROCEDURE public.after_delete_resource_tenant_tree();
@@ -2535,47 +2527,6 @@ CREATE SEQUENCE public.ssh_port_seq
 
 -- ddl-end --
 ALTER SEQUENCE public.ssh_port_seq OWNER TO postgres;
--- ddl-end --
-
--- object: public.after_update_token | type: FUNCTION --
--- DROP FUNCTION IF EXISTS public.after_update_token() CASCADE;
-CREATE FUNCTION public.after_update_token ()
-	RETURNS trigger
-	LANGUAGE plpgsql
-	VOLATILE 
-	CALLED ON NULL INPUT
-	SECURITY INVOKER
-	PARALLEL UNSAFE
-	COST 1
-	AS $$
-BEGIN
-    PERFORM pg_notify('token_channel', 'update,' || NEW.sub);
-	RETURN NULL;
-END;
-$$;
--- ddl-end --
-ALTER FUNCTION public.after_update_token() OWNER TO postgres;
--- ddl-end --
-
--- object: after_update_token | type: TRIGGER --
--- DROP TRIGGER IF EXISTS after_update_token ON public.token CASCADE;
-CREATE TRIGGER after_update_token
-	AFTER UPDATE
-	ON public.token
-	FOR EACH ROW
-	EXECUTE PROCEDURE public.after_update_token();
--- ddl-end --
-
--- object: public.totp | type: TABLE --
--- DROP TABLE IF EXISTS public.totp CASCADE;
-CREATE TABLE public.totp (
-	user_id integer NOT NULL,
-	totp char(6) NOT NULL,
-	"interval" bigint NOT NULL,
-	CONSTRAINT totp_pk PRIMARY KEY (user_id,totp,"interval")
-);
--- ddl-end --
-ALTER TABLE public.totp OWNER TO postgres;
 -- ddl-end --
 
 -- object: role_schema_role_fk | type: CONSTRAINT --

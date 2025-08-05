@@ -25,6 +25,13 @@
     <module>mtac</module>
     <module>test</module>
   </modules>
+  <distributionManagement>
+    <repository>
+      <id>github</id>
+      <name>brunofranki</name>
+      <url>https://maven.pkg.github.com/oneki/mtac</url>
+    </repository>
+  </distributionManagement>
   <properties>
     <maven.bulid.helper.plugin>3.3.0</maven.bulid.helper.plugin>
     <maven.compiler.plugin>3.11.0</maven.compiler.plugin>
@@ -61,6 +68,26 @@
         <groupId>org.atteo</groupId>
         <artifactId>evo-inflector</artifactId>
         <version>1.3</version>
+      </dependency>
+      <dependency>
+        <groupId>javax.xml.bind</groupId>
+        <artifactId>jaxb-api</artifactId>
+        <version>2.3.1</version>
+      </dependency>
+      <dependency>
+        <groupId>org.jasypt</groupId>
+        <artifactId>jasypt</artifactId>
+        <version>1.9.3</version>
+      </dependency>
+      <dependency>
+        <groupId>org.sqids</groupId>
+        <artifactId>sqids</artifactId>
+        <version>0.1.0</version>
+      </dependency>
+      <dependency>
+        <groupId>org.jboss.aerogear</groupId>
+        <artifactId>aerogear-otp-java</artifactId>
+        <version>1.0.0</version>
       </dependency>
     </dependencies>
   </dependencyManagement>

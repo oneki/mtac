@@ -452,6 +452,10 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
         return resourceRepository.getByUniqueLabel(label, getEntityClass());
     }
 
+    public <Result extends Resource> Result getByUniqueLabelUnsecureOrReturnNull(String label, Class<Result> resultContentClass) {
+        return resourceRepository.getByUniqueLabelUnsecure(label, resultContentClass);
+    }
+
     public E getByUniqueLabelUnsecureOrReturnNull(String label) {
         return resourceRepository.getByUniqueLabelUnsecure(label, getEntityClass());
     }
