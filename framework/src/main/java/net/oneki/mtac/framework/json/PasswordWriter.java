@@ -16,12 +16,10 @@ import net.oneki.mtac.model.resource.Resource;
 
 public class PasswordWriter extends BeanPropertyWriter {
     ResourceField resourceField;
-    PasswordUtil passwordUtil;
 
-    public PasswordWriter(BeanPropertyWriter w, ResourceField resourceField, PasswordUtil passwordUtil) {
+    public PasswordWriter(BeanPropertyWriter w, ResourceField resourceField) {
         super(w);
         this.resourceField = resourceField;
-        this.passwordUtil = passwordUtil;
     }
 
     @SuppressWarnings("unchecked")
@@ -51,7 +49,7 @@ public class PasswordWriter extends BeanPropertyWriter {
                 // encrypted = passwordUtil.hash(plainText);
                 encrypted = plainText;
             } else if (secretType == SecretType.ENCRYPTION) {
-                encrypted = passwordUtil.encrypt(plainText);
+                encrypted = PasswordUtil.encrypt(plainText);
             } else {
                 throw new UnexpectedException("Unknown secret type " + secretType);
             }

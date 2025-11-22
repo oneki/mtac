@@ -15,6 +15,7 @@ import lombok.NoArgsConstructor;
 import net.oneki.mtac.framework.cache.ResourceRegistry;
 import net.oneki.mtac.framework.introspect.ResourceDesc;
 import net.oneki.mtac.framework.query.Filter.Operator;
+import net.oneki.mtac.model.core.Constants;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
 import net.oneki.mtac.model.resource.Resource;
 
@@ -23,7 +24,7 @@ import net.oneki.mtac.model.resource.Resource;
 @NoArgsConstructor
 @Builder
 public class Query {
-  private Integer tenant;
+  @Builder.Default private Integer tenant = Constants.TENANT_ROOT_ID;
   private Integer limit;
   private Integer offset;
   private boolean noLink;

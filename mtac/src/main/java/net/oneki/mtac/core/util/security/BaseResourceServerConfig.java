@@ -36,7 +36,6 @@ import net.oneki.mtac.model.core.util.security.DefaultJwtAuthoritiesExtractor;
 import net.oneki.mtac.model.core.util.security.DefaultJwtAuthoritiesExtractor.AuthorityKey;
 import net.oneki.mtac.model.core.util.security.JwtAuthoritiesExtractor;
 import net.oneki.mtac.model.core.util.security.SecurityContext;
-import net.oneki.mtac.resource.iam.identity.user.UserService;
 
 /**
  * BaseResourceServerConfig Expecting this config spring: security: oauth2:
@@ -51,6 +50,7 @@ public abstract class BaseResourceServerConfig {
     protected abstract List<RequestMatcher> getPublicUrls();
 
     protected abstract HttpSecurity configureFilterChain(HttpSecurity http) throws Exception;
+    protected abstract OpenIdService getOpenIdService();
 
     private List<RequestMatcher> allPublicUrls;
 
@@ -67,12 +67,12 @@ public abstract class BaseResourceServerConfig {
     @Bean
     public BearerTokenResolver bearerTokenResolver(MtacProperties mtacProperties) {
                 var config = mtacProperties.getIam();
-        return new BearerTokenResolver(config.getTokenLocation(), config.getAccessTokenCookieName());
+        return new BearerTokenResolver(mtacProperties);
     }
 
     @Bean
     @Order(SecurityProperties.BASIC_AUTH_ORDER)
-    public SecurityFilterChain filterChain(HttpSecurity http, OpenIdService openIdService,
+    public SecurityFilterChain filterChain(HttpSecurity http,
             BearerTokenResolver bearerTokenResolver) throws Exception {
         http.exceptionHandling(c -> {
             c.accessDeniedHandler((request, response, accessDeniedException) -> {
@@ -110,16 +110,16 @@ public abstract class BaseResourceServerConfig {
         // .frameOptions()
         // .sameOrigin();
 
-        resourceServer(http, openIdService, bearerTokenResolver);
+        resourceServer(http, bearerTokenResolver);
         return http.build();
     }
 
-    protected void resourceServer(final HttpSecurity http, OpenIdService openIdService,
+    protected void resourceServer(final HttpSecurity http, 
             BearerTokenResolver bearerTokenResolver) throws Exception {
         http.oauth2ResourceServer(o -> {
             o.bearerTokenResolver(bearerTokenResolver);
             o.jwt(j -> {
-                j.authenticationManager(getAuthenticationManager(openIdService));
+                j.authenticationManager(getAuthenticationManager());
             });
         });
         // http.oauth2ResourceServer()
@@ -242,9 +242,8 @@ public abstract class BaseResourceServerConfig {
                 new AuthorityKey("groups", true));
     }
 
-    protected AuthenticationManager getAuthenticationManager(OpenIdService openIdService) {
-        return new JwtAuthenticationManager(getJwtAuthoritiesExtractor(), jwtDecoder, tokenRegistry, tokenRepository,
-                openIdService);
+    protected AuthenticationManager getAuthenticationManager() {
+        return new JwtAuthenticationManager(getJwtAuthoritiesExtractor(), jwtDecoder, tokenRegistry, tokenRepository, getOpenIdService());
     }
 
     protected List<RequestMatcher> getPublicMatchers() {

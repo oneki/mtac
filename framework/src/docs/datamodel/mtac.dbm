@@ -3,8 +3,9 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="1.1.0" use-changelog="false" max-obj-count="52"
-	 last-position="0,264" last-zoom="1" scene-rect="-80,-40.5,1707.33,2074.22"
+<dbmodel pgmodeler-ver="1.2.0" use-changelog="false" max-obj-count="52"
+	 gen-disabled-objs-code="false" show-sys-schemas-rects="false"
+	 last-position="0,-180" last-zoom="1" scene-rect="-20,-180,1956.02,1523.72"
 	 default-owner="postgres"
 	 layers="Default"
 	 active-layers="0"
@@ -1660,6 +1661,7 @@ BEGIN
           SELECT   r.id, ordinality - 1 AS pos, record.field_label as field_label
           FROM     resource r, jsonb_array_elements(r.content->record.field_label) with ordinality
           WHERE r.schema_id = record.schema_id
+                AND r.content->>record.field_label is not null
                 AND (value->>'label')::text = OLD.label
                 AND record.multiple is TRUE
           ) r2
@@ -2598,6 +2600,171 @@ END;]]> </definition>
 	</constraint>
 </table>
 
+<table name="cp_transaction" layers="0" collapse-mode="2" max-obj-count="9" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<position x="1280" y="300"/>
+	<column name="id" not-null="true"
+	 identity-type="ALWAYS">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="site_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="cp_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="message_id" not-null="true">
+		<type name="uuid" length="0"/>
+	</column>
+	<column name="id_tag">
+		<type name="text" length="0"/>
+	</column>
+	<column name="power_consumption">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="content">
+		<type name="jsonb" length="0"/>
+	</column>
+	<column name="created_at" not-null="true" default-value="now()">
+		<type name="timestamptz" length="0"/>
+	</column>
+	<constraint name="cp_transaction_pk" type="pk-constr" table="public.cp_transaction">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+	<constraint name="message_id_unique" type="uq-constr" table="public.cp_transaction">
+		<columns names="message_id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="site_id_idx" table="public.cp_transaction"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="site_id"/>
+		</idxelement>
+</index>
+
+<index name="cp_id_idx" table="public.cp_transaction"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="cp_id"/>
+		</idxelement>
+</index>
+
+<table name="audit_log" layers="0" collapse-mode="2" max-obj-count="10" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<position x="1140" y="-160"/>
+	<column name="id" not-null="true"
+	 identity-type="ALWAYS">
+		<type name="bigint" length="0"/>
+	</column>
+	<column name="user_id">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="action" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="company_id">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="site_id">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="resource_id">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="status">
+		<type name="smallint" length="0"/>
+	</column>
+	<column name="details">
+		<type name="json" length="0"/>
+	</column>
+	<column name="created_at" default-value="now()">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<constraint name="audit_pk" type="pk-constr" table="public.audit_log">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="aud_userid_idx" table="public.audit_log"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="user_id"/>
+		</idxelement>
+</index>
+
+<index name="aud_action_idx" table="public.audit_log"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="action"/>
+		</idxelement>
+</index>
+
+<table name="audit_log_resource" layers="0" collapse-mode="2" max-obj-count="3" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<position x="1600" y="-40"/>
+	<column name="id" not-null="true"
+	 identity-type="ALWAYS">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="resource_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="resource_label" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<constraint name="audit_log_resource_pk" type="pk-constr" table="public.audit_log_resource">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="resource_id_idx" table="public.audit_log_resource"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="resource_id"/>
+		</idxelement>
+</index>
+
+<index name="resource_label" table="public.audit_log_resource"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="resource_label"/>
+		</idxelement>
+</index>
+
+<index name="aud_company_id_idx" table="public.audit_log"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="company_id"/>
+		</idxelement>
+</index>
+
+<index name="aud_site_id_idx" table="public.audit_log"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="site_id"/>
+		</idxelement>
+</index>
+
+<index name="aud_resource_id_idx" table="public.audit_log"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="resource_id"/>
+		</idxelement>
+</index>
+
 <constraint name="role_schema_role_fk" type="fk-constr" comparison-type="MATCH FULL"
 	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.role_schema">
 	<columns names="role_id" ref-type="src-columns"/>
@@ -2742,6 +2909,30 @@ END;]]> </definition>
 	<columns names="id" ref-type="dst-columns"/>
 </constraint>
 
+<constraint name="user_id_fk" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="NO ACTION" del-action="NO ACTION" ref-table="public.audit_log_resource" table="public.audit_log">
+	<columns names="user_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="resource_id_fk" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="NO ACTION" del-action="NO ACTION" ref-table="public.audit_log_resource" table="public.audit_log">
+	<columns names="resource_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="company_id_fk" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="NO ACTION" del-action="NO ACTION" ref-table="public.audit_log_resource" table="public.audit_log">
+	<columns names="company_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="site_id_fk" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="NO ACTION" del-action="NO ACTION" ref-table="public.audit_log_resource" table="public.audit_log">
+	<columns names="site_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
 <relationship name="rel_role_schema_resource" type="relfk" layers="0"
 	 src-table="public.role_schema"
 	 dst-table="public.resource" reference-fk="role_schema_role_fk"
@@ -2812,9 +3003,9 @@ END;]]> </definition>
 	 dst-table="public.ace" reference-fk="ace_source_fk"
 	 src-required="false" dst-required="false">
 	<line>
-		<position x="1192.25" y="387.308"/>
-	<position x="1192.25" y="307"/>
-	<position x="1086.17" y="307"/>
+		<position x="1194.02" y="387.308"/>
+	<position x="1194.02" y="307"/>
+	<position x="1087.35" y="307"/>
 	</line>
 </relationship>
 
@@ -2823,9 +3014,9 @@ END;]]> </definition>
 	 dst-table="public.resource" reference-fk="resource_link_fk"
 	 src-required="false" dst-required="false">
 	<line>
-		<position x="770.95" y="579.575"/>
-	<position x="770.95" y="447"/>
-	<position x="625.3" y="447"/>
+		<position x="772.558" y="579.575"/>
+	<position x="772.558" y="447"/>
+	<position x="626.372" y="447"/>
 	</line>
 </relationship>
 
@@ -2834,9 +3025,9 @@ END;]]> </definition>
 	 dst-table="public.resource" reference-fk="resource_tenant_fk"
 	 src-required="false" dst-required="false">
 	<line>
-		<position x="794.848" y="603.473"/>
-	<position x="794.848" y="423.102"/>
-	<position x="601.402" y="423.102"/>
+		<position x="796.456" y="603.473"/>
+	<position x="796.456" y="423.102"/>
+	<position x="602.474" y="423.102"/>
 	</line>
 </relationship>
 
@@ -2845,9 +3036,9 @@ END;]]> </definition>
 	 dst-table="public.resource" reference-fk="resource_schema_fk"
 	 src-required="false" dst-required="false">
 	<line>
-		<position x="818.746" y="627.371"/>
-	<position x="818.746" y="399.204"/>
-	<position x="577.504" y="399.204"/>
+		<position x="820.354" y="627.371"/>
+	<position x="820.354" y="399.204"/>
+	<position x="578.576" y="399.204"/>
 	</line>
 </relationship>
 
@@ -2876,9 +3067,9 @@ END;]]> </definition>
 	 dst-table="public.field" reference-fk="field_peer_fk"
 	 src-required="false" dst-required="false">
 	<line>
-		<position x="1490.5" y="980.175"/>
-	<position x="1490.5" y="827"/>
-	<position x="1365" y="827"/>
+		<position x="1493.73" y="980.175"/>
+	<position x="1493.73" y="827"/>
+	<position x="1367.15" y="827"/>
 	</line>
 </relationship>
 
@@ -2891,5 +3082,25 @@ END;]]> </definition>
 	 src-table="public.field_schema"
 	 dst-table="public.resource" reference-fk="field_schema_resource_fk"
 	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_audit_log_audit_log_resource" type="relfk" layers="0"
+	 src-table="public.audit_log"
+	 dst-table="public.audit_log_resource" reference-fk="user_id_fk"
+	 src-required="false" dst-required="false"/>
+
+<relationship name="rel_audit_log_audit_log_resource1" type="relfk" layers="0"
+	 src-table="public.audit_log"
+	 dst-table="public.audit_log_resource" reference-fk="resource_id_fk"
+	 src-required="false" dst-required="false"/>
+
+<relationship name="rel_audit_log_audit_log_resource2" type="relfk" layers="0"
+	 src-table="public.audit_log"
+	 dst-table="public.audit_log_resource" reference-fk="company_id_fk"
+	 src-required="false" dst-required="false"/>
+
+<relationship name="rel_audit_log_audit_log_resource3" type="relfk" layers="0"
+	 src-table="public.audit_log"
+	 dst-table="public.audit_log_resource" reference-fk="site_id_fk"
+	 src-required="false" dst-required="false"/>
 
 </dbmodel>

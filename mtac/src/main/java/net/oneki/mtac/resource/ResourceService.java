@@ -3,6 +3,7 @@ package net.oneki.mtac.resource;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +18,7 @@ import net.oneki.mtac.framework.query.Query;
 import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.framework.service.MapperService;
 import net.oneki.mtac.framework.util.resource.R;
+import net.oneki.mtac.model.core.Constants;
 import net.oneki.mtac.model.core.framework.Urn;
 import net.oneki.mtac.model.core.resource.SearchDto;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
@@ -138,6 +140,9 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
     }
 
     public U toUpsertRequest(E entity) {
+        if (entity == null) {
+            return null;
+        }
         var requestClass = getRequestClass();
         try {
             return getMapperService().toUpsertRequest(requestClass.getDeclaredConstructor().newInstance(), entity);
@@ -274,13 +279,13 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
 
     public void updateUnsecure(E resourceEntity) {
         if (resourceEntity.getUpdatedBy() == null) {
-            resourceEntity.setUpdatedBy(securityContext != null ? securityContext.getUsername(): "");
+            resourceEntity.setUpdatedBy(securityContext != null ? securityContext.getUsername() : "");
         }
         resourceRepository.update(resourceEntity);
     }
 
     /**
-     * Delte an entity by its internal id
+     * Delete an entity by its internal id
      *
      *
      * @param id:          The id of the entity
@@ -422,7 +427,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
         }
 
         if (relations != null) {
-            relationService.populateSingleResourceRelations(result, relations);
+            relationService.populateSingleResourceRelationsUnsecure(result, relations);
         }
 
         return result;
@@ -452,7 +457,8 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
         return resourceRepository.getByUniqueLabel(label, getEntityClass());
     }
 
-    public <Result extends Resource> Result getByUniqueLabelUnsecureOrReturnNull(String label, Class<Result> resultContentClass) {
+    public <Result extends Resource> Result getByUniqueLabelUnsecureOrReturnNull(String label,
+            Class<Result> resultContentClass) {
         return resourceRepository.getByUniqueLabelUnsecure(label, resultContentClass);
     }
 
@@ -574,16 +580,69 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
 
     public Page<E> list(Query query) {
         var resources = resourceRepository.listByTenantAndType(query.getTenant(), getEntityClass(), query);
+        return asPage(resources, query, false);
+    }
+
+    public <C extends Resource> Page<C> list(Query query, Class<C> resultContentClass) {
+        var resources = resourceRepository.listByTenantAndType(query.getTenant(), resultContentClass, query);
+        return asPage(resources, query, false);
+    }
+
+    public List<E> listAll(Query query) {
+        if (query.getLimit() == null) {
+            query.setLimit(Constants.LIST_ALL_LIMIT);
+        }
+        var resources = list(query);
+        return resources.getData() != null ? resources.getData() : List.of();
+    }
+
+    public Page<E> listUnsecure(Query query) {
+        var resources = resourceRepository.listByTenantAndTypeUnsecure(query.getTenant(), getEntityClass(), query);
+        return asPage(resources, query, true);
+    } 
+    
+    public <C extends Resource> Page<C> listUnsecure(Query query, Class<C> resultContentClass) {
+        var resources = resourceRepository.listByTenantAndTypeUnsecure(query.getTenant(), resultContentClass, query);
+        return asPage(resources, query, true);
+    }     
+
+    public List<E> listAllUnsecure(Query query) {
+        if (query.getLimit() == null) {
+            query.setLimit(Constants.LIST_ALL_LIMIT);
+        }
+
+        var resources = listUnsecure(query);
+        return resources.getData() != null ? resources.getData() : List.of();
+    }
+
+    protected <C extends Resource> Page<C> asPage(List<C> resources, Query query, boolean unsecure) {
         var relationNames = query.getRelations();
         if (relationNames != null) {
-            relationService.populateRelations(resources, relationNames);
+            if (unsecure) {
+                resources = relationService.populateRelationsUnsecure(resources, relationNames);
+            } else {
+                resources =  relationService.populateRelations(resources, relationNames);
+            }
         }
-        return Page.<E>builder()
+        resources = resources.stream()
+                .map(resource -> mapperService.filterFields(query.getFields(), resource))
+                .collect(Collectors.toList());
+        return Page.<C>builder()
                 .data(resources)
                 .limit(query.getLimit())
                 .offset(query.getOffset())
                 .hasNext(query.getLimit() != null && resources.size() >= query.getLimit())
                 .build();
+    }
+
+    protected List<E> asAllList(List<E> resources, Query query) {
+        var relationNames = query.getRelations();
+        if (relationNames != null) {
+            relationService.populateRelations(resources, relationNames);
+        }
+        return resources.stream()
+                .map(resource -> mapperService.filterFields(query.getFields(), resource))
+                .collect(Collectors.toList());
     }
 
     public Page<SearchDto> search(Query query) {
@@ -597,7 +656,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
                 .field("link_type")
                 .operator(FilterCriteria.Operator.EQUALS)
                 .value("0")
-                .build());                
+                .build());
         var resources = resourceRepository.search(query);
 
         // map resources to List of searchDto
@@ -618,15 +677,6 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
                 .offset(query.getOffset())
                 .hasNext(query.getLimit() != null && resources.size() >= query.getLimit())
                 .build();
-    }
-
-    public List<E> listUnsecure(Query query) {
-        var resources = resourceRepository.listByTenantAndTypeUnsecure(query.getTenant(), getEntityClass(), query);
-        var relationNames = query.getRelations();
-        if (relationNames != null) {
-            relationService.populateRelations(resources, relationNames);
-        }
-        return resources;
     }
 
     @SuppressWarnings("unchecked")

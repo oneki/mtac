@@ -13,14 +13,14 @@ import lombok.Setter;
 @Setter
 public class BusinessException extends RuntimeException implements ICustomException {
     public static final String BUSINESS_DEFAULT = "BUSINESS_DEFAULT";
-	public static final String BUSINESS_INVALID_FIELD = "INVALID_FIELD";
-	public static final String BUSINESS_INVALID_ACTION= "INVALID_ACTION";
-	public static final String BUSINESS_INVALID_SCHEMA= "INVALID_SCHEMA";
-	public static final String BUSINESS_MSSING_FIELD = "MSSING_FIELD";
-	public static final String BUSINESS_NOT_DELETABLE= "NOT_DELETABLE";
-	public static final String BUSINESS_INVALID_OPERATOR = "INVALID_OPERATOR";
-	public static final String BUSINESS_INVALID_SYNTAX = "INVALID_SYNTAX";
-	public static final String BUSINESS_RESOURCE_NOT_FOUND = "RESOURCE_NOT_FOUND";
+    public static final String BUSINESS_INVALID_FIELD = "INVALID_FIELD";
+    public static final String BUSINESS_INVALID_ACTION = "INVALID_ACTION";
+    public static final String BUSINESS_INVALID_SCHEMA = "INVALID_SCHEMA";
+    public static final String BUSINESS_MSSING_FIELD = "MSSING_FIELD";
+    public static final String BUSINESS_NOT_DELETABLE = "NOT_DELETABLE";
+    public static final String BUSINESS_INVALID_OPERATOR = "INVALID_OPERATOR";
+    public static final String BUSINESS_INVALID_SYNTAX = "INVALID_SYNTAX";
+    public static final String BUSINESS_RESOURCE_NOT_FOUND = "RESOURCE_NOT_FOUND";
 
     private static final long serialVersionUID = 1L;
     private String errorCode = "BSN_DEFAULT";
@@ -137,6 +137,16 @@ public class BusinessException extends RuntimeException implements ICustomExcept
         super(cause);
     }
 
+    public BusinessException(ErrorCode errorCode) {
+        super(errorCode.message());
+        this.errorCode = errorCode.name();
+    }
+
+    public BusinessException(ErrorCode errorCode, String... args) {
+        super(errorCode.message(args));
+        this.errorCode = errorCode.name();
+    }
+
     /**
      * Constructs a new business exception with the specified detail message, cause,
      * suppression enabled or disabled, and writable stack trace enabled or
@@ -154,14 +164,14 @@ public class BusinessException extends RuntimeException implements ICustomExcept
      * @since 1.7
      */
     protected BusinessException(String errorCode, String message, Throwable cause,
-                               boolean enableSuppression,
-                               boolean writableStackTrace) {
+            boolean enableSuppression,
+            boolean writableStackTrace) {
         super(message, cause, enableSuppression, writableStackTrace);
-        this.errorCode = errorCode;        
+        this.errorCode = errorCode;
     }
-    
+
     public BusinessException param(String key, Object value) {
-        if(params == null) {
+        if (params == null) {
             params = new HashMap<>();
         }
         params.put(key, value);

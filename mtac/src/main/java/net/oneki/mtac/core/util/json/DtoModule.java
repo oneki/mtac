@@ -66,6 +66,9 @@ public class DtoModule extends SimpleModule {
                         Ref.class.isAssignableFrom(beanDesc.getBeanClass())) {
                     var result = new ArrayList<BeanPropertyWriter>();
                     var resourceDesc = ResourceRegistry.getResourceDesc(beanDesc.getBeanClass());
+                    if (resourceDesc == null) {
+                        System.out.println("ResourceDesc not found for " + beanDesc.getBeanClass().getSimpleName());
+                    }
                     for (BeanPropertyWriter writer : beanProperties) {
                         var field = resourceDesc.getField(writer.getName());
                         if (field != null && field.isSecret()) {

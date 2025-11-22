@@ -43,7 +43,6 @@ public class JwtTokenService implements Clock {
 	public static final String kid = "sign1";
 	private static final String DOT = ".";
 	private final MtacProperties mtacProperties;
-	private final PasswordUtil passwordUtil;
 
 	private PrivateKeyEntry privateKeyEntry;
 	private JWK jwk;
@@ -82,7 +81,7 @@ public class JwtTokenService implements Clock {
 	public String generateRefreshToken(String sub, String randomString) {
 		var refreshToken = sub + ":" + Instant.now().plusSeconds(mtacProperties.getJwt().getRefreshExpirationSec()).getEpochSecond() + ":"
 				+ randomString;
-		refreshToken = passwordUtil.encrypt(refreshToken);
+		refreshToken = PasswordUtil.encrypt(refreshToken);
 		return refreshToken;
 	}
 
@@ -148,8 +147,15 @@ public class JwtTokenService implements Clock {
 		}
 		claims.putAll(attributes);
 
-		return Jwts.builder().setClaims(claims).signWith(SignatureAlgorithm.RS256, getPrivateKeyEntry().getPrivateKey())
-				/* .compressWith(COMPRESSION_CODEC) */.compact();
+		var keyAlias = mtacProperties.getJwt().getKeystoreKeyAlias();
+		return Jwts.builder()
+			.setHeaderParam("kid", keyAlias)
+			.setClaims(claims)
+			.signWith(SignatureAlgorithm.RS256, getPrivateKeyEntry().getPrivateKey())
+			.compact();
+
+		// return Jwts.builder().setClaims(claims).signWith(SignatureAlgorithm.RS256, getPrivateKeyEntry().getPrivateKey())
+		// 		/* .compressWith(COMPRESSION_CODEC) */.compact();
 	}
 
 	public io.jsonwebtoken.Claims verify(final String token) {

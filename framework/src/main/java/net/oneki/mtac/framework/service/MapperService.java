@@ -1,5 +1,7 @@
 package net.oneki.mtac.framework.service;
 
+import java.util.Set;
+
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
@@ -114,6 +116,27 @@ public class MapperService {
         }
 
         return request;
+    }
+
+    public<E extends Resource> E filterFields(Set<String> fields, E entity) {
+        if (fields == null || fields.isEmpty()) {
+            return entity;
+        }
+        var entityFields = ResourceRegistry.getResourceDesc(entity.getClass());
+        for (var entityField : entityFields.getFields()) {
+            if (entityField.getField() == null) {
+                continue; // skip fields that are not present in the entity
+            }
+            if (!fields.contains(entityField.getLabel())) {
+                try {
+                    entityField.getField().setAccessible(true);
+                    entityField.getField().set(entity, null); // clear the field
+                } catch (Exception e) {
+                    //throw new BusinessException("BAD_ENTITY", "Invalid entity", e);
+                }
+            }
+        }
+        return entity;
     }
 
 }

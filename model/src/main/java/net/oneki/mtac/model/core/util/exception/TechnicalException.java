@@ -92,6 +92,16 @@ public class TechnicalException extends RuntimeException implements ICustomExcep
         this.errorCode = errorCode;
     }
 
+    public TechnicalException(ErrorCode errorCode) {
+        super(errorCode.message());
+        this.errorCode = errorCode.name();
+    }
+
+    public TechnicalException(ErrorCode errorCode, String... args) {
+        super(errorCode.message(args));
+        this.errorCode = errorCode.name();
+    }
+
     /**
      * Constructs a new business exception with the specified detail message and
      * cause.

@@ -28,11 +28,12 @@ public abstract class MultiTenantResourceServerConfig extends BaseResourceServer
     @Autowired
     private ApplicationContext appContext;
 
-    protected void resourceServer(final HttpSecurity http, OpenIdService openIdService,
+    @Override
+    protected void resourceServer(final HttpSecurity http,
             BearerTokenResolver bearerTokenResolver) throws Exception {
         var trustedIssuerJwtAuthenticationManagerResolver = new TrustedIssuerJwtAuthenticationManagerResolver(
                 issuersProperties, getJwtAuthoritiesExtractor(),
-                appContext, tokenRegistry, tokenRepository, openIdService);
+                appContext, tokenRegistry, tokenRepository, getOpenIdService());
         var issuerConverter = new JwtClaimIssuerConverter(bearerTokenResolver);
 
         JwtIssuerAuthenticationManagerResolver resolver = new JwtIssuerAuthenticationManagerResolver(

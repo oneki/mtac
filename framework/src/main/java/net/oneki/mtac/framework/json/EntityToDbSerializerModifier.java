@@ -17,7 +17,6 @@ import net.oneki.mtac.model.core.util.json.view.External;
 
 @RequiredArgsConstructor
 public class EntityToDbSerializerModifier extends BeanSerializerModifier {
-    private final PasswordUtil passwordUtil;
 
     private final static Set<String> skipFields = Set.of("id", "uid", "label", "schema", "s", "tenant", "createdAt", "createdBy", "type",
             "updatedAt", "updatedBy", "pub", "link", "acl");
@@ -46,7 +45,7 @@ public class EntityToDbSerializerModifier extends BeanSerializerModifier {
                     beanProperties.set(i, new RefWriter(writer, resourceField));
                 }
                 if (resourceField != null && resourceField.isSecret()) {
-                    beanProperties.set(i, new PasswordWriter(writer, resourceField, passwordUtil));
+                    beanProperties.set(i, new PasswordWriter(writer, resourceField));
 
                 }
             }

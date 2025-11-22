@@ -12,7 +12,7 @@ import net.oneki.mtac.model.resource.Resource;
 
 public class EntityModule extends SimpleModule {
 
-    public EntityModule(ObjectMapper mapper, PasswordUtil passwordUtil) {
+    public EntityModule(ObjectMapper mapper) {
         super();
         setDeserializerModifier(new BeanDeserializerModifier() {
             @Override
@@ -34,7 +34,7 @@ public class EntityModule extends SimpleModule {
             }
         });
 
-        setSerializerModifier(new EntityToDbSerializerModifier(passwordUtil));
+        setSerializerModifier(new EntityToDbSerializerModifier());
     }
 
 }

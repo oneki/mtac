@@ -42,7 +42,6 @@ public abstract class ApplicationService<U extends BaseApplicationUpsertRequest<
   protected SecurityContext securityContext;
   protected TokenRegistry tokenRegistry;
   protected TokenRepository tokenRepository;
-  protected PasswordUtil passwordUtil;
   protected MtacProperties mtacProperties;
   protected DefaultTenantService tenantService;
 
@@ -90,11 +89,6 @@ public abstract class ApplicationService<U extends BaseApplicationUpsertRequest<
   @Autowired
   public final void setTokenRepository(TokenRepository tokenRepository) {
     this.tokenRepository = tokenRepository;
-  }
-
-  @Autowired
-  public final void setPasswordUtil(PasswordUtil passwordUtil) {
-    this.passwordUtil = passwordUtil;
   }
 
   @Autowired
@@ -170,7 +164,7 @@ public abstract class ApplicationService<U extends BaseApplicationUpsertRequest<
     if (userEntity.getPassword() == null) {
       throw new BusinessException("INVALID_PASSWORD", "Password cannot be blank");
     } else {
-      userEntity.setPassword(passwordUtil.hash(request.getPassword()));
+      userEntity.setPassword(PasswordUtil.hash(request.getPassword()));
     }
 
     var result = resourceRepository.create(userEntity);
@@ -187,7 +181,7 @@ public abstract class ApplicationService<U extends BaseApplicationUpsertRequest<
   public E update(String urn, U request) {
     var userEntity = toUpdateEntity(urn, request);
     if (request.getPassword() != null) {
-      userEntity.setPassword(passwordUtil.hash(request.getPassword()));
+      userEntity.setPassword(PasswordUtil.hash(request.getPassword()));
     }
     resourceRepository.update(userEntity);
     return userEntity;

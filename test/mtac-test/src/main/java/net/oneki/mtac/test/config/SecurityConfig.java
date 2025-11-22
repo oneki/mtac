@@ -17,6 +17,7 @@ import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 
 import lombok.RequiredArgsConstructor;
+import net.oneki.mtac.core.service.openid.OpenIdService;
 import net.oneki.mtac.core.util.security.MultiTenantResourceServerConfig;
 
 @Configuration
@@ -68,6 +69,12 @@ public class SecurityConfig extends MultiTenantResourceServerConfig {
         }
         
       };
+    }
+
+    @Override
+    protected OpenIdService getOpenIdService() {
+      // TODO Auto-generated method stub
+      throw new UnsupportedOperationException("Unimplemented method 'getOpenIdService'");
     }
 
     /**

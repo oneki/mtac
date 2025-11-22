@@ -16,7 +16,7 @@ import net.oneki.mtac.framework.util.security.PasswordUtil;
 public class EntityConfig {
 
     @Bean(name = "entityMapper")
-    public EntityMapper entityMapper(PasswordUtil passwordUtil) {
+    public EntityMapper entityMapper() {
 
         var mapper = EntityMapper.builder()
             .enable(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY)
@@ -27,7 +27,7 @@ public class EntityConfig {
             //     .withSerializerModifier(new EntityToDbSerializerModifier()
             // ))
             .build();
-        var entityModule = new EntityModule(mapper, passwordUtil);
+        var entityModule = new EntityModule(mapper);
         mapper.registerModule(new JavaTimeModule());
         mapper.registerModule(entityModule);
 

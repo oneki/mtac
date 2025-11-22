@@ -21,7 +21,7 @@ import net.oneki.mtac.framework.util.security.PasswordUtil;
 public class FrameworkConfig {
 
     @Bean
-	public StringEncryptor stringEncryptor(@Value("${mtac.security.encryption.key}") String key) {
+	public StringEncryptor stringEncryptor(PasswordEncoder passwordEncoder, @Value("${mtac.security.encryption.key}") String key) {
 		PooledPBEStringEncryptor encryptor = new PooledPBEStringEncryptor();
 		SimpleStringPBEConfig config = new SimpleStringPBEConfig();
 		config.setPassword(key);
@@ -32,11 +32,8 @@ public class FrameworkConfig {
 		config.setSaltGeneratorClassName("org.jasypt.salt.RandomSaltGenerator");
 		config.setStringOutputType("base64");
 		encryptor.setConfig(config);
+		// Initialize the PasswordUtil with the encryptor
+		PasswordUtil.init(passwordEncoder, encryptor);
 		return encryptor;
 	}
-
-    @Bean
-    public PasswordUtil passwordUtil(PasswordEncoder passwordEncoder, StringEncryptor stringEncryptor) {
-        return new PasswordUtil(passwordEncoder, stringEncryptor);
-    }
 }

@@ -4,31 +4,39 @@ import org.jasypt.encryption.StringEncryptor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import net.oneki.mtac.framework.util.StringUtil;
 
 @RequiredArgsConstructor
+@Slf4j
 public class PasswordUtil {
-  private final PasswordEncoder passwordEncoder;
-  private final StringEncryptor stringEncryptor;
+  private static PasswordEncoder passwordEncoder;
+  private static StringEncryptor stringEncryptor;
 
-  public String hash(String plainText) {
+  public static String hash(String plainText) {
     return passwordEncoder.encode(plainText);
   }
 
-  public String encrypt(String plainText) {
+  public static String encrypt(String plainText) {
     return stringEncryptor.encrypt(plainText);
   }
 
-  public String decrypt(String encryptedText) {
+  public static String decrypt(String encryptedText) {
     return stringEncryptor.decrypt(encryptedText);
   }
 
-  public boolean matches(String plainText, String hashedPassword) {
+  public static boolean matches(String plainText, String hashedPassword) {
     return passwordEncoder.matches(plainText, hashedPassword);
   }
 
   public static String randomPassword() {
     return StringUtil.randomBase64String(32);
+  }
+
+  public static void init(PasswordEncoder passwordEncoder, StringEncryptor stringEncryptor) {
+    log.info("Initializing PasswordUtil with provided PasswordEncoder and StringEncryptor");
+    PasswordUtil.passwordEncoder = passwordEncoder;
+    PasswordUtil.stringEncryptor = stringEncryptor;
   }
 
 }

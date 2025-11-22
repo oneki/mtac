@@ -1,6 +1,7 @@
 package net.oneki.mtac.model.core.config;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import lombok.Data;
@@ -39,10 +40,14 @@ public class MtacProperties {
 
   @Data
   public static class MtacIam {
-    private String tokenLocation = "header";
+    public enum TokenLocation {
+      header, request_param, cookie
+    }
+    private List<TokenLocation> tokenLocation = Arrays.asList(new TokenLocation[]{TokenLocation.header});
     private String accessTokenCookieName = "mtac";
     private String impersonateTokenCookieName = "mtac_impersonate";
     private String impersonateActiveCookieName = "mtac_impersonate_active";
+    private String requestParamTokenName = "mtac_token";
     private MtacIamTenantsInIdtoken tenantsInIdtoken = new MtacIamTenantsInIdtoken();
   }
 

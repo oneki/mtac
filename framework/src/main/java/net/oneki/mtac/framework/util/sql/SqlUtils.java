@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 
 import org.springframework.jdbc.core.namedparam.BeanPropertySqlParameterSource;
@@ -184,6 +185,7 @@ public class SqlUtils {
             } else {
                 sqlValue = toSqlString(value);
             }
+            sqlValue = sqlValue.replaceAll("\\$", Matcher.quoteReplacement("\\$"));
             sql = sql.replaceAll(":" + key, sqlValue);
         }
         return sql;

@@ -86,7 +86,8 @@ public class ResourceRepository extends AbstractRepository {
                 "linkType", linkType.ordinal(),
                 "tenantId", targetTenantId,
                 "schemaId", source.getSchemaId(),
-                "resourceType", source.getResourceType() != null ? source.getResourceType() : ResourceType.INTERNAL_RESOURCE,
+                "resourceType",
+                source.getResourceType() != null ? source.getResourceType() : ResourceType.INTERNAL_RESOURCE,
                 "createdBy", createdBy);
         jdbcTemplate.update(sql, new MapSqlParameterSource(parameters), keyHolder);
         if (keyHolder.getKeyList() != null && keyHolder.getKeyList().size() > 0) {
@@ -108,6 +109,7 @@ public class ResourceRepository extends AbstractRepository {
 
         SqlParameterSource parameterSource = new MapSqlParameterSource(parameters);
         var sql = SqlUtils.getSQL("resource/resource_update.sql");
+        log.debug(SqlUtils.formatSqlQuery(sql, parameters));
         jdbcTemplate.update(sql, parameterSource);
     }
 
@@ -258,6 +260,21 @@ public class ResourceRepository extends AbstractRepository {
     }
 
     public <T extends Resource> T getByLabel(String label, String tenantLabel,
+            Class<T> resultContentClass, boolean unsecure) {
+        if (unsecure) {
+            return getByLabelUnsecure(label, tenantLabel, resultContentClass);
+        } else {
+            return getByLabel(label, tenantLabel, resultContentClass);
+        }
+    }
+
+    public <T extends Resource> T getByLabelUnsecure(String label, String tenantLabel,
+            Class<T> resultContentClass) {
+        var sql = SqlUtils.getSQL("resource/resource_get_by_label_unsecure.sql");
+        return getByLabel(label, tenantLabel, resultContentClass, sql, null);
+    }
+
+    public <T extends Resource> T getByLabel(String label, String tenantLabel,
             Class<T> resultContentClass, String sql, Map<String, Object> args) {
         if (sql == null) {
             sql = SqlUtils.getSQL("resource/resource_get_by_label.sql");
@@ -340,6 +357,12 @@ public class ResourceRepository extends AbstractRepository {
     public List<Resource> listAllUnsecure(Query query) {
         var sql = SqlUtils.getSQL("resource/resource_list_all_unsecure.sql");
         var result = list(null, Resource.class, sql, query);
+        return result;
+    }
+
+    public <T extends Resource> List<T> listAllUnsecure(Class<T> resultContentClass, Query query) {
+        var sql = SqlUtils.getSQL("resource/resource_list_all_unsecure.sql");
+        var result = list(null, resultContentClass, sql, query);
         return result;
     }
 
@@ -609,7 +632,6 @@ public class ResourceRepository extends AbstractRepository {
                 .replace("\"<placeholder for dynamic limit />\"", limitSql)
                 .replace("\"<placeholder for dynamic temporary tables />\"", temporaryTablesSql);
 
-
         log.debug(SqlUtils.formatSqlQuery(sql, args));
         var resources = jdbcTemplate.query(sql, args, new ResourceRowMapper<T>(jsonEntityMapper));
 
@@ -628,13 +650,29 @@ public class ResourceRepository extends AbstractRepository {
         return result == null;
     }
 
-    public List<Resource> listbyIds(Collection<Integer> ids) {
+    public List<Resource> listByIds(Collection<Integer> ids, boolean unsecure) {
+        if (unsecure) {
+            return listByIdsUnsecure(ids);
+        } else {
+            return listByIds(ids);
+        }
+    }
+
+    public List<Resource> listByIds(Collection<Integer> ids) {
         Map<String, Object> args = new HashMap<>();
         var sql = SqlUtils.getSQL("resource/resource_get_by_ids.sql");
         args.put("ids", ids);
         if (securityContext != null) {
             args.put("sids", securityContext.getAllSids());
         }
+        List<Resource> entities = jdbcTemplate.query(sql, args, new ResourceRowMapper<Resource>(jsonEntityMapper));
+        return entities;
+    }
+
+    public List<Resource> listByIdsUnsecure(Collection<Integer> ids) {
+        Map<String, Object> args = new HashMap<>();
+        var sql = SqlUtils.getSQL("resource/resource_get_by_ids_unsecure.sql");
+        args.put("ids", ids);
         List<Resource> entities = jdbcTemplate.query(sql, args, new ResourceRowMapper<Resource>(jsonEntityMapper));
         return entities;
     }

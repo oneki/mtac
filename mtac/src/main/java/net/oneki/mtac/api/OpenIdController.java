@@ -24,6 +24,7 @@ import net.oneki.mtac.core.service.openid.ResetPasswordService;
 import net.oneki.mtac.core.service.security.PermissionService;
 import net.oneki.mtac.framework.service.JwtTokenService;
 import net.oneki.mtac.model.core.config.MtacProperties;
+import net.oneki.mtac.model.core.config.MtacProperties.MtacIam.TokenLocation;
 import net.oneki.mtac.model.core.dto.SuccessErrorResponse;
 import net.oneki.mtac.model.core.openid.ImpersonateUserRequest;
 import net.oneki.mtac.model.core.openid.JwksResponse;
@@ -202,7 +203,7 @@ public abstract class OpenIdController {
     getOpenIdService().logout();
     var tokenLocation = mtacProperties.getIam().getTokenLocation();
     var httpHeaders = new HttpHeaders();
-    if ("cookie".equals(tokenLocation)) {
+    if (tokenLocation.contains(TokenLocation.cookie)) {
       cleanCookies(httpHeaders);
     }
     return ResponseEntity.ok().headers(httpHeaders).build();
@@ -221,7 +222,7 @@ public abstract class OpenIdController {
         body.getOrDefault("no_mfa_token", null));
     var tokenLocation = mtacProperties.getIam().getTokenLocation();
     var httpHeaders = new HttpHeaders();
-    if ("cookie".equals(tokenLocation)) {
+    if (tokenLocation.contains(TokenLocation.cookie)) {
       var cookieName = mtacProperties.getIam().getAccessTokenCookieName();
       httpHeaders.add("Set-Cookie",
           cookieName + "=" + result.getAccessToken() + "; Path=/; SameSite=Strict; httpOnly");

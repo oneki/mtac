@@ -137,7 +137,7 @@ public abstract class ResourceController<U extends UpsertRequest, R extends Reso
     }
 
     public void deleteByUid(@PathVariable("uid") String uid) {
-        getService().deleteById(Resource.fromUid(uid));
+        getService().deleteByUid(uid);
     }
 
     // list. A query param is used to specify the tenant. If no tenant is specified,

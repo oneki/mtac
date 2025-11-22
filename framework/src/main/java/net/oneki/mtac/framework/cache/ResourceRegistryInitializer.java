@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.Synchronized;
 import net.oneki.mtac.framework.query.Query;
 import net.oneki.mtac.framework.repository.InitRepository;
 import net.oneki.mtac.framework.repository.ResourceRepository;
@@ -16,6 +17,7 @@ import net.oneki.mtac.framework.repository.ResourceTenantTreeRepository;
 import net.oneki.mtac.framework.repository.SchemaDbSynchronizer;
 import net.oneki.mtac.framework.repository.SchemaRepository;
 import net.oneki.mtac.model.core.config.MtacProperties;
+import net.oneki.mtac.model.core.event.ResourceRegistryInitializedEvent;
 import net.oneki.mtac.model.resource.Resource;
 import net.oneki.mtac.model.resource.Tenant;
 import net.oneki.mtac.model.resource.iam.Role;
@@ -32,6 +34,7 @@ public class ResourceRegistryInitializer {
     protected final ResourceTenantTreeRepository resourceTenantTreeRepository;
     private final ApplicationEventPublisher applicationEventPublisher;
     private final MtacProperties mtacProperties;
+    private boolean initialized = false;
 
     // @Value("${mtac.scan.base-package}")
     // private String scanBasePackage;
@@ -40,7 +43,11 @@ public class ResourceRegistryInitializer {
     // private String sqidsAlphabet;
 
     @PostConstruct
+    @Synchronized
     public void initResourceRegistry() throws ClassNotFoundException {
+        if (initialized) {
+            return;
+        }
         Resource.initSqids(mtacProperties.getSqids().getAlphabet());
         ResourceRegistry.init(mtacProperties.getScan().getBasePackage());
         initRepository.initSchema();
@@ -60,5 +67,7 @@ public class ResourceRegistryInitializer {
         cache.setRoles(roles);
 
         cache.setTenantAncestors(resourceTenantTreeRepository.listTenantAncestors());
+        initialized = true;
+        applicationEventPublisher.publishEvent(new ResourceRegistryInitializedEvent(this));
     }
 }

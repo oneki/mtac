@@ -7,8 +7,8 @@ import lombok.EqualsAndHashCode;
 
 @Data
 @EqualsAndHashCode(callSuper=true)
-public class RegistryInitEvent extends ApplicationEvent {
-  public RegistryInitEvent(Object source) {
+public class ResourceRegistryInitializedEvent extends ApplicationEvent {
+  public ResourceRegistryInitializedEvent(Object source) {
     super(source);
   }
 }

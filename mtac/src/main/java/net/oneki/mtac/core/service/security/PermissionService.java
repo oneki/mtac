@@ -1,5 +1,6 @@
 package net.oneki.mtac.core.service.security;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
@@ -18,7 +19,6 @@ import net.oneki.mtac.resource.iam.RoleRepository;
 @Service
 @RequiredArgsConstructor
 
-
 // User:
 // - acme in the group installer (id: 8 et 24)
 // - employee1 in the group deplasseEmployees (id: 9 et 25)
@@ -27,53 +27,52 @@ import net.oneki.mtac.resource.iam.RoleRepository;
 // - installer (id: 100)
 // - viewer (id: 101)
 
-// ACE: 
-// identityId       RoleId        ResourceId
-// 8                100           30
-// 25               101           30
-
+// ACE:
+// identityId RoleId ResourceId
+// 8 100 30
+// 25 101 30
 
 // Role (cached)
 // {
-//   "actions": [
-//     "asset.*|*",
-//     "iam.identity.user|reset_password"
-//   ]
+// "actions": [
+// "asset.*|*",
+// "iam.identity.user|reset_password"
+// ]
 // }
 
 // Resource Asset
 // {
-//   // created dynamically via getResource
-//   acl: [{
-//     identityId: 8,
-//     roleId: 100
-//   }, {
-//     identityId: 25,
-//     roleId: 101
-//   }
+// // created dynamically via getResource
+// acl: [{
+// identityId: 8,
+// roleId: 100
+// }, {
+// identityId: 25,
+// roleId: 101
 // }
-
+// }
 
 // List / Get resource
 // -> SQL does the filtering based on permission(in table resource_ace)
 
-// Other action on resource 
+// Other action on resource
 // -> first, do a getResource in DB (see above)
 // -> for each ACE (created dynamically via getResource)
-//    - is loggedUser has the identityId of the ACE
-//     - if no -> continue the loop
-//     - if yes
-//       -> get the role in cache
-//       -> loop over actions 
-//          - if matching, give access and return
+// - is loggedUser has the identityId of the ACE
+// - if no -> continue the loop
+// - if yes
+// -> get the role in cache
+// -> loop over actions
+// - if matching, give access and return
 
 // Special case for create
-// - If we want to create an Asset, instead of doing a getResource on a specific asset
+// - If we want to create an Asset, instead of doing a getResource on a specific
+// asset
 // we do a getResource on the resourceGroup in which we want to create the asset
 public class PermissionService {
-    private final ResourceRepository resourceRepository;
-    private final RoleRepository roleRepository;
-    private final AceRepository aceRepository;
+    protected ResourceRepository resourceRepository;
+    protected RoleRepository roleRepository;
+    protected AceRepository aceRepository;
 
     public void addPermission(String roleName, Integer resourceId, Integer identityId) {
         var role = resourceRepository.getByUniqueLabel(roleName, Role.class);
@@ -146,7 +145,7 @@ public class PermissionService {
     public boolean hasCreatePermission(String tenantLabel, String schemaLabel) {
         if (tenantLabel == null) {
             tenantLabel = Constants.TENANT_ROOT_LABEL;
-        }        
+        }
         var tenantId = ResourceRegistry.getTenantId(tenantLabel);
         return hasCreatePermission(tenantId, schemaLabel);
     }
@@ -197,15 +196,16 @@ public class PermissionService {
         return false;
     }
 
-    private boolean hasPermissionByPath(Acl acl, String schemaLabel, String permission) {
+    protected boolean hasPermissionByPath(Acl acl, String schemaLabel, String permission) {
         // var permissionSet = ResourceRegistry.getPermissionSet(schemaLabel);
         // if (permissionSet == null) {
-        //     throw new UnexpectedException("PERMISSION_SET_NOT_FOUND",
-        //             "The permission set for schemaLabel " + schemaLabel + " doesn't exist.");
+        // throw new UnexpectedException("PERMISSION_SET_NOT_FOUND",
+        // "The permission set for schemaLabel " + schemaLabel + " doesn't exist.");
         // }
         // if (!permissionSet.hasPermission(permission)) {
-        //     throw new BusinessException("PERMISSION_NOT_FOUND",
-        //             "The permission " + permission + " doesn't exist for schemaLabel " + schemaLabel);
+        // throw new BusinessException("PERMISSION_NOT_FOUND",
+        // "The permission " + permission + " doesn't exist for schemaLabel " +
+        // schemaLabel);
         // }
 
         var permissionPath = new PropertyPath(schemaLabel, permission); // Example: "iam.identity.user|reset_password"
@@ -222,6 +222,21 @@ public class PermissionService {
         }
 
         return false;
+    }
+
+    @Autowired
+    public void setResourceRepository(ResourceRepository resourceRepository) {
+        this.resourceRepository = resourceRepository;
+    }
+
+    @Autowired
+    public void setRoleRepository(RoleRepository roleRepository) {
+        this.roleRepository = roleRepository;
+    }
+
+    @Autowired
+    public void setAceRepository(AceRepository aceRepository) {
+        this.aceRepository = aceRepository;
     }
 
 }

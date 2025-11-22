@@ -11,11 +11,9 @@ import net.oneki.mtac.model.core.util.introspect.annotation.Secret.SecretType;
 
 @Component
 public class JsonEntityMapper extends BaseJsonEntityMapper {
-    private PasswordUtil passwordUtil;
-    public JsonEntityMapper(PasswordUtil passwordUtil) {
+    public JsonEntityMapper() {
         super();
-        this.passwordUtil = passwordUtil;
-        mapper.registerModule(new EntityModule(mapper, passwordUtil));
+        mapper.registerModule(new EntityModule(mapper));
     }
 
     @Override
@@ -51,7 +49,7 @@ public class JsonEntityMapper extends BaseJsonEntityMapper {
             }
             // decrypt password
             if (fieldValue instanceof String) {
-                var password = passwordUtil.decrypt((String) fieldValue);
+                var password = PasswordUtil.decrypt((String) fieldValue);
                 field.getField().setAccessible(true);
                 try {
                     field.getField().set(obj, password);
@@ -62,7 +60,7 @@ public class JsonEntityMapper extends BaseJsonEntityMapper {
                 var list = (List<?>) fieldValue;
                 for (var item : list) {
                     if (item instanceof String) {
-                        var password = passwordUtil.decrypt((String) item);
+                        var password = PasswordUtil.decrypt((String) item);
                         field.getField().setAccessible(true);
                         try {
                             field.getField().set(obj, password);

@@ -31,23 +31,37 @@ public class RelationService {
 	private final ResourceRepository resourceRepository;
 
 	public <T extends HasSchema> T populateSingleResourceRelations(T resource, Set<String> relationNames) {
-		return populateRelations(List.of(resource), relationNames).get(0);
+		return populateRelations(List.of(resource), relationNames, false).get(0);
+	}
+
+	public <T extends HasSchema> T populateSingleResourceRelationsUnsecure(T resource, Set<String> relationNames) {
+		return populateRelations(List.of(resource), relationNames, true).get(0);
 	}
 
 	public <T extends HasSchema> List<T> populateRelations(List<T> resources, Set<String> relationNames) {
+		return populateRelations(resources, relationNames, false);
+	}
+
+	public <T extends HasSchema> List<T> populateRelationsUnsecure(List<T> resources, Set<String> relationNames) {
+		return populateRelations(resources, relationNames, true);
+	}
+
+	private <T extends HasSchema> List<T> populateRelations(List<T> resources, Set<String> relationNames,
+			boolean unsecure) {
 		if (resources == null || resources.size() == 0) {
 			return resources;
 		}
-		var relations = loadRelations(resources, relationNames);
+		var relations = loadRelations(resources, relationNames, unsecure);
 		for (var relationName : relationNames) {
-			populateRelations(resources, relationName, relations);
+			populateRelations(resources, relationName, relations, unsecure);
 		}
 		return resources;
 	}
 
-	private <T extends HasSchema> List<T> populateRelations(List<T> resources, String relationName, Relations relations) {
+	private <T extends HasSchema> List<T> populateRelations(List<T> resources, String relationName, Relations relations, boolean unsecure) {
 		var tokens = relationName.split("\\.");
-		final String subRelationName = (tokens.length > 1)  ? String.join(".", Arrays.copyOfRange(tokens, 1, tokens.length)) : null;
+		final String subRelationName = (tokens.length > 1) ? String.join(".", Arrays.copyOfRange(tokens, 1, tokens.length))
+				: null;
 		for (var resource : resources) {
 			var resourceDesc = ResourceRegistry.getResourceDesc(resource.getClass());
 			var field = resourceDesc.getField(tokens[0]);
@@ -58,16 +72,16 @@ public class RelationService {
 			if (field.isMultiple()) {
 				if (value instanceof List) {
 					field.setValue(resource, ((List<?>) value).stream()
-						.map(item -> {
-							var relation = populateRelation((Resource) item, field, relations, subRelationName);
-							if (relation == null) return item;
-							return relation;
-						})
-						.collect(Collectors.toList())
-					);
+							.map(item -> {
+								var relation = populateRelation((Resource) item, field, relations, subRelationName, unsecure);
+								if (relation == null)
+									return item;
+								return relation;
+							})
+							.collect(Collectors.toList()));
 				}
 			} else {
-				var relation = populateRelation((Resource) value, field, relations, subRelationName);
+				var relation = populateRelation((Resource) value, field, relations, subRelationName, unsecure);
 				field.setValue(resource, relation);
 			}
 		}
@@ -75,50 +89,50 @@ public class RelationService {
 		return resources;
 	}
 
-	private HasSchema populateRelation(HasSchema relationRef, ResourceField field, Relations relations, String subRelationName) {
-		//if (ResourceUtils.isRef(resource)) {
-			if (relationRef == null) {
-				return null;
-			}
-			switch(relationRef) {
-				case Resource ref -> {
-					Resource relation = null;
-					if (ref.getId() != null) {
-						relation = relations.getResourceEntityById(ref.getId());
-					} 
-					else {
-						relation = relations.getResourceEntityByLabel(RelationLabel.builder()
+	private HasSchema populateRelation(HasSchema relationRef, ResourceField field, Relations relations,
+			String subRelationName, boolean unsecure) {
+		// if (ResourceUtils.isRef(resource)) {
+		if (relationRef == null) {
+			return null;
+		}
+		switch (relationRef) {
+			case Resource ref -> {
+				Resource relation = null;
+				if (ref.getId() != null) {
+					relation = relations.getResourceEntityById(ref.getId());
+				} else {
+					relation = relations.getResourceEntityByLabel(RelationLabel.builder()
 							.label(ref.getLabel())
 							.schema(ref.getClass())
 							.tenantLabel(ref.getTenantLabel())
-							.build()
-						);
-					}
-					if (relation != null) {
-						if(subRelationName != null) {
-							populateRelations(List.of(relation), subRelationName, relations);
-						}
-						return relation;
-					}
+							.build());
 				}
-				case ResourceEmbedded embedded -> {
+				if (relation != null) {
 					if (subRelationName != null) {
-						populateRelations(List.of(embedded), subRelationName, relations);
-						
+						populateRelations(List.of(relation), subRelationName, relations, unsecure);
 					}
-					return embedded;
+					return relation;
 				}
-				default -> {}
 			}
-		//}
+			case ResourceEmbedded embedded -> {
+				if (subRelationName != null) {
+					populateRelations(List.of(embedded), subRelationName, relations, unsecure);
+
+				}
+				return embedded;
+			}
+			default -> {
+			}
+		}
+		// }
 		return null;
 	}
 
-	public <T extends HasSchema> T populateRelations(T resource, Set<String> relationNames) {
-		return populateRelations(List.of(resource), relationNames).get(0);
-	}
+	// public <T extends HasSchema> T populateRelations(T resource, Set<String> relationNames, boolean unsecure) {
+	// 	return populateRelations(List.of(resource), relationNames, unsecure).get(0);
+	// }
 
-    private Relations loadRelations(List<? extends HasSchema> resources, Set<String> relationNames) {
+	private Relations loadRelations(List<? extends HasSchema> resources, Set<String> relationNames, boolean unsecure) {
 		if (relationNames == null) {
 			return null;
 		}
@@ -150,19 +164,21 @@ public class RelationService {
 			var relations = new ArrayList<Resource>();
 
 			if (relationsRefs.getIds().size() > 0) {
-				var relationsById = resourceRepository.listbyIds(new HashSet<>(relationsRefs.getIds()));
+				var relationsById =  resourceRepository.listByIds(new HashSet<>(relationsRefs.getIds()), unsecure);
 				for (Resource relation : relationsById) {
 					result.putId(relation.getId(), relation);
-					// if (relation.getLinkId() != null && result.getResourceEntityById(relation.getLinkId()) == null) {
-					// 	result.putId(relation.getLinkId(), relation);
+					// if (relation.getLinkId() != null &&
+					// result.getResourceEntityById(relation.getLinkId()) == null) {
+					// result.putId(relation.getLinkId(), relation);
 					// }
 				}
 				relations.addAll(relationsById);
 			}
 
 			for (var relationRef : relationsRefs.getLabels()) {
-				
-				var relation = resourceRepository.getByLabel(relationRef.getLabel(), relationRef.getTenantLabel(), relationRef.getSchema());
+
+				var relation = resourceRepository.getByLabel(relationRef.getLabel(), relationRef.getTenantLabel(),
+						relationRef.getSchema(), unsecure);
 				if (relation != null) {
 					result.putLabel(relationRef, relation);
 					relations.add(relation);
@@ -190,26 +206,26 @@ public class RelationService {
 					}
 				}
 
-				result.add(loadRelations(subResourceEntitys, SetUtils.of(relationName)));
+				result.add(loadRelations(subResourceEntitys, SetUtils.of(relationName), unsecure));
 			}
 
 		}
 
 		// managed embedded resources
 		for (Map.Entry<String, List<Resource>> entry : subRelationsToLoad.entrySet()) {
-			result.add(loadRelations(entry.getValue(), SetUtils.of(entry.getKey())));
+			result.add(loadRelations(entry.getValue(), SetUtils.of(entry.getKey()), unsecure));
 		}
 
 		return result;
 	}
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private boolean isResourceEmbedded(Object owner, String path) {
 		if (!(owner instanceof HasSchema)) {
 			return false;
 		}
 		Object embedded = ResourceUtils.get((HasSchema) owner, path);
-		return switch(embedded) {
+		return switch (embedded) {
 			case null -> false;
 			case List embeddedList -> {
 				if (embeddedList.size() == 0) {
@@ -223,21 +239,24 @@ public class RelationService {
 		};
 	}
 
-    @SuppressWarnings("unchecked")
+	@SuppressWarnings("unchecked")
 	/**
 	 * Check which resource should really be loaded from the DB
-	 * If the relation is a embedded object, it means that this object is already loaded
+	 * If the relation is a embedded object, it means that this object is already
+	 * loaded
 	 * This embedded object can contains other embedded object or relations
-	 * We need to do a recursion until we find a relation -> this relation is saved in the embedded parameter
+	 * We need to do a recursion until we find a relation -> this relation is saved
+	 * in the embedded parameter
 	 */
-	private void addRelationsToLoadEmbedded(Map<String, List<Resource>> relationsToLoad, Object resource, String relationName) {
+	private void addRelationsToLoadEmbedded(Map<String, List<Resource>> relationsToLoad, Object resource,
+			String relationName) {
 		if (!(resource instanceof HasSchema)) {
 			return;
 		}
 		String[] tokens = relationName.split("\\.");
 		String path = tokens[0];
 		Object sub = ResourceUtils.get((HasSchema) resource, path);
-		if (tokens.length > 1)  {
+		if (tokens.length > 1) {
 			String subRelationName = String.join(".", Arrays.copyOfRange(tokens, 1, tokens.length));
 			if (sub instanceof List) {
 				for (int i = 0; i < ((List<Object>) sub).size(); i++) {
@@ -268,8 +287,8 @@ public class RelationService {
 		if (!(resource instanceof HasSchema)) {
 			return result;
 		}
-		
-		Object ref =  ResourceUtils.get((HasSchema) resource, path);
+
+		Object ref = ResourceUtils.get((HasSchema) resource, path);
 		if (ref instanceof List) {
 			var refList = (List<Object>) ref;
 			for (int i = 0; i < refList.size(); i++) {
@@ -284,22 +303,23 @@ public class RelationService {
 
 	private void addRelationRef(RelationRefs relationRefs, Object sub) {
 		switch (sub) {
-			case null -> {}
+			case null -> {
+			}
 			case Resource resource -> {
 				var id = resource.getId();
 				if (id != null) {
 					relationRefs.addId(id);
 				} else {
 					relationRefs.addLabel(RelationLabel.builder()
-						.label(resource.getLabel())
-						.schema(resource.getClass())
-						.tenantLabel(resource.getTenantLabel())
-						.build()
-					);
+							.label(resource.getLabel())
+							.schema(resource.getClass())
+							.tenantLabel(resource.getTenantLabel())
+							.build());
 				}
 			}
 			case HasSchema embedded -> relationRefs.addEmbedded(embedded);
-			default -> {}
+			default -> {
+			}
 		}
 	}
 }

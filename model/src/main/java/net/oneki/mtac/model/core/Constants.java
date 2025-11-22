@@ -11,5 +11,5 @@ public class Constants {
     public static Integer TENANT_ROOT_SCHEMA_ID = 3;
     public static Integer TENANT_ROOT_ID = 4;
     public static String ROOT_CONFIG_RG_LABEL = "Root config RG";
-
+    public static Integer LIST_ALL_LIMIT = 50000;
 }

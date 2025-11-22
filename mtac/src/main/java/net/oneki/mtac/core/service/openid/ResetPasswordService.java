@@ -27,7 +27,6 @@ public class ResetPasswordService {
   protected MtacProperties mtacProperties;
   protected DefaultUserService userService;
   protected JwtTokenService tokenService;
-  protected PasswordUtil passwordUtil;
 
   @Autowired
   public void setMtacProperties(MtacProperties mtacProperties) {
@@ -42,11 +41,6 @@ public class ResetPasswordService {
   @Autowired
   public void setTokenService(JwtTokenService tokenService) {
     this.tokenService = tokenService;
-  }
-
-  @Autowired
-  public void setPasswordUtil(PasswordUtil passwordUtil) {
-    this.passwordUtil = passwordUtil;
   }
 
   public void triggerResetPassword(String email) {
@@ -111,7 +105,7 @@ public class ResetPasswordService {
       if (user.getResetPasswordToken() == null || !user.getResetPasswordToken().equals(resetToken)) {
         throw new BusinessException("INVALID_RESET_TOKEN", "Invalid reset token");
       }
-      user.setPassword(passwordUtil.hash(request.getNewPassword()));
+      user.setPassword(PasswordUtil.hash(request.getNewPassword()));
       user.setResetPasswordToken(null);
       userService.updateUnsecure(user);
 

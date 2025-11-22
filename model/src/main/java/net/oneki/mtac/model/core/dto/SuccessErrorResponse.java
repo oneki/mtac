@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 @Builder
 public class SuccessErrorResponse {
   public enum Status {
-    Success, Error
+    Success, Warning, Error
   }
 
   private Status status;

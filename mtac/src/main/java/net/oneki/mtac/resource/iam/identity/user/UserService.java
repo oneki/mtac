@@ -44,7 +44,6 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
   protected SecurityContext securityContext;
   protected TokenRegistry tokenRegistry;
   protected TokenRepository tokenRepository;
-  protected PasswordUtil passwordUtil;
   protected MtacProperties mtacProperties;
   protected DefaultTenantService tenantService;
 
@@ -95,11 +94,6 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
   }
 
   @Autowired
-  public final void setPasswordUtil(PasswordUtil passwordUtil) {
-    this.passwordUtil = passwordUtil;
-  }
-
-  @Autowired
   public final void setMtacProperties(MtacProperties mtacProperties) {
     this.mtacProperties = mtacProperties;
   }
@@ -147,6 +141,8 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
   public Claims userinfo(User user, boolean includeRoleName, boolean forceRefresh) {
     var claims = tokenRegistry.get(user.getUid());
     if (claims != null) {
+      fillUserInfo(claims, user); // sometimes there is a bug and it seems fillUserInfo was not called
+                                  // so we force a call here
       return claims;
     } else {
       claims = new Claims();
@@ -202,6 +198,7 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
   // }
 
   protected void fillUserInfo(Claims claims, User user) {
+    System.out.println("^^^^^^^^ filUserInfo called ^^^^^^^^");
   }
 
   // private void buildTenantRoleIndexes(TenantRole tenantRole, Map<String, RoleUserInfo> roleIndex,
@@ -263,7 +260,7 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
     if (userEntity.getPassword() == null) {
       throw new BusinessException("INVALID_PASSWORD", "Password cannot be blank");
     } else {
-      userEntity.setPassword(passwordUtil.hash(request.getPassword()));
+      userEntity.setPassword(PasswordUtil.hash(request.getPassword()));
     }
 
     var result = resourceRepository.create(userEntity);
@@ -280,7 +277,7 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
   public E update(String urn, U request) {
     var userEntity = toUpdateEntity(urn, request);
     if (request.getPassword() != null) {
-      userEntity.setPassword(passwordUtil.hash(request.getPassword()));
+      userEntity.setPassword(PasswordUtil.hash(request.getPassword()));
     }
     resourceRepository.update(userEntity);
     return userEntity;
