@@ -73,7 +73,7 @@ public class MtacProperties {
     private String keystorePassword;
     private String keystoreKeyAlias;
     private int mfaDelaySec = Constants.MFA_DEFAULT_DELAY;
-    private int resetPasswordExpirationSec = 86400; // 1 hour
+    private int resetPasswordExpirationSec = 86400; // 1 day
   }
 
 }

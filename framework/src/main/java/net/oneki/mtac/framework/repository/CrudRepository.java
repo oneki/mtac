@@ -10,11 +10,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 
+import lombok.extern.slf4j.Slf4j;
 import net.oneki.mtac.framework.json.EntityMapper;
 import net.oneki.mtac.framework.util.sql.SqlUtils;
-import net.oneki.mtac.model.core.resource.HasId;
+import net.oneki.mtac.model.core.entity.HasKeyIdentifier;
 
-public abstract class CrudRepository<T extends HasId> extends AbstractRepository { 
+@Slf4j
+public abstract class CrudRepository<T extends HasKeyIdentifier> extends AbstractRepository { 
   protected EntityMapper entityMapper;
   public T create(T entity, String sqlResourcePath) {
     return create(entity, sqlResourcePath, null);
@@ -28,9 +30,10 @@ public abstract class CrudRepository<T extends HasId> extends AbstractRepository
       parameters = parameterSourceFunction.apply(parameters);
     }
     var parameterSource = new MapSqlParameterSource(parameters);
+    log.debug("Create audit: " + SqlUtils.formatSqlQuery(sql, parameters));
     jdbcTemplate.update(sql, parameterSource, keyHolder);
     if (keyHolder.getKeyList() != null && keyHolder.getKeyList().size() > 0) {
-      entity.setId((Integer) keyHolder.getKeyList().get(0).get("id"));
+      entity.setId(keyHolder.getKeyList().get(0).get("id"));
       return entity;
     }
     return null;

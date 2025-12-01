@@ -19,7 +19,6 @@ import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.framework.service.MapperService;
 import net.oneki.mtac.framework.util.resource.R;
 import net.oneki.mtac.model.core.Constants;
-import net.oneki.mtac.model.core.framework.Urn;
 import net.oneki.mtac.model.core.resource.SearchDto;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
 import net.oneki.mtac.model.core.util.exception.ForbiddenException;
@@ -28,7 +27,6 @@ import net.oneki.mtac.model.core.util.security.SecurityContext;
 import net.oneki.mtac.model.framework.Page;
 import net.oneki.mtac.model.resource.LinkType;
 import net.oneki.mtac.model.resource.Resource;
-import net.oneki.mtac.model.resource.Tenant;
 import net.oneki.mtac.model.resource.UpsertRequest;
 
 @RequiredArgsConstructor
@@ -214,29 +212,44 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
      */
     @Transactional
     public E create(E resourceEntity) {
-        if (resourceEntity.getTenantId() != null || resourceEntity.getTenantLabel() != null) {
-            R.fillMeta(resourceEntity);
-        } else {
-            throw new BusinessException("INVALID_ENTITY", "The entity " + resourceEntity + " must have a tenant");
-        }
-        // Verify if the user has the permission to create the resource
-        if (!permissionService.hasCreatePermission(resourceEntity.getTenantLabel(),
-                resourceEntity.getSchemaLabel())) {
-            throw new BusinessException("FORBIDDEN", "Forbidden access");
+        boolean status = false;
+        E createdEntity = null;
+        try {
+            if (resourceEntity.getTenantId() != null || resourceEntity.getTenantLabel() != null) {
+                R.fillMeta(resourceEntity);
+            } else {
+                throw new BusinessException("INVALID_ENTITY", "The entity " + resourceEntity + " must have a tenant");
+            }
+            // Verify if the user has the permission to create the resource
+            if (!permissionService.hasCreatePermission(resourceEntity.getTenantLabel(),
+                    resourceEntity.getSchemaLabel())) {
+                throw new BusinessException("FORBIDDEN", "Forbidden access");
+            }
+            createdEntity = resourceRepository.create(resourceEntity);
+            status = true;
+            return createdEntity;
+        } finally {
+            audit(createdEntity != null ? createdEntity : resourceEntity, null, Action.Create, status, false);
         }
 
-        return resourceRepository.create(resourceEntity);
     }
 
     @Transactional
     public E createUnsecure(E resourceEntity) {
-        if (resourceEntity.getTenantId() != null || resourceEntity.getTenantLabel() != null) {
-            R.fillMeta(resourceEntity);
-        } else {
-            throw new BusinessException("INVALID_ENTITY", "The entity " + resourceEntity + " must have a tenant");
+        boolean status = false;
+        E createdEntity = null;
+        try {
+            if (resourceEntity.getTenantId() != null || resourceEntity.getTenantLabel() != null) {
+                R.fillMeta(resourceEntity);
+            } else {
+                throw new BusinessException("INVALID_ENTITY", "The entity " + resourceEntity + " must have a tenant");
+            }
+            createdEntity = resourceRepository.create(resourceEntity);
+            status = true;
+            return createdEntity;
+        } finally {
+            audit(createdEntity != null ? createdEntity : resourceEntity, null, Action.Create, status, true);
         }
-
-        return resourceRepository.create(resourceEntity);
     }
 
     @Transactional
@@ -267,21 +280,34 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
      */
     @Transactional
     public void update(E resourceEntity) {
-        if (resourceEntity.getUpdatedBy() == null) {
-            resourceEntity.setUpdatedBy(securityContext.getUsername());
+        var currentResource = getById(resourceEntity.getId());
+        boolean status = false;
+        try {
+            if (resourceEntity.getUpdatedBy() == null) {
+                resourceEntity.setUpdatedBy(securityContext.getUsername());
+            }
+            // Verify if the user has the permission to update the resource
+            if (!permissionService.hasPermission(resourceEntity.getId(), "update")) {
+                throw new BusinessException("FORBIDDEN", "Forbidden access");
+            }
+            resourceRepository.update(resourceEntity);
+        } finally {
+            audit(resourceEntity, currentResource, Action.Update, status, false);
         }
-        // Verify if the user has the permission to update the resource
-        if (!permissionService.hasPermission(resourceEntity.getId(), "update")) {
-            throw new BusinessException("FORBIDDEN", "Forbidden access");
-        }
-        resourceRepository.update(resourceEntity);
+
     }
 
     public void updateUnsecure(E resourceEntity) {
-        if (resourceEntity.getUpdatedBy() == null) {
-            resourceEntity.setUpdatedBy(securityContext != null ? securityContext.getUsername() : "");
+        boolean status = false;
+        var currentResource = getByIdUnsecure(resourceEntity.getId());
+        try {
+            if (resourceEntity.getUpdatedBy() == null) {
+                resourceEntity.setUpdatedBy(securityContext != null ? securityContext.getUsername() : "");
+            }
+            resourceRepository.update(resourceEntity);
+        } finally {
+            audit(resourceEntity, currentResource, Action.Update, status, true);
         }
-        resourceRepository.update(resourceEntity);
     }
 
     /**
@@ -382,14 +408,19 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
      */
     @Transactional
     public void delete(E resourceEntity) {
-        if (resourceEntity == null) {
-            return;
+        boolean status = false;
+        try {
+            if (resourceEntity == null) {
+                return;
+            }
+            // Verify if the user has the permission to delete the resource
+            if (!permissionService.hasPermission(resourceEntity.getId(), "delete")) {
+                throw new BusinessException("FORBIDDEN", "Forbidden access");
+            }
+            resourceRepository.delete(resourceEntity.getId());
+        } finally {
+            audit(resourceEntity, null, Action.Delete, status, false);
         }
-        // Verify if the user has the permission to delete the resource
-        if (!permissionService.hasPermission(resourceEntity.getId(), "delete")) {
-            throw new BusinessException("FORBIDDEN", "Forbidden access");
-        }
-        resourceRepository.delete(resourceEntity.getId());
     }
 
     /**
@@ -599,12 +630,12 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
     public Page<E> listUnsecure(Query query) {
         var resources = resourceRepository.listByTenantAndTypeUnsecure(query.getTenant(), getEntityClass(), query);
         return asPage(resources, query, true);
-    } 
-    
+    }
+
     public <C extends Resource> Page<C> listUnsecure(Query query, Class<C> resultContentClass) {
         var resources = resourceRepository.listByTenantAndTypeUnsecure(query.getTenant(), resultContentClass, query);
         return asPage(resources, query, true);
-    }     
+    }
 
     public List<E> listAllUnsecure(Query query) {
         if (query.getLimit() == null) {
@@ -621,7 +652,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
             if (unsecure) {
                 resources = relationService.populateRelationsUnsecure(resources, relationNames);
             } else {
-                resources =  relationService.populateRelations(resources, relationNames);
+                resources = relationService.populateRelations(resources, relationNames);
             }
         }
         resources = resources.stream()
@@ -712,6 +743,10 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
 
     public MapperService getMapperService() {
         return mapperService;
+    }
+
+    protected void audit(E newResource, E oldResource, Action action, boolean status, boolean unsecure) {
+        // Default implementation does nothing
     }
 
     private Resource getRelationEntity(UpsertRequest upsertRequest, ResourceField relationField,

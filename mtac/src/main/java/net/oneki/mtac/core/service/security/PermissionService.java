@@ -109,6 +109,11 @@ public class PermissionService {
         return hasPermission(resource, permission);
     }
 
+    public boolean isSuperAdmin() {
+        // Check if the logged user has the role super_admin
+        return hasPermission(Constants.TENANT_ROOT_ID, "iam.role|create");
+    }
+
     /**
      * Check if the current user has the given permission on the given resource
      * Example of permission: "create", "reboot_cp"

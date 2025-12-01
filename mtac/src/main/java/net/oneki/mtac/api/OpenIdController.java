@@ -249,7 +249,7 @@ public abstract class OpenIdController {
     var httpHeaders = new HttpHeaders();
     httpHeaders.add("Set-Cookie", cookieName + "=" + result.getAccessToken() + "; Path=/; SameSite=Strict; httpOnly");
     httpHeaders.add("Set-Cookie",
-        "fuzz.imptoken=" + result.getOriginalAccessToken() + "; Path=/; SameSite=Strict; httpOnly");
+       mtacProperties.getIam().getImpersonateTokenCookieName() + "=" + result.getOriginalAccessToken() + "; Path=/; SameSite=Strict; httpOnly");
 
     // redirect the user to the home page via a 302 response
     return ResponseEntity.ok().headers(httpHeaders).body(result);

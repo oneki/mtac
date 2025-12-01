@@ -48,6 +48,10 @@ public class ResetPasswordService {
   }
 
   public void triggerResetPassword(String email, BiConsumer<String, User> resetLinkSender) {
+    triggerResetPassword(email, mtacProperties.getJwt().getResetPasswordExpirationSec(), resetLinkSender);
+  }
+
+  public void triggerResetPassword(String email, Integer resetPasswordExpirationSec, BiConsumer<String, User> resetLinkSender) {
     var resetLink = mtacProperties.getResetPassword().getLink();
     User user = null;
     try {
@@ -61,8 +65,7 @@ public class ResetPasswordService {
       return;
     var resetToken = UUID.randomUUID().toString();
     // generete JWT token that contains the reset token
-    var jwtToken = tokenService.newToken(Map.of("resetToken", resetToken, "email", email),
-        mtacProperties.getJwt().getResetPasswordExpirationSec());
+    var jwtToken = tokenService.newToken(Map.of("resetToken", resetToken, "email", email), resetPasswordExpirationSec);
     // update user attribute to store the reset token
     user.setResetPasswordToken(resetToken);
     userService.updateUnsecure(user);

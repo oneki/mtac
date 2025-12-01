@@ -5,7 +5,7 @@ CAUTION: Do not modify this file unless you know what you are doing.
 -->
 <dbmodel pgmodeler-ver="1.2.0" use-changelog="false" max-obj-count="52"
 	 gen-disabled-objs-code="false" show-sys-schemas-rects="false"
-	 last-position="0,-180" last-zoom="1" scene-rect="-20,-180,1956.02,1523.72"
+	 last-position="-20,140" last-zoom="1" scene-rect="-20,-180,1956.02,1523.72"
 	 default-owner="postgres"
 	 layers="Default"
 	 active-layers="0"
@@ -1719,22 +1719,37 @@ END;]]> </definition>
 	</return-type>
 	<definition> <![CDATA[BEGIN
         UPDATE resource r
-        SET content = jsonb_set(r.content, ('{member_of}')::text[], r2.member_of), updated_by = g.updated_by, updated_at = g.updated_at
+        SET content = jsonb_set(r.content, ('{memberOf}')::text[], r2.member_of), updated_by = g.updated_by, updated_at = g.updated_at
         FROM (
-          select c.id as id, json_agg(json_build_object('id', pr.id, 'schema', prs.label, 'label', pr.label))::jsonb as member_of
-          from group_membership gm, resource p, resource pr, resource prs, resource c, resource cr, resource crs
+          select c.id as id, json_agg(json_build_object('id', p.id, 's', ps.id, 'label', p.label))::jsonb as member_of
+          from group_membership gm, resource p, resource c, resource ps, resource cs
           WHERE gm.parent_id = p.id AND
               gm.child_id = c.id AND
-              p.label = pr.label AND
-              pr.schema_id = prs.id AND
-              prs.label = 'iam.identity.group_ref' AND
-              c.label = cr.label AND
-              cr.schema_id = crs.id AND
-              crs.label IN ('iam.identity.group_ref', 'iam.identity.user_ref') AND
+              p.schema_id = ps.id AND
+              ps.label = 'iam.identity.group' AND
+              c.schema_id = cs.id AND
+              cs.label IN ('iam.identity.group', 'iam.identity.user') AND
               c.id = NEW.child_id
           group by c.id
         ) r2, resource g
         WHERE r2.id = r.id and g.id = new.parent_id;
+
+        UPDATE resource r
+        SET content = jsonb_set(r.content, ('{members}')::text[], r2.members), updated_by = g.updated_by, updated_at = g.updated_at
+        FROM (
+          select p.id as id, json_agg(json_build_object('id', c.id, 's', cs.id, 'label', c.label))::jsonb as members
+          from group_membership gm, resource p, resource c, resource ps, resource cs
+          WHERE gm.parent_id = p.id AND
+              gm.child_id = c.id AND
+              p.schema_id = ps.id AND
+              ps.label = 'iam.identity.group' AND
+              c.schema_id = cs.id AND
+              cs.label IN ('iam.identity.group', 'iam.identity.user') AND
+              p.id = NEW.parent_id
+          group by p.id
+        ) r2, resource g
+        WHERE r2.id = r.id and g.id = new.child_id;
+
 
 		WITH RECURSIVE hierarchy(group_id, member_group_id) AS (
 		  SELECT parent_id, child_id
@@ -1767,32 +1782,74 @@ END;]]> </definition>
 	</return-type>
 	<definition> <![CDATA[BEGIN
         UPDATE resource r
-        SET content = jsonb_set(r.content, ('{member_of}')::text[], r2.member_of), updated_by = g.updated_by, updated_at = g.updated_at
+        SET content = jsonb_set(r.content, ('{memberOf}')::text[], r2.member_of), updated_by = g.updated_by, updated_at = g.updated_at
         FROM (
-          select c.id as id, json_agg(json_build_object('id', pr.id, 'schema', prs.label, 'label', pr.label))::jsonb as member_of
-          from group_membership gm, resource p, resource pr, resource prs, resource c, resource cr, resource crs
+          select c.id as id, json_agg(json_build_object('id', p.id, 's', ps.id, 'label', p.label))::jsonb as member_of
+          from group_membership gm, resource p, resource c, resource ps, resource cs
           WHERE gm.parent_id = p.id AND
               gm.child_id = c.id AND
-              p.label = pr.label AND
-              pr.schema_id = prs.id AND
-              prs.label = 'iam.identity.group_ref' AND
-              c.label = cr.label AND
-              cr.schema_id = crs.id AND
-              crs.label IN ('iam.identity.group_ref', 'iam.identity.user_ref') AND
+              p.schema_id = ps.id AND
+              ps.label = 'iam.identity.group' AND
+              c.schema_id = cs.id AND
+              cs.label IN ('iam.identity.group', 'iam.identity.user') AND
               c.id = OLD.child_id
           group by c.id
         ) r2, resource g
-        WHERE r2.id = r.id and g.id = OLD.parent_id;
+        WHERE r2.id = r.id and g.id = old.parent_id;
+
+        UPDATE resource r
+        SET content = jsonb_set(r.content, ('{memberOf}')::text[], '[]'::jsonb)
+        WHERE NOT EXISTS (
+          select 1
+          from group_membership gm, resource p, resource c, resource ps, resource cs
+          WHERE gm.parent_id = p.id AND
+              gm.child_id = c.id AND
+              p.schema_id = ps.id AND
+              ps.label = 'iam.identity.group' AND
+              c.schema_id = cs.id AND
+              cs.label IN ('iam.identity.group', 'iam.identity.user') AND
+              c.id = OLD.child_id
+        ) AND r.id = old.child_id;
+
+        UPDATE resource r
+        SET content = jsonb_set(r.content, ('{members}')::text[], r2.members), updated_by = g.updated_by, updated_at = g.updated_at
+        FROM (
+          select p.id as id, json_agg(json_build_object('id', c.id, 's', cs.id, 'label', c.label))::jsonb as members
+          from group_membership gm, resource p, resource c, resource ps, resource cs
+          WHERE gm.parent_id = p.id AND
+              gm.child_id = c.id AND
+              p.schema_id = ps.id AND
+              ps.label = 'iam.identity.group' AND
+              c.schema_id = cs.id AND
+              cs.label IN ('iam.identity.group', 'iam.identity.user') AND
+              p.id = OLD.parent_id
+          group by p.id
+        ) r2, resource g
+        WHERE r2.id = r.id and g.id = old.child_id;
+
+        UPDATE resource r
+        SET content = jsonb_set(r.content, ('{members}')::text[], '[]'::jsonb)
+        WHERE NOT EXISTS (
+          select 1
+          from group_membership gm, resource p, resource c, resource ps, resource cs
+          WHERE gm.parent_id = p.id AND
+              gm.child_id = c.id AND
+              p.schema_id = ps.id AND
+              ps.label = 'iam.identity.group' AND
+              c.schema_id = cs.id AND
+              cs.label IN ('iam.identity.group', 'iam.identity.user') AND
+              p.id = OLD.parent_id
+        ) AND r.id = old.parent_id;
 
 		WITH RECURSIVE hierarchy(group_id, member_group_id) AS (
 		  SELECT parent_id, child_id
-		  FROM group_membership WHERE parent_id IN (old.child_id)
+		  FROM group_membership WHERE parent_id IN (OLD.child_id)
 		  UNION ALL
 		  SELECT gm.parent_id, gm.child_id
 		    FROM hierarchy h, group_membership gm
 		    WHERE h.member_group_id = gm.parent_id
 		)
-		delete from token where identity_id in (select member_group_id FROM hierarchy limit 5000) or identity_id = old.child_id;    
+		delete from token where identity_id in (select member_group_id FROM hierarchy limit 5000) or identity_id = OLD.child_id;
   RETURN NULL;
 
 END;]]> </definition>

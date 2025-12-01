@@ -52,7 +52,6 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
   @Value("${mtac.iam.tenants-in-idtoken.schema-labels:}")
   private Set<String> storeTenantsSchemaLabels;
 
-
   @Autowired
   public final void setGroupMembershipRepository(GroupMembershipRepository groupMembershipRepository) {
     this.groupMembershipRepository = groupMembershipRepository;
@@ -113,7 +112,6 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
     return resourceRepository.getByLabel(userLabel, tenantLabel, getEntityClass());
   }
 
-  
   public Claims userinfo() {
     log.debug("Inside userinfo() method");
     return userinfo(false);
@@ -141,8 +139,9 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
   public Claims userinfo(User user, boolean includeRoleName, boolean forceRefresh) {
     var claims = tokenRegistry.get(user.getUid());
     if (claims != null) {
-      fillUserInfo(claims, user); // sometimes there is a bug and it seems fillUserInfo was not called
-                                  // so we force a call here
+      // fillUserInfo(claims, user); // sometimes there is a bug and it seems
+      // fillUserInfo was not called
+      // so we force a call here
       return claims;
     } else {
       claims = new Claims();
@@ -164,95 +163,122 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
     return claims;
   }
 
+  public Claims buildClaims(boolean includeRoleName) {
+    return buildClaims(securityContext.getSubject(), includeRoleName);
+  }
+
+  public Claims buildClaims(String sub, boolean includeRoleName) {
+    var user = getByUidUnsecure(sub);
+    return buildClaims(user, includeRoleName);
+  }
+
+  public Claims buildClaims(User user, boolean includeRoleName) {
+    var claims = new Claims();
+    claims.put("sub", user.getUid());
+    claims.put("username", user.getLabel());
+    claims.put("email", user.getEmail());
+    claims.put("firstName", user.getFirstName());
+    claims.put("lastName", user.getLastName());
+    claims.putAll(tenantService.getTenantClaims(user, includeRoleName).asClaims());
+
+    fillUserInfo(claims, user);
+    return claims;
+  }
+
   // public void verifyResetToken(String resetToken) {
-  //   try {
-  //     tokenService.verify(resetToken);
-  //   } catch (Exception e) {
-  //     throw new BusinessException("INVALID_RESET_TOKEN", "Invalid or expired reset token");
-  //   }
+  // try {
+  // tokenService.verify(resetToken);
+  // } catch (Exception e) {
+  // throw new BusinessException("INVALID_RESET_TOKEN", "Invalid or expired reset
+  // token");
+  // }
   // }
 
   // @Transactional
   // public void resetPassword(ResetPasswordRequest request) {
-  //   try {
-  //     var claims = tokenService.verify(request.getResetToken());
-  //     var email = claims.get("email", String.class);
-  //     var resetToken = claims.get("resetToken", String.class);
-  //     if (email == null || resetToken == null) {
-  //       throw new BusinessException("INVALID_RESET_TOKEN", "Invalid reset token");
-  //     }
-  //     var user = getByUniqueLabelUnsecureOrReturnNull(email);
-  //     if (user == null) {
-  //       throw new BusinessException("USER_NOT_FOUND", "User not found for the provided email");
-  //     }
-  //     if (user.getResetPasswordToken() == null || !user.getResetPasswordToken().equals(resetToken)) {
-  //       throw new BusinessException("INVALID_RESET_TOKEN", "Invalid reset token");
-  //     }
-  //     user.setPassword(passwordUtil.hash(request.getNewPassword()));
-  //     user.setResetPasswordToken(null);
-  //     updateUnsecure(user);
+  // try {
+  // var claims = tokenService.verify(request.getResetToken());
+  // var email = claims.get("email", String.class);
+  // var resetToken = claims.get("resetToken", String.class);
+  // if (email == null || resetToken == null) {
+  // throw new BusinessException("INVALID_RESET_TOKEN", "Invalid reset token");
+  // }
+  // var user = getByUniqueLabelUnsecureOrReturnNull(email);
+  // if (user == null) {
+  // throw new BusinessException("USER_NOT_FOUND", "User not found for the
+  // provided email");
+  // }
+  // if (user.getResetPasswordToken() == null ||
+  // !user.getResetPasswordToken().equals(resetToken)) {
+  // throw new BusinessException("INVALID_RESET_TOKEN", "Invalid reset token");
+  // }
+  // user.setPassword(passwordUtil.hash(request.getNewPassword()));
+  // user.setResetPasswordToken(null);
+  // updateUnsecure(user);
 
-  //   } catch (Exception e) {
-  //     throw new BusinessException("RESET_PASSWORD_FAILED", "Failed to reset password: " + e.getMessage());
-  //   }
+  // } catch (Exception e) {
+  // throw new BusinessException("RESET_PASSWORD_FAILED", "Failed to reset
+  // password: " + e.getMessage());
+  // }
   // }
 
   protected void fillUserInfo(Claims claims, User user) {
     System.out.println("^^^^^^^^ filUserInfo called ^^^^^^^^");
   }
 
-  // private void buildTenantRoleIndexes(TenantRole tenantRole, Map<String, RoleUserInfo> roleIndex,
-  //     Map<String, TenantUserInfo> tenantIndex, boolean includeRoleName) {
-  //   if (tenantRole != null) {
-  //     for (var role : tenantRole.getRoles()) {
-  //       var roleUserInfo = RoleUserInfo.builder()
-  //           .actions(role.getActions())
-  //           .schemas(role.getSchemas())
-  //           .build();
-  //       if (includeRoleName == true) {
-  //         roleUserInfo.setLabel(role.getName());
-  //       }
-  //       roleIndex.put(role.getUid(), roleUserInfo);
-  //     }
-  //     var tenant = tenantRole.getTenant();
+  // private void buildTenantRoleIndexes(TenantRole tenantRole, Map<String,
+  // RoleUserInfo> roleIndex,
+  // Map<String, TenantUserInfo> tenantIndex, boolean includeRoleName) {
+  // if (tenantRole != null) {
+  // for (var role : tenantRole.getRoles()) {
+  // var roleUserInfo = RoleUserInfo.builder()
+  // .actions(role.getActions())
+  // .schemas(role.getSchemas())
+  // .build();
+  // if (includeRoleName == true) {
+  // roleUserInfo.setLabel(role.getName());
+  // }
+  // roleIndex.put(role.getUid(), roleUserInfo);
+  // }
+  // var tenant = tenantRole.getTenant();
 
-  //     var child = tenantIndex.get(tenant.getUid());
-  //     if (child != null) {
-  //       child.setRoles(tenantRole.getRoles().stream()
-  //           .map(role -> role.getUid())
-  //           .collect(Collectors.toSet()));
-  //     } else {
-  //       child = TenantUserInfo.builder()
-  //           .uid(tenant.getUid())
-  //           .label(tenant.getLabel())
-  //           .schemaLabel(tenant.getSchemaLabel())
-  //           .roles(tenantRole.getRoles().stream()
-  //               .map(role -> role.getUid())
-  //               .collect(Collectors.toSet()))
-  //           .build();
-  //       tenantIndex.put(tenant.getUid(), child);
+  // var child = tenantIndex.get(tenant.getUid());
+  // if (child != null) {
+  // child.setRoles(tenantRole.getRoles().stream()
+  // .map(role -> role.getUid())
+  // .collect(Collectors.toSet()));
+  // } else {
+  // child = TenantUserInfo.builder()
+  // .uid(tenant.getUid())
+  // .label(tenant.getLabel())
+  // .schemaLabel(tenant.getSchemaLabel())
+  // .roles(tenantRole.getRoles().stream()
+  // .map(role -> role.getUid())
+  // .collect(Collectors.toSet()))
+  // .build();
+  // tenantIndex.put(tenant.getUid(), child);
 
-  //       var tenantId = tenant.getId();
-  //       var ancestorTenants = ResourceRegistry.getTenantAncestors(tenantId);
+  // var tenantId = tenant.getId();
+  // var ancestorTenants = ResourceRegistry.getTenantAncestors(tenantId);
 
-  //       for (var ancestor : ancestorTenants) {
-  //         var parentTenantUserInfo = tenantIndex.get(ancestor.getUid());
-  //         if (parentTenantUserInfo != null) {
-  //           parentTenantUserInfo.getChildren().add(child);
-  //           break;
-  //         } else {
-  //           parentTenantUserInfo = TenantUserInfo.builder()
-  //               .uid(ancestor.getUid())
-  //               .label(ancestor.getLabel())
-  //               .schemaLabel(ancestor.getSchemaLabel())
-  //               .build();
-  //           parentTenantUserInfo.getChildren().add(child);
-  //           tenantIndex.put(ancestor.getUid(), parentTenantUserInfo);
-  //           child = parentTenantUserInfo;
-  //         }
-  //       }
-  //     }
-  //   }
+  // for (var ancestor : ancestorTenants) {
+  // var parentTenantUserInfo = tenantIndex.get(ancestor.getUid());
+  // if (parentTenantUserInfo != null) {
+  // parentTenantUserInfo.getChildren().add(child);
+  // break;
+  // } else {
+  // parentTenantUserInfo = TenantUserInfo.builder()
+  // .uid(ancestor.getUid())
+  // .label(ancestor.getLabel())
+  // .schemaLabel(ancestor.getSchemaLabel())
+  // .build();
+  // parentTenantUserInfo.getChildren().add(child);
+  // tenantIndex.put(ancestor.getUid(), parentTenantUserInfo);
+  // child = parentTenantUserInfo;
+  // }
+  // }
+  // }
+  // }
   // }
 
   public E create(U request) {
