@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.security.SecurityProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -17,7 +16,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.NegatedRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
@@ -71,7 +70,7 @@ public abstract class BaseResourceServerConfig {
     }
 
     @Bean
-    @Order(SecurityProperties.BASIC_AUTH_ORDER)
+    @Order(2)
     public SecurityFilterChain filterChain(HttpSecurity http,
             BearerTokenResolver bearerTokenResolver) throws Exception {
         http.exceptionHandling(c -> {
@@ -255,9 +254,9 @@ public abstract class BaseResourceServerConfig {
             allPublicUrls.addAll(matchers);
         }
 
-        allPublicUrls.add(new AntPathRequestMatcher("/health/readiness"));
-        allPublicUrls.add(new AntPathRequestMatcher("/health/liveness"));
-        allPublicUrls.add(new AntPathRequestMatcher("/v2/api-docs"));
+        allPublicUrls.add(PathPatternRequestMatcher.withDefaults().matcher("/health/readiness"));
+        allPublicUrls.add(PathPatternRequestMatcher.withDefaults().matcher("/health/liveness"));
+        allPublicUrls.add(PathPatternRequestMatcher.withDefaults().matcher("/v2/api-docs"));
         return allPublicUrls;
     }
 
