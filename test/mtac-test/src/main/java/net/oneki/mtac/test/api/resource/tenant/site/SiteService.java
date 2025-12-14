@@ -3,6 +3,7 @@ package net.oneki.mtac.test.api.resource.tenant.site;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import net.oneki.mtac.model.core.dto.UpsertResponse;
 import net.oneki.mtac.model.core.util.exception.NotFoundException;
 import net.oneki.mtac.model.resource.Tenant;
 import net.oneki.mtac.resource.iam.identity.group.DefaultGroupService;
@@ -18,20 +19,21 @@ public class SiteService extends TenantService<SiteUpsertRequest, Site> {
     protected DefaultGroupService groupService;
 
     @Override
-    public Site create(SiteUpsertRequest request) {
-        var site = super.create(request);
+    public UpsertResponse<Site> create(SiteUpsertRequest request) {
+        var siteResponse = super.create(request);
+        var site = siteResponse.getResource();
         var assetsRg = createRg("assets", site.getId());
         var assetAdministrators = groupService.getByLabel(request.getTenant() + " Asset Administrators", site.getLabel());
         // Give permissions to Asset Administrators to manage all assets
         permissionService.addPermissionUnsecure("role_asset_admin", assetsRg.getId(), assetAdministrators.getId());
 
-        return site;
+        return siteResponse;
     }
 
     @Override
-    public void delete(Site site) {
+    public UpsertResponse<Void> delete(Site site) {
         // deleteRg(site, "assets");
-        super.delete(site);
+        return super.delete(site);
     }
 
     private ResourceGroup createRg(String name, Integer tenantId) {
@@ -39,7 +41,7 @@ public class SiteService extends TenantService<SiteUpsertRequest, Site> {
                 .label(name)
                 .tenantId(tenantId)
                 .build();
-        return rgService.create(rg);
+        return rgService.create(rg).getResource();
     }
 
     // private void deleteRg(Site site, String rgName) {

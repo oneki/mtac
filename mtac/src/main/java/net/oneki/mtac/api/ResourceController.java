@@ -1,6 +1,5 @@
 package net.oneki.mtac.api;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -8,7 +7,6 @@ import org.atteo.evo.inflector.English;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -21,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.oneki.mtac.framework.query.Query;
 import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.model.core.Constants;
+import net.oneki.mtac.model.core.dto.UpsertResponse;
 import net.oneki.mtac.model.core.resource.SearchDto;
 import net.oneki.mtac.model.core.util.StringUtils;
 import net.oneki.mtac.model.framework.Page;
@@ -126,18 +125,18 @@ public abstract class ResourceController<U extends UpsertRequest, R extends Reso
         return result;
     }
 
-    public R create(@RequestBody U request) {
+    public UpsertResponse<R> create(@RequestBody U request) {
         var result = getService().create(request);
         return result;
     }
 
-    public R update(@PathVariable("uid") String uid, @RequestBody U request) {
+    public UpsertResponse<R> update(@PathVariable("uid") String uid, @RequestBody U request) {
         var result = getService().update(uid, request);
         return result;
     }
 
-    public void deleteByUid(@PathVariable("uid") String uid) {
-        getService().deleteByUid(uid);
+    public UpsertResponse<Void> deleteByUid(@PathVariable("uid") String uid) {
+        return getService().deleteByUid(uid);
     }
 
     // list. A query param is used to specify the tenant. If no tenant is specified,

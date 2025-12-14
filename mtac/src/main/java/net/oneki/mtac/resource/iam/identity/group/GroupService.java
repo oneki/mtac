@@ -27,9 +27,9 @@ public abstract class GroupService<U extends GroupUpsertRequest, E extends Group
     public E create(E resourceEntity, Integer groupRefTenantId, boolean unsecure) {
         var group = unsecure ? super.createUnsecure(resourceEntity) : super.create(resourceEntity);
         if (groupRefTenantId != null) {
-            createLink(group, groupRefTenantId, LinkType.Ref, true);
+            createLink(group.getResource(), groupRefTenantId, LinkType.Ref, true);
         }
-        return group;
+        return group.getResource();
     }
 
     public void addMember(E group, Identity member) {

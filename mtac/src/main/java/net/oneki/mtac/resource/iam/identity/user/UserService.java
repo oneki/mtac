@@ -16,6 +16,7 @@ import net.oneki.mtac.framework.repository.TokenRepository;
 import net.oneki.mtac.framework.service.JwtTokenService;
 import net.oneki.mtac.framework.util.security.PasswordUtil;
 import net.oneki.mtac.model.core.config.MtacProperties;
+import net.oneki.mtac.model.core.dto.UpsertResponse;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
 import net.oneki.mtac.model.core.util.security.Claims;
 import net.oneki.mtac.model.core.util.security.SecurityContext;
@@ -223,7 +224,7 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
   // }
 
   protected void fillUserInfo(Claims claims, User user) {
-    System.out.println("^^^^^^^^ filUserInfo called ^^^^^^^^");
+
   }
 
   // private void buildTenantRoleIndexes(TenantRole tenantRole, Map<String,
@@ -281,7 +282,7 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
   // }
   // }
 
-  public E create(U request) {
+  public UpsertResponse<E> create(U request) {
     var userEntity = toCreateEntity(request);
     if (userEntity.getPassword() == null) {
       throw new BusinessException("INVALID_PASSWORD", "Password cannot be blank");
@@ -296,17 +297,23 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
       }
     }
 
-    return result;
+    return UpsertResponse.<E>builder()
+        .status(UpsertResponse.Status.Success)
+        .resource(result)
+        .build();
 
   }
 
-  public E update(String urn, U request) {
+  public UpsertResponse<E> update(String urn, U request) {
     var userEntity = toUpdateEntity(urn, request);
     if (request.getPassword() != null) {
       userEntity.setPassword(PasswordUtil.hash(request.getPassword()));
     }
     resourceRepository.update(userEntity);
-    return userEntity;
+    return UpsertResponse.<E>builder()
+        .status(UpsertResponse.Status.Success)
+        .resource(userEntity)
+        .build();
   }
 
   public Set<Integer> listGroupSids(@NonNull Resource user) {

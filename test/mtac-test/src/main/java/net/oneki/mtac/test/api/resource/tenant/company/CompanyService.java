@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import net.oneki.mtac.core.service.security.PermissionService;
+import net.oneki.mtac.model.core.dto.UpsertResponse;
 import net.oneki.mtac.model.core.util.exception.NotFoundException;
 import net.oneki.mtac.model.resource.LinkType;
 import net.oneki.mtac.model.resource.iam.identity.Identity;
@@ -20,8 +21,9 @@ public abstract class CompanyService<U extends CompanyUpsertRequest, E extends C
     @Autowired protected PermissionService permissionService;
 
     @Override
-    public E create(U request) {
-        var company = super.create(request);
+    public UpsertResponse<E> create(U request) {
+        var companyResponse = super.create(request);
+        var company = companyResponse.getResource();
 
         // Create resource groups
         var usersRg = createRg("users", company.getId());
@@ -60,11 +62,11 @@ public abstract class CompanyService<U extends CompanyUpsertRequest, E extends C
 
         
 
-        return company;
+        return companyResponse;
     }
 
     @Override
-    public void delete(E company) {
+    public UpsertResponse<Void> delete(E company) {
         deleteGroup(company, "groups", "IAM Administrators");
         deleteGroup(company, "admin-groups", "Administrators");
         deleteGroup(company, "admin-groups", "Asset Administrators");
@@ -72,7 +74,7 @@ public abstract class CompanyService<U extends CompanyUpsertRequest, E extends C
         deleteRg(company, "groups");
         deleteRg(company, "users");
         deleteRg(company, "assets");
-        super.delete(company);
+        return super.delete(company);
     }
 
     private ResourceGroup createRg(String name, Integer tenantId) {
@@ -80,7 +82,7 @@ public abstract class CompanyService<U extends CompanyUpsertRequest, E extends C
             .label(name)
             .tenantId(tenantId)
             .build();
-        return rgService.create(rg);
+        return rgService.create(rg).getResource();
     }
 
     private Group createGroup(String name, Integer tenantId, Integer companyId, List<Identity> members) {

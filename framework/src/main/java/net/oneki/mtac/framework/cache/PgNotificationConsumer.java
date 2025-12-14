@@ -18,7 +18,6 @@ import net.oneki.mtac.model.resource.Resource;
 import net.oneki.mtac.model.resource.Tenant;
 import net.oneki.mtac.model.resource.schema.Schema;
 
-
 @Component
 @Slf4j
 @RequiredArgsConstructor
@@ -43,7 +42,9 @@ public class PgNotificationConsumer implements Consumer<PGNotification> {
                     Integer schemaId = Integer.valueOf(tokens[3]);
                     String label = String.join(",", Arrays.copyOfRange(tokens, 4, tokens.length));
                     List<Integer> tenantSchemaIds = List
-                            .of("tenant.root", "tenant.company.partner", "tenant.company.customer", "tenant.site", "tenant.rg").stream()
+                            .of("tenant.root", "tenant.company.partner", "tenant.company.customer", "tenant.site",
+                                    "tenant.rg")
+                            .stream()
                             .map(s -> cache.getSchemaId(s)).collect(Collectors.toList());
                     boolean isSchema = schemaId.equals(Constants.SCHEMA_SCHEMA_ID);
                     boolean isTenant = tenantSchemaIds.contains(schemaId);
@@ -66,36 +67,39 @@ public class PgNotificationConsumer implements Consumer<PGNotification> {
                                 log.info("Add schema id={}, label={} to cache", id, label);
                                 cache.addSchema(
                                         Schema.builder()
-                                            .id(id)
-                                            .uid(Resource.toUid(id))
-                                            .label(label)
-                                            .schemaId(Constants.SCHEMA_SCHEMA_ID)
-                                            .schemaLabel(Constants.SCHEMA_SCHEMA_LABEL)
-                                            .tenantId(Constants.TENANT_ROOT_ID)
-                                            .tenantLabel(Constants.TENANT_ROOT_LABEL)
-                                            .build());
+                                                .id(id)
+                                                .uid(Resource.toUid(id))
+                                                .label(label)
+                                                .schemaId(Constants.SCHEMA_SCHEMA_ID)
+                                                .schemaLabel(Constants.SCHEMA_SCHEMA_LABEL)
+                                                .tenantId(Constants.TENANT_ROOT_ID)
+                                                .tenantLabel(Constants.TENANT_ROOT_LABEL)
+                                                .build());
                             }
                             if (isTenant) {
                                 log.info("Add tenant id={}, label={} to cache", id, label);
-                                var parentTenantLabel = "";
-                                if (tenantId != null) {
-                                    var parentTenant = ResourceRegistry.getTenantById(tenantId);
-                                    if (parentTenant != null) {
-                                        parentTenantLabel = parentTenant.getLabel();
-                                    }
-                                }
-                                var schema = ResourceRegistry.getSchemaById(schemaId);
-                                
-                                cache.addTenant(
-                                        Tenant.builder()
-                                            .id(id)
-                                            .uid(Resource.toUid(id))
-                                            .label(label)
-                                            .schemaLabel(schema.getLabel())
-                                            .schemaId(schemaId)
-                                            .tenantLabel(parentTenantLabel)
-                                            .tenantId(tenantId)
-                                            .build());
+                                // var parentTenantLabel = "";
+                                // if (tenantId != null) {
+                                //     var parentTenant = ResourceRegistry.getTenantById(tenantId);
+                                //     if (parentTenant != null) {
+                                //         parentTenantLabel = parentTenant.getLabel();
+                                //     }
+                                // }
+                                // var schema = ResourceRegistry.getSchemaById(schemaId);
+
+                                var tenant = resourceRepository.getByIdUnsecure(id, Tenant.class);
+                                cache.addTenant(tenant);
+
+                                // cache.addTenant(
+                                // Tenant.builder()
+                                // .id(id)
+                                // .uid(Resource.toUid(id))
+                                // .label(label)
+                                // .schemaLabel(schema.getLabel())
+                                // .schemaId(schemaId)
+                                // .tenantLabel(parentTenantLabel)
+                                // .tenantId(tenantId)
+                                // .build());
                             }
                             break;
 

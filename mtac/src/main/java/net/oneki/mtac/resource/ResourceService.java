@@ -19,6 +19,7 @@ import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.framework.service.MapperService;
 import net.oneki.mtac.framework.util.resource.R;
 import net.oneki.mtac.model.core.Constants;
+import net.oneki.mtac.model.core.dto.UpsertResponse;
 import net.oneki.mtac.model.core.resource.SearchDto;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
 import net.oneki.mtac.model.core.util.exception.ForbiddenException;
@@ -188,16 +189,15 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
     // }
 
     @Transactional
-    public E create(U request) {
+    public UpsertResponse<E> create(U request) {
         E entity = toCreateEntity(request);
         return create(entity);
     }
 
     @Transactional
-    public E update(String uid, U request) {
+    public UpsertResponse<E> update(String uid, U request) {
         E entity = toUpdateEntity(uid, request);
-        update(entity);
-        return entity;
+        return update(entity);
     }
 
     /**
@@ -211,7 +211,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
      * @return The entity containing the auto generated id
      */
     @Transactional
-    public E create(E resourceEntity) {
+    public UpsertResponse<E> create(E resourceEntity) {
         boolean status = false;
         E createdEntity = null;
         try {
@@ -227,7 +227,10 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
             }
             createdEntity = resourceRepository.create(resourceEntity);
             status = true;
-            return createdEntity;
+            return UpsertResponse.<E>builder()
+                    .status(UpsertResponse.Status.Success)
+                    .resource(createdEntity)
+                    .build();
         } finally {
             audit(createdEntity != null ? createdEntity : resourceEntity, null, Action.Create, status, false);
         }
@@ -235,7 +238,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
     }
 
     @Transactional
-    public E createUnsecure(E resourceEntity) {
+    public UpsertResponse<E> createUnsecure(E resourceEntity) {
         boolean status = false;
         E createdEntity = null;
         try {
@@ -246,7 +249,10 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
             }
             createdEntity = resourceRepository.create(resourceEntity);
             status = true;
-            return createdEntity;
+            return UpsertResponse.<E>builder()
+                    .status(UpsertResponse.Status.Success)
+                    .resource(createdEntity)
+                    .build();
         } finally {
             audit(createdEntity != null ? createdEntity : resourceEntity, null, Action.Create, status, true);
         }
@@ -279,7 +285,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
      * @return void
      */
     @Transactional
-    public void update(E resourceEntity) {
+    public UpsertResponse<E> update(E resourceEntity) {
         var currentResource = getById(resourceEntity.getId());
         boolean status = false;
         try {
@@ -291,13 +297,17 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
                 throw new BusinessException("FORBIDDEN", "Forbidden access");
             }
             resourceRepository.update(resourceEntity);
+            return UpsertResponse.<E>builder()
+                    .status(UpsertResponse.Status.Success)
+                    .resource(resourceEntity)
+                    .build();
         } finally {
             audit(resourceEntity, currentResource, Action.Update, status, false);
         }
 
     }
 
-    public void updateUnsecure(E resourceEntity) {
+    public UpsertResponse<E> updateUnsecure(E resourceEntity) {
         boolean status = false;
         var currentResource = getByIdUnsecure(resourceEntity.getId());
         try {
@@ -305,6 +315,10 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
                 resourceEntity.setUpdatedBy(securityContext != null ? securityContext.getUsername() : "");
             }
             resourceRepository.update(resourceEntity);
+            return UpsertResponse.<E>builder()
+                    .status(UpsertResponse.Status.Success)
+                    .resource(resourceEntity)
+                    .build();
         } finally {
             audit(resourceEntity, currentResource, Action.Update, status, true);
         }
@@ -319,40 +333,49 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
      * @return void
      */
     @Transactional
-    public void deleteById(Integer id) {
+    public UpsertResponse<Void> deleteById(Integer id) {
         E entity = resourceRepository.getById(id, getEntityClass());
         if (entity == null) {
             throw new NotFoundException("Resource with id=" + id + " not found");
         }
-        delete(entity);
+        return delete(entity);
     }
 
     @Transactional
-    public void deleteByIdUnsecure(Integer id) {
+    public UpsertResponse<Void> deleteByIdUnsecure(Integer id) {
         resourceRepository.delete(id);
+        return UpsertResponse.<Void>builder()
+                .status(UpsertResponse.Status.Success)
+                .build();
     }
 
     @Transactional
-    public void deleteByIdsUnsecure(List<Integer> ids) {
+    public UpsertResponse<Void> deleteByIdsUnsecure(List<Integer> ids) {
         resourceRepository.delete(ids);
+        return UpsertResponse.<Void>builder()
+                .status(UpsertResponse.Status.Success)
+                .build();
     }
 
     @Transactional
-    public void deleteByUid(String uid) {
-        deleteById(Resource.fromUid(uid));
+    public UpsertResponse<Void> deleteByUid(String uid) {
+        return deleteById(Resource.fromUid(uid));
     }
 
     @Transactional
-    public void deleteByUidUnsecure(String uid) {
-        deleteByIdUnsecure(Resource.fromUid(uid));
+    public UpsertResponse<Void> deleteByUidUnsecure(String uid) {
+        return deleteByIdUnsecure(Resource.fromUid(uid));
     }
 
     @Transactional
-    public void deleteByUidsUnsecure(List<String> uids) {
-        if (uids == null || uids.isEmpty()) {
-            return;
+    public UpsertResponse<Void> deleteByUidsUnsecure(List<String> uids) {
+        if (uids != null && !uids.isEmpty()) {
+            deleteByIdsUnsecure(uids.stream().map(Resource::fromUid).toList());
         }
-        deleteByIdsUnsecure(uids.stream().map(Resource::fromUid).toList());
+
+        return UpsertResponse.<Void>builder()
+                .status(UpsertResponse.Status.Success)
+                .build();
     }
 
     /**
@@ -407,17 +430,22 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
      * @return void
      */
     @Transactional
-    public void delete(E resourceEntity) {
+    public UpsertResponse<Void> delete(E resourceEntity) {
         boolean status = false;
         try {
             if (resourceEntity == null) {
-                return;
+                return UpsertResponse.<Void>builder()
+                        .status(UpsertResponse.Status.Success)
+                        .build();
             }
             // Verify if the user has the permission to delete the resource
             if (!permissionService.hasPermission(resourceEntity.getId(), "delete")) {
                 throw new BusinessException("FORBIDDEN", "Forbidden access");
             }
             resourceRepository.delete(resourceEntity.getId());
+            return UpsertResponse.<Void>builder()
+                    .status(UpsertResponse.Status.Success)
+                    .build();
         } finally {
             audit(resourceEntity, null, Action.Delete, status, false);
         }
@@ -488,13 +516,27 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
         return resourceRepository.getByUniqueLabel(label, getEntityClass());
     }
 
-    public <Result extends Resource> Result getByUniqueLabelUnsecureOrReturnNull(String label,
+    public <Result extends Resource> Result getByUniqueLabelUnsecureOrReturnNull(String label, Set<String> relations,
             Class<Result> resultContentClass) {
-        return resourceRepository.getByUniqueLabelUnsecure(label, resultContentClass);
+        var result = resourceRepository.getByUniqueLabelUnsecure(label, resultContentClass);
+        if (result != null && relations != null) {
+            relationService.populateSingleResourceRelationsUnsecure(result, relations);
+        }
+
+        return result;
     }
 
     public E getByUniqueLabelUnsecureOrReturnNull(String label) {
-        return resourceRepository.getByUniqueLabelUnsecure(label, getEntityClass());
+        return getByUniqueLabelUnsecureOrReturnNull(label, null, getEntityClass());
+    }
+
+    public <Result extends Resource> Result getByUniqueLabelUnsecureOrReturnNull(String label,
+            Class<Result> resultContentClass) {
+        return getByUniqueLabelUnsecureOrReturnNull(label, null, resultContentClass);
+    }
+
+    public E getByUniqueLabelUnsecureOrReturnNull(String label, Set<String> relations) {
+        return getByUniqueLabelUnsecureOrReturnNull(label, relations, getEntityClass());
     }
 
     public E getByLabel(String label, String tenantLabel, Set<String> relations) {

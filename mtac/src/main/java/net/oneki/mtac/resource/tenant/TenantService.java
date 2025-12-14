@@ -18,6 +18,7 @@ import net.oneki.mtac.framework.cache.ResourceRegistry;
 import net.oneki.mtac.framework.query.Query;
 import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.model.core.Constants;
+import net.oneki.mtac.model.core.dto.UpsertResponse;
 import net.oneki.mtac.model.core.security.RoleUserInfo;
 import net.oneki.mtac.model.core.security.TenantRole;
 import net.oneki.mtac.model.core.security.TenantUserInfo;
@@ -60,9 +61,11 @@ public abstract class TenantService<U extends UpsertRequest, E extends Tenant> e
     protected GroupRepository groupRepository;
 
     @Override
-    public void delete(E tenant) {
+    public UpsertResponse<Void> delete(E tenant) {
         if (tenant == null) {
-            return;
+            return UpsertResponse.<Void>builder()
+                    .status(UpsertResponse.Status.Success)
+                    .build();
         }
         // Verify if the user has the permission to delete the resource
         if (!permissionService.hasPermission(tenant.getId(), "delete")) {
@@ -87,6 +90,9 @@ public abstract class TenantService<U extends UpsertRequest, E extends Tenant> e
         deleteByIdsUnsecure(links);
 
         resourceRepository.delete(tenant.getId());
+        return UpsertResponse.<Void>builder()
+                .status(UpsertResponse.Status.Success)
+                .build();
     }
 
     public record TenantClaims(List<Integer> tenantSids, List<Integer> sids,
