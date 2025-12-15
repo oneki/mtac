@@ -5,12 +5,10 @@ import org.springframework.context.annotation.Configuration;
 
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.databind.MapperFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import net.oneki.mtac.framework.cache.Cache;
 import net.oneki.mtac.framework.json.EntityMapper;
 import net.oneki.mtac.framework.json.EntityModule;
-import net.oneki.mtac.framework.util.security.PasswordUtil;
 
 @Configuration
 public class EntityConfig {
@@ -28,7 +26,7 @@ public class EntityConfig {
             // ))
             .build();
         var entityModule = new EntityModule(mapper);
-        mapper.registerModule(new JavaTimeModule());
+        // mapper.registerModule(new JavaTimeModule());
         mapper.registerModule(entityModule);
 
         return mapper;

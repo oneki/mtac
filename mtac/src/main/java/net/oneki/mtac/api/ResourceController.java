@@ -182,7 +182,7 @@ public abstract class ResourceController<U extends UpsertRequest, R extends Reso
             name = name.substring(0, name.length() - 10);
 
         var path = result + StringUtils.pascalToKebab(English.plural(name));
-        log.info("Registering API path: {}", path);
+        log.trace("Registering API path: {}", path);
         return path;
     }
 

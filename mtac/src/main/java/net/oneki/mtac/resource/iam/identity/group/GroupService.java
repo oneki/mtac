@@ -5,7 +5,6 @@ import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 
-import net.oneki.mtac.model.core.resource.Ref;
 import net.oneki.mtac.model.resource.LinkType;
 import net.oneki.mtac.model.resource.iam.identity.Identity;
 import net.oneki.mtac.model.resource.iam.identity.group.Group;
@@ -16,7 +15,7 @@ public abstract class GroupService<U extends GroupUpsertRequest, E extends Group
     protected GroupMembershipRepository groupMembershipRepository;
 
     @Autowired
-    public final void setGroupMembershipRepository(GroupMembershipRepository groupMembershipRepository) {
+    public void setGroupMembershipRepository(GroupMembershipRepository groupMembershipRepository) {
         this.groupMembershipRepository = groupMembershipRepository;
     }
 

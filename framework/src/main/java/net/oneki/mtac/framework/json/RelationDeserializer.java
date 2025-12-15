@@ -1,40 +1,35 @@
 package net.oneki.mtac.framework.json;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonToken;
-import com.fasterxml.jackson.databind.BeanDescription;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.JavaType;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.deser.std.DelegatingDeserializer;
-
-import net.oneki.mtac.framework.cache.ResourceRegistry;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
 import net.oneki.mtac.model.resource.Resource;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonParser;
+import tools.jackson.core.JsonToken;
+import tools.jackson.databind.BeanDescription;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.JavaType;
+import tools.jackson.databind.ValueDeserializer;
+import tools.jackson.databind.deser.bean.BeanDeserializer;
 
-public class RelationDeserializer extends DelegatingDeserializer /* implements ContextualDeserializer */ {
+public class RelationDeserializer extends BeanDeserializer /* implements ContextualDeserializer */ {
 
     private JavaType type;
     private BeanDescription beanDescription;
+    private ValueDeserializer<?> originalDeserializer;
 
-    public RelationDeserializer(BeanDescription beanDescription, JsonDeserializer<?> originalDeserializer) {
-        super(originalDeserializer);
+    public RelationDeserializer(BeanDescription beanDescription, ValueDeserializer<?> originalDeserializer) {
+        super((BeanDeserializer) originalDeserializer);
         this.type = beanDescription.getType();
         this.beanDescription = beanDescription;
+        this.originalDeserializer = originalDeserializer;
     }
 
-    @Override
-    protected JsonDeserializer<?> newDelegatingInstance(JsonDeserializer<?> newDelegate) {
-        return new RelationDeserializer(beanDescription, newDelegate);
-    }
 
     @Override
-    public Object deserialize(JsonParser parser, DeserializationContext ctxt) throws IOException {
+    public Object deserialize(JsonParser parser, DeserializationContext ctxt) throws JacksonException  {
         var token = parser.currentToken();
         if (token == JsonToken.START_OBJECT || token == JsonToken.VALUE_STRING) {
             return deserialize(parser, ctxt, token, type);
@@ -53,7 +48,7 @@ public class RelationDeserializer extends DelegatingDeserializer /* implements C
 
     @SuppressWarnings("unchecked")
     private Object deserialize(JsonParser parser, DeserializationContext ctxt, JsonToken token, JavaType type)
-            throws IOException {
+            throws JacksonException {
         // var resourceDesc = ResourceRegistry.getResourceDesc(this.type.getRawClass());
         // System.out.println("type" + type.getRawClass() + ", fieldName: " + parser.getParsingContext().getParent().getCurrentName());
         // var resourceField = resourceDesc.getField(parser.getParsingContext().getParent().getCurrentName());
@@ -62,18 +57,18 @@ public class RelationDeserializer extends DelegatingDeserializer /* implements C
 
         if (token == JsonToken.START_OBJECT) {
             var mapType = ctxt.constructType(HashMap.class);
-            JsonDeserializer<Object> deserializer = ctxt.findRootValueDeserializer(mapType);
+            ValueDeserializer<Object> deserializer = ctxt.findRootValueDeserializer(mapType);
             var value = (HashMap<String, Object>) deserializer.deserialize(parser, ctxt);
             var uid = (String) value.get("uid");
             return buildObjectFromUid(uid, clazz);
         } else if (token == JsonToken.VALUE_STRING) {
             try {
                 var stringType = ctxt.constructType(String.class);
-                JsonDeserializer<Object> deserializer = ctxt.findRootValueDeserializer(stringType);
+                ValueDeserializer<Object> deserializer = ctxt.findRootValueDeserializer(stringType);
                 var uid = (String) deserializer.deserialize(parser, ctxt);
                 return buildObjectFromUid(uid, clazz);
             } catch (Exception e) {
-                throw JsonMappingException.from(parser, e.getMessage());
+                throw new JacksonException("Failed to deserialize resource", e) {};
             }
         }
         return null;

@@ -103,7 +103,6 @@
 		</dependency>
 	</dependencies>
 	<build>
-		<finalName>ocpp</finalName>
 		<plugins>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>

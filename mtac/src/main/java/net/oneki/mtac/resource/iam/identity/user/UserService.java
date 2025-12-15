@@ -54,52 +54,52 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
   private Set<String> storeTenantsSchemaLabels;
 
   @Autowired
-  public final void setGroupMembershipRepository(GroupMembershipRepository groupMembershipRepository) {
+  public void setGroupMembershipRepository(GroupMembershipRepository groupMembershipRepository) {
     this.groupMembershipRepository = groupMembershipRepository;
   }
 
   @Autowired
-  public final void setGroupRepository(GroupRepository groupRepository) {
+  public void setGroupRepository(GroupRepository groupRepository) {
     this.groupRepository = groupRepository;
   }
 
   @Autowired
-  public final void setTokenService(JwtTokenService tokenService) {
+  public void setTokenService(JwtTokenService tokenService) {
     this.tokenService = tokenService;
   }
 
   @Autowired
-  public final void setResourceRepository(ResourceRepository resourceRepository) {
+  public void setResourceRepository(ResourceRepository resourceRepository) {
     this.resourceRepository = resourceRepository;
   }
 
   @Autowired
-  public final void setRoleRepository(RoleRepository roleRepository) {
+  public void setRoleRepository(RoleRepository roleRepository) {
     this.roleRepository = roleRepository;
   }
 
   @Autowired
-  public final void setSecurityContext(SecurityContext securityContext) {
+  public void setSecurityContext(SecurityContext securityContext) {
     this.securityContext = securityContext;
   }
 
   @Autowired
-  public final void setTokenRegistry(TokenRegistry tokenRegistry) {
+  public void setTokenRegistry(TokenRegistry tokenRegistry) {
     this.tokenRegistry = tokenRegistry;
   }
 
   @Autowired
-  public final void setTokenRepository(TokenRepository tokenRepository) {
+  public void setTokenRepository(TokenRepository tokenRepository) {
     this.tokenRepository = tokenRepository;
   }
 
   @Autowired
-  public final void setMtacProperties(MtacProperties mtacProperties) {
+  public void setMtacProperties(MtacProperties mtacProperties) {
     this.mtacProperties = mtacProperties;
   }
 
   @Autowired
-  public final void setTenantService(DefaultTenantService defaultTenantService) {
+  public void setTenantService(DefaultTenantService defaultTenantService) {
     this.tenantService = defaultTenantService;
   }
 

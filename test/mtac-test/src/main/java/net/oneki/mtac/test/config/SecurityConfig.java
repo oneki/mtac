@@ -13,7 +13,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.client.OAuth2AuthorizeRequest;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 
 import lombok.RequiredArgsConstructor;
@@ -27,16 +27,16 @@ import net.oneki.mtac.core.util.security.MultiTenantResourceServerConfig;
 public class SecurityConfig extends MultiTenantResourceServerConfig {
   // @formatter:off
     private static final List<RequestMatcher> PUBLIC_URLS = Arrays.asList(
-      new AntPathRequestMatcher("/public/**"),
-      new AntPathRequestMatcher("/oidc/**"),
-      new AntPathRequestMatcher("/healthchecks/**"),
-      new AntPathRequestMatcher("/swagger-ui/**"),
-      new AntPathRequestMatcher("/api-docs*"),
-      new AntPathRequestMatcher("/api-docs/**"),
-      new AntPathRequestMatcher("/swagger*"),
-      new AntPathRequestMatcher("/test"),
-      new AntPathRequestMatcher("/api/oauth2/token"),
-      new AntPathRequestMatcher("/api/.well-known/jwks.json")
+      PathPatternRequestMatcher.withDefaults().matcher("/public/**"),
+      PathPatternRequestMatcher.withDefaults().matcher("/oidc/**"),
+      PathPatternRequestMatcher.withDefaults().matcher("/healthchecks/**"),
+      PathPatternRequestMatcher.withDefaults().matcher("/swagger-ui/**"),
+      PathPatternRequestMatcher.withDefaults().matcher("/api-docs*"),
+      PathPatternRequestMatcher.withDefaults().matcher("/api-docs/**"),
+      PathPatternRequestMatcher.withDefaults().matcher("/swagger*"),
+      PathPatternRequestMatcher.withDefaults().matcher("/test"),
+      PathPatternRequestMatcher.withDefaults().matcher("/api/oauth2/token"),
+      PathPatternRequestMatcher.withDefaults().matcher("/api/.well-known/jwks.json")
     );
 
     @Override

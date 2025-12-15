@@ -70,7 +70,7 @@ public abstract class BaseResourceServerConfig {
     }
 
     @Bean
-    @Order(2)
+    @Order(Integer.MAX_VALUE - 5)
     public SecurityFilterChain filterChain(HttpSecurity http,
             BearerTokenResolver bearerTokenResolver) throws Exception {
         http.exceptionHandling(c -> {

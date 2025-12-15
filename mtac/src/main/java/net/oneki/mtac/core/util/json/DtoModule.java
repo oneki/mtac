@@ -7,15 +7,6 @@ import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import com.fasterxml.jackson.databind.BeanDescription;
-import com.fasterxml.jackson.databind.DeserializationConfig;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.SerializationConfig;
-import com.fasterxml.jackson.databind.deser.BeanDeserializerModifier;
-import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.fasterxml.jackson.databind.ser.BeanPropertyWriter;
-import com.fasterxml.jackson.databind.ser.BeanSerializerModifier;
-
 import net.oneki.mtac.framework.cache.ResourceRegistry;
 import net.oneki.mtac.framework.json.RelationDeserializer;
 import net.oneki.mtac.model.core.resource.Ref;
@@ -24,27 +15,37 @@ import net.oneki.mtac.model.core.util.json.view.Internal;
 import net.oneki.mtac.model.resource.Resource;
 import net.oneki.mtac.model.resource.UpsertRequest;
 import net.oneki.mtac.resource.DefaultResourceService;
+import tools.jackson.databind.BeanDescription;
+import tools.jackson.databind.DeserializationConfig;
+import tools.jackson.databind.SerializationConfig;
+import tools.jackson.databind.ValueDeserializer;
+import tools.jackson.databind.deser.ValueDeserializerModifier;
+import tools.jackson.databind.module.SimpleModule;
+import tools.jackson.databind.ser.BeanPropertyWriter;
+import tools.jackson.databind.ser.ValueSerializerModifier;
 
 @Component
 public class DtoModule extends SimpleModule {
     private final static Set<String> skipFields = Set.of("id", "pub", "acl", "link", "s");
-    // private final static Set<String> metadataFields = Set.of("createdAt", "updatedAt", "createdBy", "updatedBy", "urn");
-    // private final static MetadataNameTransformer metadataNameTransformer = new MetadataNameTransformer();
+
+    // private final static Set<String> metadataFields = Set.of("createdAt",
+    // "updatedAt", "createdBy", "updatedBy", "urn");
+    // private final static MetadataNameTransformer metadataNameTransformer = new
+    // MetadataNameTransformer();
     @Autowired
     public DtoModule(DefaultResourceService resourceService) {
         super();
-        setDeserializerModifier(new BeanDeserializerModifier() {
+        setDeserializerModifier(new ValueDeserializerModifier() {
             @Override
-            public JsonDeserializer<?> modifyDeserializer(DeserializationConfig config,
-                    BeanDescription beanDescription,
-                    JsonDeserializer<?> originalDeserializer) {
-
+            public ValueDeserializer<?> modifyDeserializer(DeserializationConfig config,
+                    BeanDescription.Supplier beanDescRef, ValueDeserializer<?> deserializer) {
+                var beanDescription = beanDescRef.get();
                 if (UpsertRequest.class.isAssignableFrom(beanDescription.getBeanClass())) {
-                    return new DtoDeserializer(originalDeserializer, beanDescription, resourceService);
-                } else if (Resource.class.isAssignableFrom(beanDescription.getBeanClass())) {
-                    return new RelationDeserializer(beanDescription, originalDeserializer);
+                    return new DtoDeserializer(deserializer, beanDescription, resourceService);
+                } else  if (Resource.class.isAssignableFrom(beanDescription.getBeanClass())) {
+                    return new RelationDeserializer(beanDescription, deserializer);
                 } else {
-                    return originalDeserializer;
+                    return deserializer;
                 }
             }
 
@@ -58,10 +59,11 @@ public class DtoModule extends SimpleModule {
             // }
         });
 
-        setSerializerModifier(new BeanSerializerModifier() {
+        setSerializerModifier(new ValueSerializerModifier() {
             @Override
             public List<BeanPropertyWriter> changeProperties(SerializationConfig config,
-                    BeanDescription beanDesc, List<BeanPropertyWriter> beanProperties) {
+                    BeanDescription.Supplier beanDescRef, List<BeanPropertyWriter> beanProperties) {
+                var beanDesc = beanDescRef.get();
                 if (Resource.class.isAssignableFrom(beanDesc.getBeanClass()) ||
                         Ref.class.isAssignableFrom(beanDesc.getBeanClass())) {
                     var result = new ArrayList<BeanPropertyWriter>();
@@ -73,11 +75,12 @@ public class DtoModule extends SimpleModule {
                         var field = resourceDesc.getField(writer.getName());
                         if (field != null && field.isSecret()) {
                             continue;
-                        } 
-                        if (skipFields.contains(writer.getName()) || JsonUtil.hasView(writer.getViews(), Internal.class)) {
+                        }
+                        if (skipFields.contains(writer.getName())
+                                || JsonUtil.hasView(writer.getViews(), Internal.class)) {
                             continue;
-                        // } else if (metadataFields.contains(writer.getName())) {
-                        //     result.add(writer.rename(metadataNameTransformer));
+                            // } else if (metadataFields.contains(writer.getName())) {
+                            // result.add(writer.rename(metadataNameTransformer));
                         } else {
                             result.add(writer);
                         }
@@ -89,5 +92,4 @@ public class DtoModule extends SimpleModule {
             }
         });
     }
-
 }

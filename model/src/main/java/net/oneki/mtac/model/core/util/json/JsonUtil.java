@@ -22,18 +22,16 @@ import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.PathResource;
 import org.springframework.core.io.Resource;
 
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.fasterxml.jackson.core.JsonGenerationException;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectWriter;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 import net.oneki.mtac.model.core.util.ByteUtil;
-import net.oneki.mtac.model.core.util.json.view.Internal;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectWriter;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * JsonUtil
@@ -41,12 +39,15 @@ import net.oneki.mtac.model.core.util.json.view.Internal;
 public class JsonUtil {
     private static final ObjectMapper mapper = new ObjectMapper();
     static {
-        mapper.registerModule(new JavaTimeModule());
-        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        mapper.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        mapper.setSerializationInclusion(Include.NON_NULL);
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        // mapper.registerModule(new JavaTimeModule());
+        JsonMapper.builder()
+            .disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)
+            .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+            .changeDefaultPropertyInclusion(incl -> incl.withValueInclusion(JsonInclude.Include.NON_NULL))
+            .changeDefaultPropertyInclusion(incl -> incl.withContentInclusion(JsonInclude.Include.NON_NULL))
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+            .build();
     }
 
     public static String object2Json(Object obj) {
@@ -61,7 +62,7 @@ public class JsonUtil {
                 return mapper.writeValueAsString(obj);
             }
 
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new RuntimeException("JSON serialization failed: " + e.getMessage(), e);
         }
     }
@@ -72,7 +73,7 @@ public class JsonUtil {
         }
         try {
             return mapper.readValue(json, clazz);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new RuntimeException("JSON deserialization failed: " + e.getMessage(), e);
         } catch (Exception e) {
             throw new RuntimeException("JSON deserialization failed: " + e.getMessage(), e);
@@ -92,7 +93,7 @@ public class JsonUtil {
     public static <T> List<T> json2List(String json, Class<T> clazz) {
         try {
             return mapper.readerForListOf(clazz).readValue(json);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new RuntimeException("JSON deserialization failed: " + e.getMessage(), e);
         }
     }
@@ -193,8 +194,7 @@ public class JsonUtil {
         return json2Object(new String(jsonBytes, StandardCharsets.UTF_8), clazz);
     }
 
-    public static void object2Outputstream(Object obj, OutputStream os)
-            throws JsonGenerationException, JsonMappingException, IOException {
+    public static void object2Outputstream(Object obj, OutputStream os) throws IOException {
         ObjectWriter writer = mapper.writer();
         writer.writeValue(os, obj);
     }

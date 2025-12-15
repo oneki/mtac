@@ -86,7 +86,6 @@
     </dependency>
   </dependencies>
   <build>
-    <finalName>ocpp</finalName>
     <plugins>
       <plugin>
         <artifactId>maven-compiler-plugin</artifactId>
