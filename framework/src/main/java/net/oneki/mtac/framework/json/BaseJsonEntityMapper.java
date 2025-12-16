@@ -24,7 +24,6 @@ import org.springframework.core.io.Resource;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonGenerationException;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 
 /*import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -43,7 +42,6 @@ import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.SerializationFeature;
 import tools.jackson.databind.cfg.DateTimeFeature;
-import tools.jackson.databind.exc.JsonNodeException;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -51,7 +49,7 @@ import tools.jackson.databind.json.JsonMapper;
  */
 public class BaseJsonEntityMapper {
 
-    protected final ObjectMapper mapper;
+    protected ObjectMapper mapper;
 
     public BaseJsonEntityMapper() {
         this.mapper = JsonMapper.builder()

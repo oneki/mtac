@@ -1,9 +1,6 @@
 package net.oneki.mtac.framework.json;
 
-import java.io.IOException;
 import java.util.HashSet;
-
-import com.fasterxml.jackson.databind.JsonDeserializer;
 
 import net.oneki.mtac.framework.cache.ResourceRegistry;
 import net.oneki.mtac.model.core.util.exception.UnexpectedException;
@@ -18,9 +15,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.ValueDeserializer;
 import tools.jackson.databind.deser.bean.BeanDeserializer;
-import tools.jackson.databind.deser.std.DelegatingDeserializer;
 import tools.jackson.databind.node.IntNode;
-import tools.jackson.databind.node.TreeTraversingParser;
 
 public class DbRelationDeserializer extends BeanDeserializer /* implements ContextualDeserializer */ {
 
@@ -28,18 +23,23 @@ public class DbRelationDeserializer extends BeanDeserializer /* implements Conte
     private BeanDescription beanDescription;
     private final ObjectMapper entityMapper;
 
-    public DbRelationDeserializer(BeanDescription beanDescription, ValueDeserializer<?> originalDeserializer, ObjectMapper entityMapper) {
-        super((BeanDeserializer)originalDeserializer);
+    public DbRelationDeserializer(BeanDescription beanDescription, ValueDeserializer<?> originalDeserializer,
+            ObjectMapper entityMapper) {
+        super((BeanDeserializer) originalDeserializer);
         this.type = beanDescription.getType();
         this.beanDescription = beanDescription;
         this.entityMapper = entityMapper;
 
     }
 
-
     @Override
     public Object deserialize(JsonParser parser, DeserializationContext ctxt) throws JacksonException {
-        if (isRoot(parser) == true) {
+        boolean isRoot = false;
+        if (ctxt.getAttribute("isRoot") == null) {
+            isRoot = true;
+            ctxt.setAttribute("isRoot", true);
+        }
+        if (isRoot) {
             return super.deserialize(parser, ctxt);
         }
         var token = parser.currentToken();
@@ -56,23 +56,6 @@ public class DbRelationDeserializer extends BeanDeserializer /* implements Conte
         } else {
             return super.deserialize(parser, ctxt);
         }
-    }
-
-    private boolean isRoot(JsonParser parser) {
-        var result = true;
-        // get parent 
-        var parent = parser.
-
-        var parent = parser.getParsingContext().getParent();
-        while (parent != null) {
-            if (parent.getCurrentName() != null) {
-                result = false;
-                break;
-            }
-            parent = parent.getParent();
-        }
-
-        return result;
     }
 
     private Object deserialize(JsonParser parser, DeserializationContext ctxt, JsonToken token, JavaType type)
@@ -101,7 +84,8 @@ public class DbRelationDeserializer extends BeanDeserializer /* implements Conte
                 resource.setLabel(label);
                 return resource;
             } catch (Exception e) {
-                throw new UnexpectedException("ENTITY_DB_DESERIALIZATION_ERROR", "Can deserialize resource ref with id " + id, e);
+                throw new UnexpectedException("ENTITY_DB_DESERIALIZATION_ERROR",
+                        "Can deserialize resource ref with id " + id, e);
             }
 
         }

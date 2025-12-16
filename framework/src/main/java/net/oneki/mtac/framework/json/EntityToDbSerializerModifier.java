@@ -3,29 +3,28 @@ package net.oneki.mtac.framework.json;
 import java.util.List;
 import java.util.Set;
 
-import com.fasterxml.jackson.databind.BeanDescription;
-import com.fasterxml.jackson.databind.SerializationConfig;
-import com.fasterxml.jackson.databind.ser.BeanPropertyWriter;
-import com.fasterxml.jackson.databind.ser.BeanSerializerModifier;
 
 import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.framework.cache.ResourceRegistry;
-import net.oneki.mtac.framework.util.security.PasswordUtil;
 import net.oneki.mtac.model.core.resource.Ref;
 import net.oneki.mtac.model.core.util.json.JsonUtil;
 import net.oneki.mtac.model.core.util.json.view.External;
+import tools.jackson.databind.BeanDescription;
+import tools.jackson.databind.SerializationConfig;
+import tools.jackson.databind.ser.BeanPropertyWriter;
+import tools.jackson.databind.ser.ValueSerializerModifier;
 
 @RequiredArgsConstructor
-public class EntityToDbSerializerModifier extends BeanSerializerModifier {
+public class EntityToDbSerializerModifier extends ValueSerializerModifier {
 
     private final static Set<String> skipFields = Set.of("id", "uid", "label", "schema", "s", "tenant", "createdAt", "createdBy", "type",
             "updatedAt", "updatedBy", "pub", "link", "acl");
 
     @Override
     public List<BeanPropertyWriter> changeProperties(
-            SerializationConfig config, BeanDescription beanDesc,
+            SerializationConfig config, BeanDescription.Supplier beanDescRef,
             List<BeanPropertyWriter> beanProperties) {
-        
+        var beanDesc = beanDescRef.get();
         if(!beanDesc.getBeanClass().equals(Ref.class)) {
             var resourceDesc = ResourceRegistry.getResourceDesc(beanDesc.getBeanClass());
             if (resourceDesc == null) {

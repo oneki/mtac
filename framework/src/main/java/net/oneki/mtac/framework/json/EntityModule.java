@@ -2,9 +2,6 @@ package net.oneki.mtac.framework.json;
 
 
 
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.deser.BeanDeserializerModifier;
-
 import net.oneki.mtac.model.resource.Resource;
 import tools.jackson.databind.BeanDescription;
 import tools.jackson.databind.DeserializationConfig;
@@ -20,7 +17,7 @@ public class EntityModule extends SimpleModule {
         setDeserializerModifier(new ValueDeserializerModifier() {
             @Override
             public ValueDeserializer<?> modifyDeserializer(DeserializationConfig config,
-                    BeanDescription.Supplier beanDescRef, ValueDeserializer<?> deserializer) {
+                    BeanDescription.Supplier beanDescRef, ValueDeserializer<?> originalDeserializer) {
                 
                 // if (Resource.class.isAssignableFrom(beanDescription.getBeanClass())) {
                 //     return originalDeserializer;

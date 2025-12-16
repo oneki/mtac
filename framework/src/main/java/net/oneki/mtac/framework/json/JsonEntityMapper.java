@@ -13,7 +13,7 @@ import net.oneki.mtac.model.core.util.introspect.annotation.Secret.SecretType;
 public class JsonEntityMapper extends BaseJsonEntityMapper {
     public JsonEntityMapper() {
         super();
-        mapper.registerModule(new EntityModule(mapper));
+        this.mapper = this.mapper.rebuild().addModule(new EntityModule(mapper)).build();
     }
 
     @Override
