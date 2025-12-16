@@ -22,7 +22,12 @@ import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.PathResource;
 import org.springframework.core.io.Resource;
 
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonGenerationException;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+
+/*import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.core.JsonGenerationException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -30,25 +35,41 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;*/
 
 import net.oneki.mtac.model.core.util.ByteUtil;
 import net.oneki.mtac.model.core.util.json.JsonUtil;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.exc.JsonNodeException;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * JsonUtil
  */
 public class BaseJsonEntityMapper {
-    
+
     protected final ObjectMapper mapper;
 
     public BaseJsonEntityMapper() {
-        mapper = new ObjectMapper();
+        this.mapper = JsonMapper.builder()
+                .disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)
+                .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+                .changeDefaultPropertyInclusion(incl -> incl.withValueInclusion(JsonInclude.Include.NON_NULL))
+                .changeDefaultPropertyInclusion(incl -> incl.withContentInclusion(JsonInclude.Include.NON_NULL))
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+                .build();
+
+        /*mapper = new ObjectMapper();
         // mapper.registerModule(new JavaTimeModule());
         mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         mapper.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         mapper.setSerializationInclusion(Include.NON_NULL);
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);*/
     }
 
     public String object2Json(Object obj) {
@@ -63,7 +84,7 @@ public class BaseJsonEntityMapper {
                 return mapper.writeValueAsString(obj);
             }
 
-        } catch (JsonProcessingException e) {
+        } catch (Exception e) {
             throw new RuntimeException("JSON serialization failed: " + e.getMessage(), e);
         }
     }
@@ -74,8 +95,6 @@ public class BaseJsonEntityMapper {
         }
         try {
             return postDeserialize(mapper.readValue(json, clazz));
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("JSON deserialization failed: " + e.getMessage(), e);
         } catch (Exception e) {
             throw new RuntimeException("JSON deserialization failed: " + e.getMessage(), e);
         }
@@ -94,7 +113,7 @@ public class BaseJsonEntityMapper {
     public <T> List<T> json2List(String json, Class<T> clazz) {
         try {
             return mapper.readerForListOf(clazz).readValue(json);
-        } catch (JsonProcessingException e) {
+        } catch (Exception e) {
             throw new RuntimeException("JSON deserialization failed: " + e.getMessage(), e);
         }
     }
@@ -197,15 +216,12 @@ public class BaseJsonEntityMapper {
 
     public void object2Outputstream(Object obj, OutputStream os)
             throws JsonGenerationException, JsonMappingException, IOException {
-        ObjectWriter writer = mapper.writer();
+        var writer = mapper.writer();
         writer.writeValue(os, obj);
     }
 
     public <T> T postDeserialize(T obj) {
         return obj;
     }
-
-
-
 
 }

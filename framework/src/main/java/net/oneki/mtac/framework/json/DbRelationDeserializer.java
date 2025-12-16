@@ -3,43 +3,42 @@ package net.oneki.mtac.framework.json;
 import java.io.IOException;
 import java.util.HashSet;
 
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonToken;
-import com.fasterxml.jackson.databind.BeanDescription;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.deser.std.DelegatingDeserializer;
-import com.fasterxml.jackson.databind.node.IntNode;
 
 import net.oneki.mtac.framework.cache.ResourceRegistry;
-import net.oneki.mtac.model.core.framework.Urn;
 import net.oneki.mtac.model.core.util.exception.UnexpectedException;
 import net.oneki.mtac.model.resource.Resource;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonParser;
+import tools.jackson.core.JsonToken;
+import tools.jackson.databind.BeanDescription;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.JavaType;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ValueDeserializer;
+import tools.jackson.databind.deser.bean.BeanDeserializer;
+import tools.jackson.databind.deser.std.DelegatingDeserializer;
+import tools.jackson.databind.node.IntNode;
+import tools.jackson.databind.node.TreeTraversingParser;
 
-public class DbRelationDeserializer extends DelegatingDeserializer /* implements ContextualDeserializer */ {
+public class DbRelationDeserializer extends BeanDeserializer /* implements ContextualDeserializer */ {
 
     private JavaType type;
     private BeanDescription beanDescription;
     private final ObjectMapper entityMapper;
 
-    public DbRelationDeserializer(BeanDescription beanDescription, JsonDeserializer<?> originalDeserializer, ObjectMapper entityMapper) {
-        super(originalDeserializer);
+    public DbRelationDeserializer(BeanDescription beanDescription, ValueDeserializer<?> originalDeserializer, ObjectMapper entityMapper) {
+        super((BeanDeserializer)originalDeserializer);
         this.type = beanDescription.getType();
         this.beanDescription = beanDescription;
         this.entityMapper = entityMapper;
 
     }
 
-    @Override
-    protected JsonDeserializer<?> newDelegatingInstance(JsonDeserializer<?> newDelegate) {
-        return new DbRelationDeserializer(beanDescription, newDelegate, entityMapper);
-    }
 
     @Override
-    public Object deserialize(JsonParser parser, DeserializationContext ctxt) throws IOException {
+    public Object deserialize(JsonParser parser, DeserializationContext ctxt) throws JacksonException {
         if (isRoot(parser) == true) {
             return super.deserialize(parser, ctxt);
         }
@@ -61,6 +60,9 @@ public class DbRelationDeserializer extends DelegatingDeserializer /* implements
 
     private boolean isRoot(JsonParser parser) {
         var result = true;
+        // get parent 
+        var parent = parser.
+
         var parent = parser.getParsingContext().getParent();
         while (parent != null) {
             if (parent.getCurrentName() != null) {
@@ -74,10 +76,10 @@ public class DbRelationDeserializer extends DelegatingDeserializer /* implements
     }
 
     private Object deserialize(JsonParser parser, DeserializationContext ctxt, JsonToken token, JavaType type)
-            throws IOException {
+            throws JacksonException {
 
         if (token == JsonToken.START_OBJECT) {
-            JsonNode node = parser.getCodec().readTree(parser);
+            JsonNode node = parser.readValueAsTree();
             var schemaNode = node.get("s");
             if (schemaNode == null) {
                 return entityMapper.treeToValue(node, Object.class);
@@ -85,7 +87,7 @@ public class DbRelationDeserializer extends DelegatingDeserializer /* implements
             var schemaId = (Integer) ((IntNode) schemaNode).numberValue();
             // var tenantId = (Integer) ((IntNode) node.get("$t")).numberValue();
             var id = (Integer) ((IntNode) node.get("id")).numberValue();
-            var label = node.get("label").asText();
+            var label = node.get("label").asString();
             var schemaLabel = ResourceRegistry.getSchemaLabel(schemaId);
             // var tenantLabel = ResourceRegistry.getTenantLabel(tenantId);
             var clazz = ResourceRegistry.getClassBySchema(schemaLabel);

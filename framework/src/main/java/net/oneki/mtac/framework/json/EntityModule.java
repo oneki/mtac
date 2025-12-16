@@ -1,31 +1,33 @@
 package net.oneki.mtac.framework.json;
 
-import com.fasterxml.jackson.databind.BeanDescription;
-import com.fasterxml.jackson.databind.DeserializationConfig;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.deser.BeanDeserializerModifier;
-import com.fasterxml.jackson.databind.module.SimpleModule;
 
-import net.oneki.mtac.framework.util.security.PasswordUtil;
+
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.deser.BeanDeserializerModifier;
+
 import net.oneki.mtac.model.resource.Resource;
+import tools.jackson.databind.BeanDescription;
+import tools.jackson.databind.DeserializationConfig;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ValueDeserializer;
+import tools.jackson.databind.deser.ValueDeserializerModifier;
+import tools.jackson.databind.module.SimpleModule;
 
 public class EntityModule extends SimpleModule {
 
     public EntityModule(ObjectMapper mapper) {
         super();
-        setDeserializerModifier(new BeanDeserializerModifier() {
+        setDeserializerModifier(new ValueDeserializerModifier() {
             @Override
-            public JsonDeserializer<?> modifyDeserializer(DeserializationConfig config,
-                    BeanDescription beanDescription,
-                    JsonDeserializer<?> originalDeserializer) {
+            public ValueDeserializer<?> modifyDeserializer(DeserializationConfig config,
+                    BeanDescription.Supplier beanDescRef, ValueDeserializer<?> deserializer) {
                 
                 // if (Resource.class.isAssignableFrom(beanDescription.getBeanClass())) {
                 //     return originalDeserializer;
                 // }
                 
                 // return new DbRelationDeserializer(beanDescription, originalDeserializer, mapper);
-                
+                var beanDescription = beanDescRef.get();
                 if (Resource.class.isAssignableFrom(beanDescription.getBeanClass())) {
                     return new DbRelationDeserializer(beanDescription, originalDeserializer, mapper);
                 } else {
