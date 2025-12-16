@@ -30,6 +30,7 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import net.oneki.mtac.model.core.util.ByteUtil;
 import net.oneki.mtac.model.core.util.json.JsonUtil;
@@ -43,7 +44,7 @@ public class BaseJsonEntityMapper {
 
     public BaseJsonEntityMapper() {
         mapper = new ObjectMapper();
-        // mapper.registerModule(new JavaTimeModule());
+        mapper.registerModule(new JavaTimeModule());
         mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         mapper.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
