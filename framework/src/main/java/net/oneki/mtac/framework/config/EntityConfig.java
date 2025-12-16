@@ -7,6 +7,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import net.oneki.mtac.framework.cache.Cache;
 import net.oneki.mtac.framework.json.EntityMapper;
 import net.oneki.mtac.framework.json.EntityModule;
+import tools.jackson.databind.DeserializationConfig;
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.MapperFeature;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -17,11 +19,17 @@ public class EntityConfig {
     public EntityMapper entityMapper() {
         var builder = JsonMapper.builder()
             .changeDefaultPropertyInclusion(incl -> incl.withValueInclusion(JsonInclude.Include.NON_NULL))
-            .changeDefaultPropertyInclusion(incl -> incl.withContentInclusion(JsonInclude.Include.NON_NULL))    
+            .changeDefaultPropertyInclusion(incl -> incl.withContentInclusion(JsonInclude.Include.NON_NULL))  
+            .configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, false)
             .enable(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY);
         var mapper = new EntityMapper(builder);
 
-        builder.addModule(new EntityModule(mapper));
+        builder = JsonMapper.builder()
+            .changeDefaultPropertyInclusion(incl -> incl.withValueInclusion(JsonInclude.Include.NON_NULL))
+            .changeDefaultPropertyInclusion(incl -> incl.withContentInclusion(JsonInclude.Include.NON_NULL))   
+            .configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, false)
+            .enable(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY)
+            .addModule(new EntityModule(mapper));
         mapper = new EntityMapper(builder);
 
         // var mapper = EntityMapper.builder()
