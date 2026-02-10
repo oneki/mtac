@@ -188,13 +188,13 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
     // return create(resourceEntity);
     // }
 
-    @Transactional
+    //@Transactional
     public UpsertResponse<E> create(U request) {
         E entity = toCreateEntity(request);
         return create(entity);
     }
 
-    @Transactional
+    //@Transactional
     public UpsertResponse<E> update(String uid, U request) {
         E entity = toUpdateEntity(uid, request);
         return update(entity);
@@ -210,7 +210,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
      * @param resourceEntity: The entity to persist
      * @return The entity containing the auto generated id
      */
-    @Transactional
+    //@Transactional
     public UpsertResponse<E> create(E resourceEntity) {
         boolean status = false;
         E createdEntity = null;
@@ -237,7 +237,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
 
     }
 
-    @Transactional
+    //@Transactional
     public UpsertResponse<E> createUnsecure(E resourceEntity) {
         boolean status = false;
         E createdEntity = null;
@@ -254,11 +254,11 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
                     .resource(createdEntity)
                     .build();
         } finally {
-            audit(createdEntity != null ? createdEntity : resourceEntity, null, Action.Create, status, true);
+            //audit(createdEntity != null ? createdEntity : resourceEntity, null, Action.Create, status, true);
         }
     }
 
-    @Transactional
+    //@Transactional
     public Integer createLink(Integer sourceId, Integer targetTenantId, LinkType linkType, boolean pub) {
         var sourceEntity = resourceRepository.getById(sourceId, Resource.class);
         if (sourceEntity == null) {
@@ -268,7 +268,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
         return createLink(sourceEntity, targetTenantId, linkType, pub);
     }
 
-    @Transactional
+    //@Transactional
     public Integer createLink(Resource sourceEntity, Integer targetTenantId, LinkType linkType, boolean pub) {
         // Do we need to check permission ?
         return resourceRepository.createLink(sourceEntity, targetTenantId, linkType, pub,
@@ -284,7 +284,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
      * @param resourceEntity: The entity to persist
      * @return void
      */
-    @Transactional
+    //@Transactional
     public UpsertResponse<E> update(E resourceEntity) {
         var currentResource = getById(resourceEntity.getId());
         boolean status = false;
@@ -308,8 +308,6 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
     }
 
     public UpsertResponse<E> updateUnsecure(E resourceEntity) {
-        boolean status = false;
-        var currentResource = getByIdUnsecure(resourceEntity.getId());
         try {
             if (resourceEntity.getUpdatedBy() == null) {
                 resourceEntity.setUpdatedBy(securityContext != null ? securityContext.getUsername() : "");
@@ -320,7 +318,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
                     .resource(resourceEntity)
                     .build();
         } finally {
-            audit(resourceEntity, currentResource, Action.Update, status, true);
+            // audit(resourceEntity, currentResource, Action.Update, status, true);
         }
     }
 
@@ -332,7 +330,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
      * @param entityClass: the class of the entity
      * @return void
      */
-    @Transactional
+    //@Transactional
     public UpsertResponse<Void> deleteById(Integer id) {
         E entity = resourceRepository.getById(id, getEntityClass());
         if (entity == null) {
@@ -341,7 +339,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
         return delete(entity);
     }
 
-    @Transactional
+    //@Transactional
     public UpsertResponse<Void> deleteByIdUnsecure(Integer id) {
         resourceRepository.delete(id);
         return UpsertResponse.<Void>builder()
@@ -349,7 +347,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
                 .build();
     }
 
-    @Transactional
+    //@Transactional
     public UpsertResponse<Void> deleteByIdsUnsecure(List<Integer> ids) {
         resourceRepository.delete(ids);
         return UpsertResponse.<Void>builder()
@@ -357,17 +355,17 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
                 .build();
     }
 
-    @Transactional
+    //@Transactional
     public UpsertResponse<Void> deleteByUid(String uid) {
         return deleteById(Resource.fromUid(uid));
     }
 
-    @Transactional
+    //@Transactional
     public UpsertResponse<Void> deleteByUidUnsecure(String uid) {
         return deleteByIdUnsecure(Resource.fromUid(uid));
     }
 
-    @Transactional
+    //@Transactional
     public UpsertResponse<Void> deleteByUidsUnsecure(List<String> uids) {
         if (uids != null && !uids.isEmpty()) {
             deleteByIdsUnsecure(uids.stream().map(Resource::fromUid).toList());
@@ -504,6 +502,10 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
         return getByLabel(label, tenantLabel, null);
     }
 
+    public E getByLabelUnsecure(String label, String tenantLabel) {
+        return getByLabelUnsecure(label, tenantLabel, null);
+    }    
+
     public E getByUniqueLabel(String label) {
         E result = resourceRepository.getByUniqueLabel(label, getEntityClass());
         if (result == null) {
@@ -551,6 +553,19 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
 
         return result;
     }
+
+    public E getByLabelUnsecure(String label, String tenantLabel, Set<String> relations) {
+        E result = resourceRepository.getByLabelUnsecure(label, tenantLabel, getEntityClass());
+        if (result == null) {
+            throw new BusinessException("NOT_FOUND", "Resource not found");
+        }
+
+        if (relations != null) {
+            relationService.populateSingleResourceRelationsUnsecure(result, relations);
+        }
+
+        return result;
+    }    
 
     public E getByUid(String uid) {
         return getById(Resource.fromUid(uid), null);
@@ -674,10 +689,20 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
         return asPage(resources, query, true);
     }
 
+    public Page<E> listUnsecureNoContent(Query query) {
+        var resources = resourceRepository.listNoContentByTenantAndTypeUnsecure(query.getTenant(), getEntityClass(), query);
+        return asPage(resources, query, true);
+    }    
+
     public <C extends Resource> Page<C> listUnsecure(Query query, Class<C> resultContentClass) {
         var resources = resourceRepository.listByTenantAndTypeUnsecure(query.getTenant(), resultContentClass, query);
         return asPage(resources, query, true);
     }
+
+    public <C extends Resource> Page<C> listUnsecureNocontent(Query query, Class<C> resultContentClass) {
+        var resources = resourceRepository.listByTenantAndTypeUnsecure(query.getTenant(), resultContentClass, query);
+        return asPage(resources, query, true);
+    }    
 
     public List<E> listAllUnsecure(Query query) {
         if (query.getLimit() == null) {

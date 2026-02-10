@@ -17,6 +17,7 @@ import net.oneki.mtac.model.core.util.StringUtils;
 import net.oneki.mtac.model.core.util.exception.UnexpectedException;
 import net.oneki.mtac.model.core.util.introspect.annotation.Entity;
 import net.oneki.mtac.model.core.util.introspect.annotation.EntityInterface;
+import net.oneki.mtac.model.core.util.introspect.annotation.LinkVisible;
 import net.oneki.mtac.model.core.util.introspect.annotation.Peer;
 import net.oneki.mtac.model.core.util.introspect.annotation.Secret;
 import net.oneki.mtac.model.core.util.introspect.annotation.Secret.SecretType;
@@ -81,6 +82,10 @@ public class ResourceReflector {
 
             if (field.isRelation()) {
                 result.addRelationField(field);
+            }
+
+            if (field.isLinkVisible()) {
+                result.addLinkVisibleField(field);
             }
         }
 
@@ -156,6 +161,7 @@ public class ResourceReflector {
                         .ownerClass(clazz)
                         .secret(secretDesc)
                         .peer(method.isAnnotationPresent(Peer.class) ? method.getAnnotation(Peer.class).value() : null)
+                        .linkVisible(method.isAnnotationPresent(LinkVisible.class) ? true : false)
                         .build());
             }
         }
@@ -273,6 +279,7 @@ public class ResourceReflector {
                 .relationClass(relationClass)
                 .secret(secretDesc)
                 .peer(peer)
+                .linkVisible(field.isAnnotationPresent(LinkVisible.class) ? true : false)
                 .build();
     }
 
@@ -295,21 +302,25 @@ public class ResourceReflector {
         if (clazz.isAssignableFrom(String.class) || clazz.isEnum()) {
             return "string";
         }
+
+
+
         if (clazz.isAssignableFrom(Integer.class) ||
                 clazz.isAssignableFrom(Long.class) ||
-                clazz.isAssignableFrom(Double.class) ||
-                clazz.isAssignableFrom(Float.class) ||
                 clazz.isAssignableFrom(Short.class) ||
                 clazz.isAssignableFrom(Byte.class) ||
                 clazz.isAssignableFrom(Character.class) ||
                 clazz.isAssignableFrom(int.class) ||
                 clazz.isAssignableFrom(long.class) ||
-                clazz.isAssignableFrom(double.class) ||
-                clazz.isAssignableFrom(float.class) ||
                 clazz.isAssignableFrom(short.class) ||
                 clazz.isAssignableFrom(byte.class) ||
                 clazz.isAssignableFrom(char.class)) {
-            return "number";
+            return "integer";
+        } else if (clazz.isAssignableFrom(Double.class) ||
+                clazz.isAssignableFrom(Float.class) ||
+                clazz.isAssignableFrom(double.class) ||
+                clazz.isAssignableFrom(float.class)) {
+            return "float";
         }
         if (clazz.isAssignableFrom(Boolean.class)) {
             return "boolean";

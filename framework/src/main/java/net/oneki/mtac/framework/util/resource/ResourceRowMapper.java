@@ -28,14 +28,18 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
         var id = rs.getInt("id");
         T resource = null;
         if (hasContentColumn(rs)) {
+            json = rs.getString("content");
+            boolean keepOnlyLinkVisibleFields = false;
             if (rs.getInt("link_id") == 0) {
-                json = rs.getString("content");
+                keepOnlyLinkVisibleFields = false;
             } else if (rs.getInt("link_type") == LinkType.Ref.ordinal()) {
-                    json = "{}";
+                json = rs.getString("link_content");
+                keepOnlyLinkVisibleFields = true;
             } else {
                 json = rs.getString("link_content");
+                keepOnlyLinkVisibleFields = false;
             }
-            resource = jsonEntityMapper.json2Object(json, clazz);
+            resource = jsonEntityMapper.json2Object(json, clazz, keepOnlyLinkVisibleFields);
         } else {
             try {
                 resource = clazz.getDeclaredConstructor().newInstance();
@@ -45,32 +49,32 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
         }
         // var relationFields = ResourceRegistry.getRelations(clazz);
         // for (var relationField : relationFields) {
-        //     relationField.getField().setAccessible(true);
-        //     try {
-        //         if (relationField.isMultiple()) {
-        //             var relations = (List<Resource>) relationField.getField().get(resource);
-        //             if (relations == null)
-        //                 continue;
-        //             // var relationEntities = new ArrayList<Resource>();
-        //             for (var relation : relations) {
-        //                 relation.setUrn(String.format("urn:%s:%s:%s",
-        //                         relation.getTenantLabel(),
-        //                         relation.getSchemaLabel(),
-        //                         relation.getLabel()));
-        //             }
-        //             // relationField.getField().set(resource, relationEntities);
-        //         } else {
-        //             var relation = (Resource) relationField.getField().get(resource);
-        //             if (relation == null)
-        //                 continue;
-        //             relation.setUrn(String.format("urn:%s:%s:%s",
-        //                     relation.getTenantLabel(),
-        //                     relation.getSchemaLabel(),
-        //                     relation.getLabel()));
-        //         }
-        //     } catch (IllegalAccessException e) {
-        //         throw new SQLException(e);
-        //     }
+        // relationField.getField().setAccessible(true);
+        // try {
+        // if (relationField.isMultiple()) {
+        // var relations = (List<Resource>) relationField.getField().get(resource);
+        // if (relations == null)
+        // continue;
+        // // var relationEntities = new ArrayList<Resource>();
+        // for (var relation : relations) {
+        // relation.setUrn(String.format("urn:%s:%s:%s",
+        // relation.getTenantLabel(),
+        // relation.getSchemaLabel(),
+        // relation.getLabel()));
+        // }
+        // // relationField.getField().set(resource, relationEntities);
+        // } else {
+        // var relation = (Resource) relationField.getField().get(resource);
+        // if (relation == null)
+        // continue;
+        // relation.setUrn(String.format("urn:%s:%s:%s",
+        // relation.getTenantLabel(),
+        // relation.getSchemaLabel(),
+        // relation.getLabel()));
+        // }
+        // } catch (IllegalAccessException e) {
+        // throw new SQLException(e);
+        // }
         // }
 
         // resource.setUrn(String.format("%s:%s:%s", tenantLabel, schemaLabel,
@@ -83,9 +87,9 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
         }
 
         // if the resource is a link of type Ref, only keep the id, label, and tenant
-        if (resource.isLinkRef()) {
-            resource = ResourceUtils.toRef(resource);
-        }
+        // if (resource.isLinkRef()) {
+        //     resource = ResourceUtils.toRef(resource);
+        // }
 
         return resource;
     }
@@ -109,7 +113,7 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
             case "id":
                 columnName = isLink ? "link_id" : "id";
                 resource.setId(rs.getInt(columnName));
-                break; 
+                break;
             case "label":
                 resource.setLabel(rs.getString(columnName));
                 break;
@@ -120,7 +124,7 @@ public class ResourceRowMapper<T extends Resource> implements RowMapper<T> {
             case "resource_type":
                 columnName = isLink ? "link_resource_type" : "resource_type";
                 resource.setResourceType(rs.getInt(columnName));
-                break;                 
+                break;
             case "created_at":
                 columnName = isLink ? "link_created_at" : "created_at";
                 resource.setCreatedAt(

@@ -50,6 +50,24 @@ public abstract class GroupService<U extends GroupUpsertRequest, E extends Group
         groupMembershipRepository.create(group.toRef(), member.toRef());
     }
 
+    public void addMemberByLink(E group, Identity member, boolean unsecure) {
+        if (group.getMembers() == null) {
+            group.setMembers(new ArrayList<>());
+        }
+        // create a link in the same tenant as the group
+        var memberLink = createLink(member, group.getTenantId(), LinkType.Ref, false);
+        var identity = resourceRepository.getByIdUnsecure(memberLink, Identity.class);
+        group.getMembers().add(identity);
+        if (unsecure) {
+            updateUnsecure(group);
+        } else {
+            update(group);
+        }
+
+        // add the member to the group membership repository
+        groupMembershipRepository.create(group.toRef(), identity.toRef());
+    }
+
     public void addMembers(E group, List<Identity> members) {
         addMembers(group, members, false);
     }
@@ -70,4 +88,29 @@ public abstract class GroupService<U extends GroupUpsertRequest, E extends Group
             groupMembershipRepository.create(group.toRef(), member.toRef());
         }
     }
+
+    public void addMembersByLink(E group, List<Identity> members, boolean unsecure) {
+        if (group.getMembers() == null) {
+            group.setMembers(new ArrayList<>());
+        }
+        //for each member, create a link in the same tenant as the group
+        var memberLinks = new ArrayList<Identity>();
+        for (Identity member : members) {
+            var memberLink = createLink(member, group.getTenantId(), LinkType.Ref, false);
+            var identity = resourceRepository.getByIdUnsecure(memberLink, Identity.class);
+            memberLinks.add(identity);
+        }
+
+        group.getMembers().addAll(memberLinks);
+        if (unsecure) {
+            updateUnsecure(group);
+        } else {
+            update(group);
+        }
+
+        for (Identity memberLink : memberLinks) {
+            // add the member to the group membership repository
+            groupMembershipRepository.create(group.toRef(), memberLink.toRef());
+        }
+    }    
 }

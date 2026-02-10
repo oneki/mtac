@@ -30,13 +30,14 @@ public class ResourceField {
     private Field collectionField; // only present if multiple = true
     private SecretDesc secret; // true if the field is marked as a secret
     private String peer; // the peer of the field. Example: "memberOf" for field "members"
+    private boolean linkVisible; // true if the field is annotated with @LinkVisible. It means that the field should be visible when retrieving a resource via its link.
 
     public boolean isRelation() {
         return ResourceField.isRelation(type);
     }
 
     public static boolean isRelation(String type) {
-        return !(type.equals("string") || type.equals("number") || type.equals("boolean") || type.equals("date")
+        return !(type.equals("string") || type.equals("integer") || type.equals("float")  || type.equals("boolean") || type.equals("date")
                 || type.equals("object") || type.startsWith("req."));
     }
 

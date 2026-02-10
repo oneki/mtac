@@ -107,7 +107,7 @@ public abstract class OpenIdController {
             .produces(MediaType.APPLICATION_JSON_VALUE)
             .build(),
         this,
-        OpenIdController.class.getDeclaredMethod("userinfo"));
+        OpenIdController.class.getDeclaredMethod("userinfo", Boolean.class));
 
     // Trigger reset password
     handlerMapping.registerMapping(
@@ -195,8 +195,8 @@ public abstract class OpenIdController {
     return ResponseEntity.ok().body(result);
   }
 
-  public Map<String, Object> userinfo() throws Exception {
-    return getUserService().userinfo();
+  public Map<String, Object> userinfo(@RequestParam(name="forceRefresh", required = false) Boolean forceRefresh) throws Exception {
+    return getUserService().userinfo(forceRefresh != null ? forceRefresh : false);
   }
 
   public ResponseEntity<Void> logout() throws Exception {

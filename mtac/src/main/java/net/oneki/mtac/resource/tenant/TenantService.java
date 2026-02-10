@@ -199,6 +199,9 @@ public abstract class TenantService<U extends UpsertRequest, E extends Tenant> e
                 var ancestorTenants = ResourceRegistry.getTenantAncestors(tenantId);
 
                 for (var ancestor : ancestorTenants) {
+                    if (ancestor == null) {
+                        continue;
+                    }
                     var parentTenantUserInfo = tenantIndex.get(ancestor.getUid());
                     if (parentTenantUserInfo != null) {
                         parentTenantUserInfo.getChildren().add(child);

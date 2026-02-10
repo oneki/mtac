@@ -89,7 +89,7 @@ public class FilterCriteria {
     } else if (field.endsWith(".uid")) {
       field = field.substring(0, field.length() - 4) + ".id";
     }
-    
+
     this.operator = operator;
     this.field = field;
     this.value = value;
@@ -163,7 +163,8 @@ public class FilterCriteria {
   /**
    * Convert the FilterCriteria to a SQL where clause
    */
-  public Map<String, String> toSql(Map<String, String> tableAliases, String namedParameter, Object value) {
+  public Map<String, String> toSql(Map<String, String> tableAliases, String namedParameter, Object value,
+      Map<String, Object> args) {
     Map<String, String> ret = new HashMap<>();
     String where = "";
     // Example of leftOperand: {
@@ -197,9 +198,36 @@ public class FilterCriteria {
         operatorSql = operator.sql;
       }
 
-      where += leftOperand.get("operand");
+      var left = leftOperand.get("operand");
+      var valueType = "string";
 
-      where += " " + operatorSql + " ";
+      if (resourceDesc != null) {
+        var resourceField = resourceDesc.getField(field);
+        if (resourceField != null) {
+          var type = resourceField.getType();
+          if ("integer".equals(type)) {
+            // for number, we need to cast the left operand to integer
+            left = "(" + left + ")::integer";
+            valueType = "integer";
+          } else if ("float".equals(type)) {
+            // for number, we need to cast the left operand to float
+            left = "(" + left + ")::float";
+            valueType = "float";
+          }
+        }
+      }
+
+      if (value != null) {
+        if (valueType.equals("integer")) {
+          args.put(namedParameter, Integer.parseInt(value.toString()));
+        } else if (valueType.equals("float")) {
+          args.put(namedParameter, Float.parseFloat(value.toString()));
+        } else {
+          args.put(namedParameter, value);
+        }
+      }
+
+      where += left + " " + operatorSql + " ";
       if (operator == Operator.IN) {
         where += "(:" + namedParameter + ")";
       } else {

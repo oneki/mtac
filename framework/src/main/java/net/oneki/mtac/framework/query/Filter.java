@@ -297,11 +297,8 @@ public class Filter {
       Object value = criteria.getSqlValue();
       // In the SQL query, we'll have placeholders named :param1, :param2, etc.
       String param = "param" + (args.size() + 1);
-      if (value != null) {
-        args.put(param, value);
-      }
       // Convert the FilterCriteria to a SQL where clause
-      Map<String, String> criteriaSql = criteria.toSql(tableAliases, param, value);
+      Map<String, String> criteriaSql = criteria.toSql(tableAliases, param, value, args);
       // We need to know if it's the first criteria
       // Exemple: the result is firstname='john' and lastname='doe'
       // If it's the first criteria, we don't need to add the "AND" keyword

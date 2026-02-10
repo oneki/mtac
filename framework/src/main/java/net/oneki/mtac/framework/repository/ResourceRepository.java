@@ -56,7 +56,6 @@ public class ResourceRepository extends AbstractRepository {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-
         SqlParameterSource parameterSource = new MapSqlParameterSource(parameters);
         resource = create(resource, parameterSource);
 
@@ -67,6 +66,7 @@ public class ResourceRepository extends AbstractRepository {
             SqlParameterSource parameterSource) {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         var sql = SqlUtils.getSQL("resource/resource_insert.sql");
+        
         jdbcTemplate.update(sql, parameterSource, keyHolder);
         if (keyHolder.getKeyList() != null && keyHolder.getKeyList().size() > 0) {
             resource.setId((Integer) keyHolder.getKeyList().get(0).get("id"));
@@ -395,6 +395,21 @@ public class ResourceRepository extends AbstractRepository {
         var result = list(tenantId, resultContentClass, sql, query);
         return result;
     }
+
+    public <T extends Resource> List<T> listNoContentByTenantAndTypeUnsecure(String tenantLabel,
+            Class<T> resultContentClass,
+            Query query) {
+        var tenantId = ResourceRegistry.getTenantId(tenantLabel);
+        return listNoContentByTenantAndTypeUnsecure(tenantId, resultContentClass, query);
+    }    
+
+    public <T extends Resource> List<T> listNoContentByTenantAndTypeUnsecure(int tenantId,
+            Class<T> resultContentClass,
+            Query query) {
+        var sql = SqlUtils.getSQL("resource/resource_list_nocontent_by_tenant_and_schema_unsecure.sql");
+        var result = list(tenantId, resultContentClass, sql, query);
+        return result;
+    }    
 
     // ------------------------------------------------- GENERIC LIST
 

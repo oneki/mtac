@@ -33,6 +33,7 @@ public class ResourceDesc {
     @Builder.Default protected Set<ResourceField> fieldRelationIndex = new HashSet<>(); 
     // used by the JSON deserializer to decrypt passwords
     @Builder.Default protected Set<ResourceField> fieldSecretIndex = new HashSet<>();
+    @Builder.Default protected Set<String> fieldLinkVisibleIndex = new HashSet<>();
 
     public ResourceField getField(String fieldName) {
         for (ResourceField field : fields) {
@@ -79,5 +80,9 @@ public class ResourceDesc {
 
     public void addRelationField(ResourceField field) {
         fieldRelationIndex.add(field);
+    }
+
+    public void addLinkVisibleField(ResourceField field) {
+        fieldLinkVisibleIndex.add(field.getLabel());
     }
 }
