@@ -1,5 +1,7 @@
 package net.oneki.mtac.model.resource.iam.identity.user;
 
+import java.time.Instant;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -27,6 +29,7 @@ public class User extends Identity implements OauthIdentity, hasResetPassword, h
     protected Integer tokenExpiresIn; // accessToken in seconds. If null, the default value is used (usually 900 seconds)
     protected String refreshToken;
     protected String resetPasswordToken;
+    protected Instant resetPasswordTokenIssuedAt; // to avoid spam, user can only request reset password once every X minutes, X is defined in mtac properties
     protected Boolean mfa;
     protected Boolean mfaActive;
     @Secret(type = SecretType.ENCRYPTION)

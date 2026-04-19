@@ -74,6 +74,8 @@ public abstract class Resource implements HasLabel, HasId, HasUid, HasSchema {
 	@JsonIgnore
 	protected Integer linkId;
 
+	protected String linkUid;
+
 	@JsonIgnore
 	protected LinkType linkType;
 
@@ -239,6 +241,17 @@ public abstract class Resource implements HasLabel, HasId, HasUid, HasSchema {
 
 	public final void setLinkId(Integer linkId) {
 		this.linkId = linkId;
+		this.linkUid = toUid(linkId);
+
+	}
+
+	public final String getLinkUid() {
+		return linkUid;
+	}
+
+	public final void setLinkUid(String linkUid) {
+		this.linkId = fromUid(linkUid);
+		this.linkUid = linkUid;
 	}
 
 	public final LinkType getLinkType() {

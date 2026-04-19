@@ -172,6 +172,7 @@ public class ResourceRepository extends AbstractRepository {
         if (securityContext != null) {
             args.put("sids", securityContext.getAllSids());
         }
+        log.debug(SqlUtils.formatSqlQuery(sql, args));
         try {
             return jdbcTemplate.queryForObject(sql, args, new ResourceRowMapper<T>(jsonEntityMapper));
         } catch (EmptyResultDataAccessException e) {

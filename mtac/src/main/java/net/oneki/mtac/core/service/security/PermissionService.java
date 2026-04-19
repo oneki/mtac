@@ -128,7 +128,15 @@ public class PermissionService {
     }
 
     public boolean hasPermission(Resource resource, String permission) {
-        if (resource == null) {
+        return hasPermission(resource, permission, true);
+    }
+
+    public boolean hasPermission(Resource resource, String permission, boolean rejectLink) {
+        // if the resource has a linkId, it means that it's a virtual resource created based on another resource
+        // in this case, we always refuse any action on this resource 
+        // If an action should be done on this resource, it should be done via a special API 
+        // that will handle the permission on the linked resource (ex: site) and the action on the virtual resource
+        if (resource == null || (rejectLink && resource.getLinkId() != null)) {
             return false;
         }
 
@@ -215,11 +223,28 @@ public class PermissionService {
 
         var permissionPath = new PropertyPath(schemaLabel, permission); // Example: "iam.identity.user|reset_password"
 
+        // check first
+
+        // Each ACE = a role on a resource for a user
+        // It's possisble that user has multiple ACE for a resource (ex: administrator and readonly  on the same resource)
+        // If at least one ACE gives the permission, we give the access to the user
         for (var ace : acl) {
-            var propertyPaths = PropertyPath.of(ace.getActions());
+            var propertyPaths = PropertyPath.of(ace.getDenyActions());
             if (propertyPaths != null) {
                 for (var propertyPath : propertyPaths) {
                     if (propertyPath.contains(permissionPath)) {
+                        // this ACE explicitly deny the permission, 
+                        // we can stop here for this ACE and continue with the next one
+                        continue;
+                    }
+                }
+            }
+
+            propertyPaths = PropertyPath.of(ace.getActions());
+            if (propertyPaths != null) {
+                for (var propertyPath : propertyPaths) {
+                    if (propertyPath.contains(permissionPath)) {
+                        // this ACE gives the permission, we can stop here and return true
                         return true;
                     }
                 }

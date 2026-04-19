@@ -15,4 +15,5 @@ public class Ace {
     private List<String> schemas;
     private List<String> fields;
     private List<String> actions;
+    private List<String> denyActions;
 }

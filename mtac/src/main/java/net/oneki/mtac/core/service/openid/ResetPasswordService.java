@@ -1,5 +1,6 @@
 package net.oneki.mtac.core.service.openid;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.BiConsumer;
@@ -52,7 +53,7 @@ public class ResetPasswordService {
   }
 
   public void triggerResetPassword(String email, Integer resetPasswordExpirationSec, BiConsumer<String, User> resetLinkSender) {
-    var resetLink = mtacProperties.getResetPassword().getLink();
+
     User user = null;
     try {
       user = userService.getByUniqueLabelUnsecureOrReturnNull(email);
@@ -63,17 +64,43 @@ public class ResetPasswordService {
 
     if (user == null)
       return;
+
+    if (user.getResetPasswordTokenIssuedAt() != null && user.getResetPasswordTokenIssuedAt().isAfter(Instant.now().minusSeconds(mtacProperties.getResetPassword().getRequestCooldownSec()))) {
+      // to avoid spam, user can only request reset password once every X seconds, X is defined in mtac properties
+      throw new BusinessException("RESET_PASSWORD_REQUEST_COOLDOWN", "A reset password request has already been made recently. Please wait before making another request.");
+    }
+    var resetLink = generateResetLink(user, email, resetPasswordExpirationSec, false);
+    // var resetToken = UUID.randomUUID().toString();
+    // // generete JWT token that contains the reset token
+    // var jwtToken = tokenService.newToken(Map.of("resetToken", resetToken, "email", email), resetPasswordExpirationSec);
+    // // update user attribute to store the reset token
+    // user.setResetPasswordToken(resetToken);
+    // user.setResetPasswordTokenIssuedAt(Instant.now());
+    // userService.updateUnsecure(user);
+    // if (!resetLink.contains("?"))
+    //   resetLink += "?";
+    // ;
+    // resetLink += "resetToken=" + jwtToken;
+    resetLinkSender.accept(resetLink, user);
+  }
+
+  public String generateResetLink(User user, String email, Integer resetPasswordExpirationSec, boolean extend) {
+    var resetLink = mtacProperties.getResetPassword().getLink();
     var resetToken = UUID.randomUUID().toString();
+    if (extend && user.getResetPasswordTokenIssuedAt() != null && user.getResetPasswordToken() != null && user.getResetPasswordTokenIssuedAt().isAfter(Instant.now().minusSeconds(resetPasswordExpirationSec))) {
+      resetToken = user.getResetPasswordToken();
+    }
     // generete JWT token that contains the reset token
     var jwtToken = tokenService.newToken(Map.of("resetToken", resetToken, "email", email), resetPasswordExpirationSec);
     // update user attribute to store the reset token
     user.setResetPasswordToken(resetToken);
+    user.setResetPasswordTokenIssuedAt(Instant.now());
     userService.updateUnsecure(user);
     if (!resetLink.contains("?"))
       resetLink += "?";
     ;
     resetLink += "resetToken=" + jwtToken;
-    resetLinkSender.accept(resetLink, user);
+    return resetLink;
   }
 
   public SuccessErrorResponse verifyResetToken(String resetToken) {
@@ -110,6 +137,7 @@ public class ResetPasswordService {
       }
       user.setPassword(PasswordUtil.hash(request.getNewPassword()));
       user.setResetPasswordToken(null);
+      user.setResetPasswordTokenIssuedAt(null);
       userService.updateUnsecure(user);
 
     } catch (Exception e) {

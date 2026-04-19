@@ -92,6 +92,15 @@ public abstract class ResourceController<U extends UpsertRequest, R extends Reso
                 this,
                 ResourceController.class.getDeclaredMethod("deleteByUid", String.class));
 
+        // delete
+        handlerMapping.registerMapping(
+                RequestMappingInfo.paths(getApiPath() + "/{uid}/link")
+                        .methods(RequestMethod.DELETE)
+                        .produces(MediaType.APPLICATION_JSON_VALUE)
+                        .build(),
+                this,
+                ResourceController.class.getDeclaredMethod("deleteLinkByUid", String.class));
+
         // list
         handlerMapping.registerMapping(
                 RequestMappingInfo.paths(getApiPath())
@@ -139,6 +148,10 @@ public abstract class ResourceController<U extends UpsertRequest, R extends Reso
         return getService().deleteByUid(uid);
     }
 
+    public UpsertResponse<Void> deleteLinkByUid(@PathVariable("uid") String linkUid) {
+        return getService().deleteLinkByUid(linkUid);
+    }
+
     // list. A query param is used to specify the tenant. If no tenant is specified,
     // the tenant root is used.
     public Page<R> list(@RequestParam Map<String, String> parameters) {
@@ -152,38 +165,41 @@ public abstract class ResourceController<U extends UpsertRequest, R extends Reso
 
     }
 
-
     public Page<SearchDto> search(@RequestParam Map<String, String> parameters) {
         if (parameters.containsKey("tenant")) {
             parameters.put("tenant", "" + Resource.fromUid(parameters.get("tenant")));
         }
         if (!parameters.containsKey("sortBy")) {
             parameters.put("sortBy", "resource_type,asc;label,asc");
-        } 
+        }
         var query = Query.fromRest(parameters, getResourceClass());
         return getService().search(query);
 
     }
 
     protected String getApiBasePath() {
-        return apiBasePath;
+        var result = apiBasePath;
+        if (!result.endsWith("/")) {
+            result += "/";
+        }
+        return result;
     }
 
     protected String getApiPath() {
         var result = getApiBasePath();
-        if (!result.endsWith("/")) {
-            result += "/";
-        }
+        var path = result + getResourceName();
+        log.debug("Registering API path: {}", path);
+        return path;
+    }
 
+    protected String getResourceName() {
         var tokens = this.getClass().getName().split("\\.");
         var name = tokens[tokens.length - 1];
 
         if (name.endsWith("Controller"))
             name = name.substring(0, name.length() - 10);
 
-        var path = result + StringUtils.pascalToKebab(English.plural(name));
-        log.trace("Registering API path: {}", path);
-        return path;
+        return StringUtils.pascalToKebab(English.plural(name));
     }
 
 }

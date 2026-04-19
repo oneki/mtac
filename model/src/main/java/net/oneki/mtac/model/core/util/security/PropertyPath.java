@@ -40,6 +40,9 @@ public class PropertyPath {
      * @return
      */
     public static List<PropertyPath> of(List<String> permissions) {
+        if (permissions == null) {
+            return null;
+        }
         return permissions.stream()
             .map(permission -> {
                 String[] parts = permission.split("\\|");

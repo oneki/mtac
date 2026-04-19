@@ -60,6 +60,7 @@ public class MtacProperties {
   @Data
   public static class MtacResetPassword {
     private String link; // wetsite URL to reset password = the link sent by email
+    private Integer requestCooldownSec = 10; // to avoid spam, user can only request reset password once every X seconds
   }
 
   @Data

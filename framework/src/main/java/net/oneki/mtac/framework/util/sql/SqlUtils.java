@@ -96,15 +96,19 @@ public class SqlUtils {
                 operand += tableAliases.get("resource") + ".resource_type";
                 break;
             case "created_by":
+            case "createdBy":
                 operand += tableAliases.get("resource") + ".created_by";
                 break;
             case "updated_by":
+            case "updatedBy":
                 operand += tableAliases.get("resource") + ".updated_by";
                 break;
             case "created_at":
+            case "createdAt":
                 operand += tableAliases.get("resource") + ".created_at";
                 break;
             case "updated_at":
+            case "updatedAt":
                 operand += tableAliases.get("resource") + ".updated_at";
                 break;
             default:

@@ -339,6 +339,14 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
         return delete(entity);
     }
 
+    public UpsertResponse<Void> deleteLinkById(Integer linkId) {
+        E entity = resourceRepository.getById(linkId, getEntityClass());
+        if (entity == null) {
+            throw new NotFoundException("Resource with id=" + linkId + " not found");
+        }
+        return deleteLink(entity);
+    }    
+
     //@Transactional
     public UpsertResponse<Void> deleteByIdUnsecure(Integer id) {
         resourceRepository.delete(id);
@@ -360,6 +368,10 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
         return deleteById(Resource.fromUid(uid));
     }
 
+    public UpsertResponse<Void> deleteLinkByUid(String linkUid) {
+        return deleteLinkById(Resource.fromUid(linkUid));
+    }
+
     //@Transactional
     public UpsertResponse<Void> deleteByUidUnsecure(String uid) {
         return deleteByIdUnsecure(Resource.fromUid(uid));
@@ -375,49 +387,6 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
                 .status(UpsertResponse.Status.Success)
                 .build();
     }
-
-    /**
-     * Delte an entity by its public id
-     *
-     *
-     * @param uuid:        the public ID of the entity
-     * @param entityClass: the class of the entity
-     * @return void
-     */
-    // public void deleteByLabelOrUrn(String labelOrUrn) {
-    // E entity = resourceRepository.getByLabelOrUrn(labelOrUrn, getEntityClass());
-    // if (entity == null) {
-    // throw new NotFoundException("Resource " + labelOrUrn + " not found");
-    // }
-    // delete(entity);
-    // }
-
-    // public void deleteByUrn(String urn) {
-    // E entity = resourceRepository.getByUrn(urn, getEntityClass());
-    // if (entity == null) {
-    // throw new NotFoundException("Resource " + urn + " not found");
-    // }
-    // delete(entity);
-    // }
-
-    // /**
-    // * Delte an entity by its label, tenant, schema
-    // *
-    // *
-    // * @param tenantLabel: the label of the tenant
-    // * @param label: the label of the entity
-    // * @param entityClass: the class of the entity
-    // * @return void
-    // */
-    // public void deleteByLabel(String tenantLabel, String label) {
-    // E entity = resourceRepository.getByLabel(label, tenantLabel,
-    // getEntityClass());
-    // if (entity == null) {
-    // throw new NotFoundException("Resource " + label + " in tenant " + tenantLabel
-    // + " not found");
-    // }
-    // delete(entity);
-    // }
 
     /**
      * Delete an entity
@@ -448,6 +417,33 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
             audit(resourceEntity, null, Action.Delete, status, false);
         }
     }
+
+    @Transactional
+    public UpsertResponse<Void> deleteLink(E resourceEntity) {
+        // The entity is the real entity and not the virtual resource representing the link
+        // First we have to check if there is a linkId, if not -> we refuse
+        boolean status = false;
+        try {
+            if (resourceEntity == null) {
+                return UpsertResponse.<Void>builder()
+                        .status(UpsertResponse.Status.Success)
+                        .build();
+            }
+            if (resourceEntity.getLinkId() == null) {
+                throw new BusinessException("FORBIDDEN", "Forbidden access");
+            }
+            // Verify if the user has the permission to delete the resource
+            if (!permissionService.hasPermission(resourceEntity, "delete", false)) {
+                throw new BusinessException("FORBIDDEN", "Forbidden access");
+            }
+            resourceRepository.delete(resourceEntity.getLinkId());
+            return UpsertResponse.<Void>builder()
+                    .status(UpsertResponse.Status.Success)
+                    .build();
+        } finally {
+            audit(resourceEntity, null, Action.Delete, status, false);
+        }
+    }    
 
     /**
      * Get an entity by its id

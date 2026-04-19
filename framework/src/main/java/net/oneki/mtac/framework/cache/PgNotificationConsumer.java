@@ -31,7 +31,7 @@ public class PgNotificationConsumer implements Consumer<PGNotification> {
     public void accept(PGNotification message) {
         var cache = ResourceRegistry.getCache();
         try {
-            log.info("Notification received: channel={}, value={}", message.getName(), message.getParameter());
+            log.debug("Notification received: channel={}, value={}", message.getName(), message.getParameter());
             if (message.getName().equals(PgNotifierService.RESOURCE_CHANNEL)) {
                 String value = message.getParameter();
                 if (value != null) {
@@ -52,19 +52,19 @@ public class PgNotificationConsumer implements Consumer<PGNotification> {
                     switch (action) {
                         case "delete":
                             if (isSchema) {
-                                log.info("Delete schema id={}, label={} from cache", id,
+                                log.debug("Delete schema id={}, label={} from cache", id,
                                         cache.getSchemaById(id).getLabel());
                                 cache.deleteSchema(id);
                             }
                             if (isTenant) {
-                                log.info("Delete tenant id={}, label={} from cache", id,
+                                log.debug("Delete tenant id={}, label={} from cache", id,
                                         cache.getTenantById(id).getLabel());
                                 cache.deleteTenant(id);
                             }
                             break;
                         case "create":
                             if (isSchema) {
-                                log.info("Add schema id={}, label={} to cache", id, label);
+                                log.debug("Add schema id={}, label={} to cache", id, label);
                                 cache.addSchema(
                                         Schema.builder()
                                                 .id(id)
@@ -77,7 +77,7 @@ public class PgNotificationConsumer implements Consumer<PGNotification> {
                                                 .build());
                             }
                             if (isTenant) {
-                                log.info("Add tenant id={}, label={} to cache", id, label);
+                                log.debug("Add tenant id={}, label={} to cache", id, label);
                                 // var parentTenantLabel = "";
                                 // if (tenantId != null) {
                                 //     var parentTenant = ResourceRegistry.getTenantById(tenantId);
@@ -113,12 +113,12 @@ public class PgNotificationConsumer implements Consumer<PGNotification> {
                     var sub = tokens[1];
                     switch (action) {
                         case "delete":
-                            log.info("Delete token id={} from cache", sub);
+                            log.debug("Delete token id={} from cache", sub);
                             tokenRegistry.remove(sub);
                             break;
                         case "create":
                         case "update":
-                            log.info(action + " token id={} to cache", sub);
+                            log.debug(action + " token id={} to cache", sub);
                             var claims = tokenRepository.getToken(sub);
                             if (claims != null) {
                                 tokenRegistry.put(sub, claims);
@@ -137,7 +137,7 @@ public class PgNotificationConsumer implements Consumer<PGNotification> {
                         boolean isTenant = resource.getSchemaLabel().startsWith("tenant.");
                         if (isTenant) {
                             var ancestors = resourceTenantTreeRepository.listTenantAncestors(descendantId);
-                            log.info("Add ancestors ids <{}> of tenant {} to cache", ancestors, resource.getLabel());
+                            log.debug("Add ancestors ids <{}> of tenant {} to cache", ancestors, resource.getLabel());
                             cache.setTenantAncestor(descendantId, ancestors);
                         }
                     }

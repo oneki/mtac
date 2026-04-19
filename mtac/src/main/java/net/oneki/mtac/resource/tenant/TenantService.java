@@ -17,6 +17,7 @@ import net.oneki.mtac.framework.cache.PgNotifierService;
 import net.oneki.mtac.framework.cache.ResourceRegistry;
 import net.oneki.mtac.framework.query.Query;
 import net.oneki.mtac.framework.repository.ResourceRepository;
+import net.oneki.mtac.framework.repository.TenantRepository;
 import net.oneki.mtac.model.core.Constants;
 import net.oneki.mtac.model.core.dto.UpsertResponse;
 import net.oneki.mtac.model.core.security.RoleUserInfo;
@@ -59,6 +60,9 @@ public abstract class TenantService<U extends UpsertRequest, E extends Tenant> e
 
     @Autowired
     protected GroupRepository groupRepository;
+
+    @Autowired
+    protected TenantRepository tenantRepository;
 
     @Override
     public UpsertResponse<Void> delete(E tenant) {
@@ -114,10 +118,11 @@ public abstract class TenantService<U extends UpsertRequest, E extends Tenant> e
         sids.add(resource.getId());
         sids.addAll(listGroupSids(resource));
         var tenantRoles = roleRepository.listAssignedTenantRolesByIdentity(sids);
-        var tenantSids = tenantRoles.stream()
-                .filter(tenantRole -> tenantRole.getRoles().size() > 0)
-                .map(tenantRole -> tenantRole.getTenant().getId())
-                .collect(Collectors.toList());
+        // var tenantSids = tenantRoles.stream()
+        //         .filter(tenantRole -> tenantRole.getRoles().size() > 0)
+        //         .map(tenantRole -> tenantRole.getTenant().getId())
+        //         .collect(Collectors.toList());
+        var tenantSids = tenantRepository.listUserTenantSidsUnsecure(new HashSet<>(sids)).stream().toList();
 
         var roleIndex = new HashMap<String, RoleUserInfo>();
         var tenantIndex = new HashMap<String, TenantUserInfo>();
