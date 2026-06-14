@@ -174,6 +174,7 @@ public abstract class TenantService<U extends UpsertRequest, E extends Tenant> e
         if (tenantRole != null) {
             for (var role : tenantRole.getRoles()) {
                 var roleUserInfo = RoleUserInfo.builder()
+                        .label(role.getName())
                         .actions(role.getActions())
                         .schemas(role.getSchemas())
                         .build();

@@ -9,11 +9,13 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import net.oneki.mtac.framework.cache.ResourceRegistry;
 import net.oneki.mtac.framework.entity.Field;
 import net.oneki.mtac.framework.entity.SyncDbContext;
 import net.oneki.mtac.framework.introspect.ClassType;
 import net.oneki.mtac.model.core.Constants;
+import net.oneki.mtac.model.core.entity.EntityState;
 import net.oneki.mtac.model.core.resource.Ref;
 import net.oneki.mtac.model.core.util.exception.UnexpectedException;
 import net.oneki.mtac.model.resource.Resource;
@@ -21,17 +23,17 @@ import net.oneki.mtac.model.resource.schema.Schema;
 
 @RequiredArgsConstructor
 @Component
+@Slf4j
 public class SchemaDbSynchronizer {
     private final ResourceRepository resourceRepository;
     private final FieldRepository fieldRepository;
     private final FieldSchemaRepository fieldSchemaRepository;
     private final SchemaRepository schemaRepository;
 
-
     public void syncSchemasToDb() {
         var cache = ResourceRegistry.getCache();
         var classIndex = ResourceRegistry.getClassindex();
-        var scannedSchemaLabels = classIndex.keySet();
+        var scannedSchemaLabels = classIndex.keySet().stream().collect(Collectors.toSet());
         var dbSchemaLabels = cache.getSchemas().values().stream().map(Schema::getLabel)
                 .collect(Collectors.toSet());
 
@@ -43,7 +45,8 @@ public class SchemaDbSynchronizer {
             if (scannedSchemaLabels.contains(dbSchemaLabel)) {
                 continue;
             }
-            schemaRepository.delete(cache.getSchemaId(dbSchemaLabel));
+            log.warn("Schema {} is in DB but no correspondant class found", dbSchemaLabel);
+            // schemaRepository.delete(cache.getSchemaId(dbSchemaLabel));
         }
         fieldRepository.deleteOrphans();
     }
@@ -54,9 +57,17 @@ public class SchemaDbSynchronizer {
         var schemaIndex = ResourceRegistry.getSchemaIndex();
 
         var resourceDesc = ResourceRegistry.getResourceDescs().get(scannedSchemaLabel);
-        if (resourceDesc.getId() != null || resourceDesc.getClassType() == null || resourceDesc.getClassType() == ClassType.ApiRequest) {
+        if (resourceDesc.getId() != null || resourceDesc.getClassType() == null
+                || resourceDesc.getClassType() == ClassType.ApiRequest) {
             return;
         }
+
+        if (resourceDesc.getEntityState() == EntityState.ABSENT) {
+            schemaRepository.delete(cache.getSchemaId(scannedSchemaLabel));
+            // ResourceRegistry.removeSchema(scannedSchemaLabel);
+            return;
+        }
+
         var resourceClass = classIndex.get(scannedSchemaLabel);
         var parentSchemaLabels = new HashSet<String>();
         var parentResourceClass = resourceClass.getSuperclass();
@@ -103,7 +114,7 @@ public class SchemaDbSynchronizer {
             }
             schemaEntity.setParents(parents);
             resourceRepository.update(schemaEntity);
-        }        
+        }
     }
 
     public void syncFieldsToDb() {
@@ -133,7 +144,7 @@ public class SchemaDbSynchronizer {
         if (resourceDesc.getClassType() == null || resourceDesc.getClassType() == ClassType.ApiRequest) {
             return result;
         }
-        
+
         if (context.getScannedFieldEntitiesByResourceDesc().containsKey(resourceDesc)) {
             return context.getScannedFieldEntitiesByResourceDesc().get(resourceDesc);
         }
@@ -171,8 +182,10 @@ public class SchemaDbSynchronizer {
         var classIndex = ResourceRegistry.getClassindex();
         var resourceClass = classIndex.get(scannedSchemaLabel);
         var resourceDesc = ResourceRegistry.getResourceDescs().get(scannedSchemaLabel);
+        var entityState = resourceDesc.getEntityState();
         var scannedField = resourceDesc.getField(scannedFieldLabel);
-        var declaringClass = scannedField.getOwnerClass() != null ? scannedField.getOwnerClass() : scannedField.getField().getDeclaringClass();
+        var declaringClass = scannedField.getOwnerClass() != null ? scannedField.getOwnerClass()
+                : scannedField.getField().getDeclaringClass();
         if (declaringClass.equals(Resource.class) || declaringClass.equals(Schema.class)) {
             return null;
         }
@@ -183,7 +196,8 @@ public class SchemaDbSynchronizer {
 
         if (declaringSchemaLabel.equals(scannedSchemaLabel)) {
             var fieldEntity = context.getDbFieldSchemaIndex().get(scannedSchemaLabel + ":" + scannedField.getLabel());
-            var nextFieldEntity = context.getScannedFieldSchemaIndex().get(scannedSchemaLabel + ":" + scannedField.getLabel());
+            var nextFieldEntity = context.getScannedFieldSchemaIndex()
+                    .get(scannedSchemaLabel + ":" + scannedField.getLabel());
             if (nextFieldEntity != null) {
                 return nextFieldEntity;
             }
@@ -198,11 +212,18 @@ public class SchemaDbSynchronizer {
                     .scannedField(scannedField)
                     .build();
             if (fieldEntity != null) {
+                if (entityState == EntityState.ABSENT) {
+                    //fieldRepository.delete(fieldEntity.getId());
+                    return null;
+                }
                 nextFieldEntity.setId(fieldEntity.getId());
                 if (!nextFieldEntity.equals(fieldEntity)) {
                     fieldRepository.update(nextFieldEntity);
                 }
             } else {
+                if (entityState == EntityState.ABSENT) {
+                    return null;
+                }
                 nextFieldEntity = fieldRepository.create(nextFieldEntity);
             }
             scannedField.setId(nextFieldEntity.getId());
@@ -210,20 +231,23 @@ public class SchemaDbSynchronizer {
             context.getScannedFieldSchemaIndex().put(scannedSchemaLabel + ":" + scannedField.getLabel(),
                     nextFieldEntity);
             var nextFieldSchemas = scannedField.getImpClasses().stream()
-                .map(implClass -> ResourceRegistry.getSchemaByClass(implClass))
-                .collect(Collectors.toSet());
+                    .map(implClass -> ResourceRegistry.getSchemaByClass(implClass))
+                    .collect(Collectors.toSet());
             for (var nextFieldSchema : nextFieldSchemas) {
                 if (fieldEntity == null || fieldEntity.getSchemas() == null
                         || !fieldEntity.getSchemas().contains(nextFieldSchema)) {
-                    fieldSchemaRepository.create(
-                            Ref.builder()
-                                    .id(nextFieldEntity.getId())
-                                    .build(),
-                            Ref.builder()
-                                    .id(cache.getSchemaId(nextFieldSchema))
-                                    .build());
-                }  
-                
+                    var nextResourceDesc = ResourceRegistry.getResourceDesc(nextFieldSchema);
+                    if (nextResourceDesc.getEntityState() != EntityState.ABSENT) {
+                        fieldSchemaRepository.create(
+                                Ref.builder()
+                                        .id(nextFieldEntity.getId())
+                                        .build(),
+                                Ref.builder()
+                                        .id(cache.getSchemaId(nextFieldSchema))
+                                        .build());
+                    }
+                }
+
             }
             if (fieldEntity != null && fieldEntity.getSchemas() != null) {
                 for (var schema : fieldEntity.getSchemas()) {
@@ -278,39 +302,48 @@ public class SchemaDbSynchronizer {
     }
 
     // private void linkFieldsToSchemas(SyncDbContext context) {
-    //     for (var nextFieldEntity : context.getScannedFieldIndex().values()) {
-    //         var fieldEntity = context.getDbFieldIndex().get(nextFieldEntity.getId());
-    //         for (var nextSchema : nextFieldEntity.getSchemas()) {
-    //             if (fieldEntity == null || !fieldEntity.getSchemas().contains(nextSchema)) {
+    // for (var nextFieldEntity : context.getScannedFieldIndex().values()) {
+    // var fieldEntity = context.getDbFieldIndex().get(nextFieldEntity.getId());
+    // for (var nextSchema : nextFieldEntity.getSchemas()) {
+    // if (fieldEntity == null || !fieldEntity.getSchemas().contains(nextSchema)) {
 
-    //                 fieldSchemaRepository.create(
-    //                         Ref.builder()
-    //                                 .id(nextFieldEntity.getId())
-    //                                 .build(),
-    //                         Ref.builder()
-    //                                 .id(cache.getSchemaId(nextSchema))
-    //                                 .build());
-    //             } else {
-    //                 for (var schema : fieldEntity.getSchemas()) {
-    //                     if (!nextFieldEntity.getSchemas().contains(schema)) {
-    //                         fieldSchemaRepository.delete(
-    //                                 Ref.builder()
-    //                                         .id(nextFieldEntity.getId())
-    //                                         .build(),
-    //                                 Ref.builder()
-    //                                         .id(cache.getSchemaId(schema))
-    //                                         .build());
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
+    // fieldSchemaRepository.create(
+    // Ref.builder()
+    // .id(nextFieldEntity.getId())
+    // .build(),
+    // Ref.builder()
+    // .id(cache.getSchemaId(nextSchema))
+    // .build());
+    // } else {
+    // for (var schema : fieldEntity.getSchemas()) {
+    // if (!nextFieldEntity.getSchemas().contains(schema)) {
+    // fieldSchemaRepository.delete(
+    // Ref.builder()
+    // .id(nextFieldEntity.getId())
+    // .build(),
+    // Ref.builder()
+    // .id(cache.getSchemaId(schema))
+    // .build());
+    // }
+    // }
+    // }
+    // }
+    // }
 
     // }
 
     private void removeFieldsFromDb(SyncDbContext context) {
         for (var fieldId : context.getDbFieldIndex().keySet()) {
+            var field = context.getDbFieldIndex().get(fieldId);
             if (!context.getScannedFieldIndex().containsKey(fieldId)) {
+                var ownerSchemaLabel = field.getOwner();
+                if (ownerSchemaLabel == null) {
+                    continue;
+                }
+                var ownerResourceDesc = ResourceRegistry.getResourceDesc(ownerSchemaLabel);
+                if (ownerResourceDesc == null) {
+                    continue;
+                }
                 fieldRepository.delete(fieldId);
             }
         }

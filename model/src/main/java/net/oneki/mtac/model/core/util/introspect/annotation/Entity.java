@@ -7,6 +7,8 @@ import java.lang.annotation.Target;
 
 import org.springframework.core.annotation.AliasFor;
 
+import net.oneki.mtac.model.core.entity.EntityState;
+
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 
@@ -18,6 +20,8 @@ public @interface Entity {
     String schema() default "";
 
     String uniqueInScope() default "tenant.root";
+
+    EntityState state() default EntityState.PRESENT;
 
     // String[] permissions() default {};
     // String[] notInheritPermissions() default {};

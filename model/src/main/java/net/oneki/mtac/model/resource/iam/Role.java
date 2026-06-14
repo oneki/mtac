@@ -22,7 +22,6 @@ public class Role extends Resource {
     private String name;
     @Builder.Default private List<String> schemas = new ArrayList<>();
     @Builder.Default private List<String> actions = new ArrayList<>();
+    @Builder.Default private List<String> denyActions = new ArrayList<>();
     @Builder.Default private List<String> fields = new ArrayList<>();
-
-
 }

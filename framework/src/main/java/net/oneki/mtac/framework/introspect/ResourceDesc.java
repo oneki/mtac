@@ -11,6 +11,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import net.oneki.mtac.framework.cache.ResourceRegistry;
+import net.oneki.mtac.model.core.entity.EntityState;
 import net.oneki.mtac.model.core.util.exception.UnexpectedException;
 
 @Data
@@ -21,6 +22,7 @@ public class ResourceDesc {
     protected Integer id; // ID in DB
     protected String label; // example: "iam.identity.user"
     protected String uniqueInScope;
+    protected EntityState entityState;
     @Builder.Default protected Set<ResourceField> fields = new HashSet<>();
     protected boolean isInterface;
     @Builder.Default protected Set<Class<?>> childClasses = new HashSet<>();

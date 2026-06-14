@@ -1,6 +1,7 @@
 package net.oneki.mtac.resource;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -471,6 +472,32 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
         }
 
         return result;
+    }
+
+    public List<E> getByIds(List<Integer> ids, Set<String> relations) {
+        var allResources = resourceRepository.getByIds(ids, getEntityClass());
+
+        // Remove links from the result if there are some
+        // A link has the same id as the resource, so we just need to remove duplicate ids and keep the first one
+        var seenIds = new HashSet<Integer>();
+        var resources = allResources.stream()
+                .filter(resource -> {
+                    if (seenIds.contains(resource.getId())) {
+                        return false;
+                    } else {
+                        seenIds.add(resource.getId());
+                        return true;
+                    }
+                })
+                .toList();
+
+        if (resources == null || resources.size() != ids.size()) {
+            throw new BusinessException("NOT_FOUND", "Some resources were not found");
+        }
+        if (relations != null) {
+            resources = relationService.populateRelations(resources, relations);
+        }
+        return resources;
     }
 
     public E getByIdUnsecure(Integer id, Set<String> relations) {

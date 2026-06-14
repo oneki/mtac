@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Set;
 
 import net.oneki.mtac.framework.cache.ResourceRegistry;
+import net.oneki.mtac.model.core.entity.EntityState;
 import net.oneki.mtac.model.core.util.StringUtils;
 import net.oneki.mtac.model.core.util.exception.UnexpectedException;
 import net.oneki.mtac.model.core.util.introspect.annotation.Entity;
@@ -69,6 +70,7 @@ public class ResourceReflector {
                 .label(ResourceRegistry.getSchemaByClass(clazz))
                 .fields(resourceFields)
                 .uniqueInScope(entityAnnotation != null ? entityAnnotation.uniqueInScope() : null)
+                .entityState(entityAnnotation != null ? entityAnnotation.state() : EntityState.PRESENT)
                 .isInterface(clazz.isInterface())
                 .classType(ClassType.fromClass(clazz))
                 .clazz(clazz)

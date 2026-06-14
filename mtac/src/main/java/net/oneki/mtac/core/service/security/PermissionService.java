@@ -209,7 +209,7 @@ public class PermissionService {
         return false;
     }
 
-    protected boolean hasPermissionByPath(Acl acl, String schemaLabel, String permission) {
+    public boolean hasPermissionByPath(Acl acl, String schemaLabel, String permission) {
         // var permissionSet = ResourceRegistry.getPermissionSet(schemaLabel);
         // if (permissionSet == null) {
         // throw new UnexpectedException("PERMISSION_SET_NOT_FOUND",

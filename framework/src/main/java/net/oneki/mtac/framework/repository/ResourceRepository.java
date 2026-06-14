@@ -181,6 +181,39 @@ public class ResourceRepository extends AbstractRepository {
 
     }
 
+    public <T extends Resource> List<T> getByIds(List<Integer> ids, Class<T> resultContentClass) {
+        return getByIds(ids, resultContentClass, null, null);
+    }
+
+    public <T extends Resource> List<T> getByIds(List<Integer> ids, Class<T> resultContentClass, String sql) {
+        return getByIds(ids, resultContentClass, sql, null);
+    }    
+
+    public <T extends Resource> List<T> getByIds(List<Integer> ids, Class<T> resultContentClass, String sql,
+            Map<String, Object> args) {
+        if (sql == null) {
+            sql = SqlUtils.getSQL("resource/resource_get_by_ids.sql");
+        }
+
+        if (args == null) {
+            args = new HashMap<>();
+        }        
+
+        args.put("ids", ids);
+        // sids represent the id of the logged-in user + all the groups in which he/she
+        // is present
+        if (securityContext != null) {
+            args.put("sids", securityContext.getAllSids());
+        }
+        log.debug(SqlUtils.formatSqlQuery(sql, args));
+        try {
+            return jdbcTemplate.query(sql, args, new ResourceRowMapper<T>(jsonEntityMapper));
+        } catch (EmptyResultDataAccessException e) {
+            return null;
+        }
+
+    }
+
     // ------------------------------------------------- GET BY URN
     public <T extends Resource> T getByLabelOrUrn(String labelOrUrn, Class<T> resultContentClass) {
         if (labelOrUrn.startsWith("urn:")) {

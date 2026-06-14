@@ -135,6 +135,10 @@ public class Cache {
     return tenantAncestors.getOrDefault(tenantId, new ArrayList<>());
   }
 
+  public List<Integer> getTenantDescendants(Integer tenantId) {
+    return tenantDescendants.getOrDefault(tenantId, new ArrayList<>());
+  }
+
   public Map<Integer, Schema> getSchemas() {
     return schemas;
   }

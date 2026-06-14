@@ -137,6 +137,18 @@ public class ResourceRegistry {
         return cache;
     }
 
+    public static void removeSchema(String schemaLabel) {
+        var resourceDesc = resourceDescIndex.get(schemaLabel);
+        if (resourceDesc != null) {
+            resourceDescIndex.remove(schemaLabel);
+            var resourceClass = classIndex.get(schemaLabel);
+            classIndex.remove(schemaLabel);
+            if (resourceClass != null) {
+                schemaIndex.remove(resourceClass);
+            }
+        }   
+    }
+
     protected static void setFieldOwnerClass(ResourceDesc resourceDesc) {
         for (var resourceField : resourceDesc.getFields()) {
             if (resourceField.getField() == null) {
@@ -324,6 +336,15 @@ public class ResourceRegistry {
                 .orElseThrow(() -> new NotFoundException("TENANT_NOT_FOUND",
                         "The tenant with label " + tenantSchemaLabel + " is not found in the ancestors of tenant " + tenantId));
     }
+
+    // descendants
+    public static List<Tenant> getTenantDescendants(Integer tenantId) {
+        return cache.getTenantDescendants(tenantId).stream()
+                .map(descendantId -> getTenantById(descendantId))
+                .collect(Collectors.toList());
+    }
+
+
 
     // ------------------------------------------------- protected methods
     // protected void scanEntities(String basePackage, ReflectorContext
