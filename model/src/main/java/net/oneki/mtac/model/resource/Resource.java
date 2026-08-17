@@ -9,6 +9,8 @@ import org.sqids.Sqids;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import io.swagger.v3.oas.annotations.Hidden;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -26,6 +28,7 @@ import net.oneki.mtac.model.core.util.exception.UnexpectedException;
 @AllArgsConstructor
 @NoArgsConstructor
 @SuperBuilder(toBuilder = true)
+@Schema(description = "Base class for all resources Provides common fields like uid, label, timestamps, and access control.")
 public abstract class Resource implements HasLabel, HasId, HasUid, HasSchema {
 	public static Sqids sqids; // short UID generator from Integer (7 chars length)
 	/*
@@ -33,20 +36,28 @@ public abstract class Resource implements HasLabel, HasId, HasUid, HasSchema {
 	 * DB
 	 * This id should never be exposed to the outside and is only used internally
 	 */
+	@Hidden
 	protected Integer id;
 
+	@Schema(description = "The unique identifier (UID) of the resource. This is a base32-encoded integer", example = "R3sT7uVw")
 	protected String uid;
 
 	@JsonProperty("s")
+	@Hidden
 	protected Integer schemaId;
 
 	@JsonIgnore
+	@Hidden
 	protected Integer tenantId;
+
+	@Schema(description = "A human-readable label for the resource", example = "Acme")
 	protected String label;
 
+	@Schema(description = "The label of the tenant that owns this resource", example = "Companies Resource Group")
 	@JsonProperty("tenant")
 	protected String tenantLabel;
 
+	@Schema(description = "The schema label describing the type of this resource", example = "tenant.company")
 	@JsonProperty("schema")
 	protected String schemaLabel;
 
@@ -61,63 +72,50 @@ public abstract class Resource implements HasLabel, HasId, HasUid, HasSchema {
 	// @JsonProperty("$urn")
 	// protected String urn;
 
-	/*
-	 * A public resource is visible by any sub-tenant
-	 */
+	@Schema(description = "Whether this resource is public and visible by any sub-tenant", example = "false")
+	@Hidden
 	protected boolean pub;
 
-	/*
-	 * Indicates that the resource is actually a link to another resource
-	 */
+	@Schema(description = "Whether this resource is a link to another resource", example = "false")
+	@Hidden
 	protected boolean link;
 
 	@JsonIgnore
 	protected Integer linkId;
 
+	@Schema(description = "The UID of the linked resource, if this resource is a link", example = "R3sT7uVw")
+	@Hidden
 	protected String linkUid;
 
 	@JsonIgnore
 	protected LinkType linkType;
 
+	@Schema(description = "The type of resource as an integer identifier (Internal use only)", example = "1")
 	@Builder.Default
 	protected Integer resourceType = ResourceType.INTERNAL_RESOURCE;
 
-	/*
-	 * The datetime at which the resource was created
-	 */
+	@Schema(description = "The datetime at which the resource was created (ISO 8601 format)", example = "2024-01-15T10:30:00Z")
 	protected Instant createdAt;
 
-	/*
-	 * The datetime at which the resource was last updated
-	 */
+	@Schema(description = "The datetime at which the resource was last updated (ISO 8601 format)", example = "2024-06-20T14:45:00Z")
 	protected Instant updatedAt;
 
-	/*
-	 * The email of the creator of the resource
-	 */
+	@Schema(description = "The identifier (generally the email) of the user who created the resource", example = "admin@example.com")
 	protected String createdBy;
 
-	/*
-	 * The email of the last updater of the resource
-	 */
+	@Schema(description = "The identifier (generally the email) of the user who last updated the resource", example = "admin@example.com")
 	protected String updatedBy;
 
-	/*
-	 * The ACL (access control list) of the resource
-	 * An ACL is a list of ACE (access control entries)
-	 * An ACE is a combinaison of a idenity (user or group) and a role
-	 */
+	@Schema(description = "The ACL (Access Control List) of the resource, defining which identities (users or groups) have which roles")
+	@Hidden
 	protected Acl acl;
 
-	/*
-	 * List of actions of this resource that the logged user has access to
-	 */
+	@Schema(description = "List of actions on this resource that the logged-in user has access to", example = "[\"read\",\"update\",\"delete\"]")
+	@Hidden
 	protected List<String> grantedActions;
 
-	/*
-	 * List of fields of this resource that the logged user has access to
-	 * Used to filter some sensitive fields like password
-	 */
+	@Schema(description = "List of fields of this resource that the logged-in user has access to. Used to filter sensitive fields like passwords", example = "[\"uid\",\"label\",\"email\"]")
+	@Hidden
 	protected List<String> grantedFields;
 
 	/*

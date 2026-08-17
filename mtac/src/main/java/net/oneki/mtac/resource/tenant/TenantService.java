@@ -101,7 +101,7 @@ public abstract class TenantService<U extends UpsertRequest, E extends Tenant> e
 
     public record TenantClaims(List<Integer> tenantSids, List<Integer> sids,
             Map<String, RoleUserInfo> roles, TenantUserInfo tenants,
-            Set<String> tenantUids) {
+            Set<String> tenantUids, Map<String, TenantUserInfo> tenantIndex) {
         public Map<String, Object> asClaims() {
             var claims = new HashMap<String, Object>();
             claims.put("tenantSids", tenantSids);
@@ -156,9 +156,12 @@ public abstract class TenantService<U extends UpsertRequest, E extends Tenant> e
                 sids,
                 roleIndex,
                 tenantIndex.get(Resource.toUid(Constants.TENANT_ROOT_ID)),
-                tenantUids);
+                tenantUids, 
+                tenantIndex);
 
     }
+
+
 
     public Set<Integer> listGroupSids(@NonNull Resource resource) {
         Set<Integer> groupSids = groupMembershipRepository.listByRight(resource.toRef());
@@ -169,6 +172,8 @@ public abstract class TenantService<U extends UpsertRequest, E extends Tenant> e
         return groupSids;
     }
 
+
+
     private void buildTenantRoleIndexes(TenantRole tenantRole, Map<String, RoleUserInfo> roleIndex,
             Map<String, TenantUserInfo> tenantIndex, boolean includeRoleName) {
         if (tenantRole != null) {
@@ -177,6 +182,7 @@ public abstract class TenantService<U extends UpsertRequest, E extends Tenant> e
                         .label(role.getName())
                         .actions(role.getActions())
                         .schemas(role.getSchemas())
+                        .denyActions(role.getDenyActions())
                         .build();
                 if (includeRoleName == true) {
                     roleUserInfo.setLabel(role.getName());

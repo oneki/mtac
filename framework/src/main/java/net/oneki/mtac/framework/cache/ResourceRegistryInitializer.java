@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
@@ -26,6 +27,7 @@ import net.oneki.mtac.model.resource.schema.Schema;
 @Data
 @RequiredArgsConstructor
 @Component
+@DependsOn("stringEncryptor")
 public class ResourceRegistryInitializer {
     protected final ResourceRepository resourceRepository;
     protected final SchemaRepository schemaRepository;

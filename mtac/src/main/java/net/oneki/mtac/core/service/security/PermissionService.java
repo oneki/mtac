@@ -132,10 +132,13 @@ public class PermissionService {
     }
 
     public boolean hasPermission(Resource resource, String permission, boolean rejectLink) {
-        // if the resource has a linkId, it means that it's a virtual resource created based on another resource
-        // in this case, we always refuse any action on this resource 
-        // If an action should be done on this resource, it should be done via a special API 
-        // that will handle the permission on the linked resource (ex: site) and the action on the virtual resource
+        // if the resource has a linkId, it means that it's a virtual resource created
+        // based on another resource
+        // in this case, we always refuse any action on this resource
+        // If an action should be done on this resource, it should be done via a special
+        // API
+        // that will handle the permission on the linked resource (ex: site) and the
+        // action on the virtual resource
         if (resource == null || (rejectLink && resource.getLinkId() != null)) {
             return false;
         }
@@ -193,14 +196,28 @@ public class PermissionService {
         }
         // Retrieve all roles that are directly assigned to the given tenant for a user
         var roles = roleRepository.listCompiledRolesByTenant(tenantId);
-        var permission = new PropertyPath(schemaLabel, "create"); // Example: "tenant.company|create"
+        var permissionPath = new PropertyPath(schemaLabel, "create"); // Example: "tenant.company|create"
 
         for (var role : roles) {
-            var propertyPaths = PropertyPath.of(role.getActions());
+            var isDenied = false;
+            var propertyPaths = PropertyPath.of(role.getDenyActions());
             if (propertyPaths != null) {
                 for (var propertyPath : propertyPaths) {
-                    if (propertyPath.contains(permission)) {
-                        return true;
+                    if (propertyPath.contains(permissionPath)) {
+                        // this ACE explicitly deny the permission,
+                        // we can stop here for this ACE and continue with the next one
+                        isDenied = true;
+                        break;
+                    }
+                }
+            }
+            if (!isDenied) {
+                propertyPaths = PropertyPath.of(role.getActions());
+                if (propertyPaths != null) {
+                    for (var propertyPath : propertyPaths) {
+                        if (propertyPath.contains(permissionPath)) {
+                            return true;
+                        }
                     }
                 }
             }
@@ -226,29 +243,35 @@ public class PermissionService {
         // check first
 
         // Each ACE = a role on a resource for a user
-        // It's possisble that user has multiple ACE for a resource (ex: administrator and readonly  on the same resource)
+        // It's possisble that user has multiple ACE for a resource (ex: administrator
+        // and readonly on the same resource)
         // If at least one ACE gives the permission, we give the access to the user
         for (var ace : acl) {
+            var isDenied = false;
             var propertyPaths = PropertyPath.of(ace.getDenyActions());
             if (propertyPaths != null) {
                 for (var propertyPath : propertyPaths) {
                     if (propertyPath.contains(permissionPath)) {
-                        // this ACE explicitly deny the permission, 
+                        // this ACE explicitly deny the permission,
                         // we can stop here for this ACE and continue with the next one
-                        continue;
+                        isDenied = true;
+                        break;
                     }
                 }
             }
 
-            propertyPaths = PropertyPath.of(ace.getActions());
-            if (propertyPaths != null) {
-                for (var propertyPath : propertyPaths) {
-                    if (propertyPath.contains(permissionPath)) {
-                        // this ACE gives the permission, we can stop here and return true
-                        return true;
+            if (!isDenied) {
+                propertyPaths = PropertyPath.of(ace.getActions());
+                if (propertyPaths != null) {
+                    for (var propertyPath : propertyPaths) {
+                        if (propertyPath.contains(permissionPath)) {
+                            // this ACE gives the permission, we can stop here and return true
+                            return true;
+                        }
                     }
                 }
             }
+
         }
 
         return false;

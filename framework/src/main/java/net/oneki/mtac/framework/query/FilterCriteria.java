@@ -218,7 +218,19 @@ public class FilterCriteria {
       }
 
       if (value != null) {
-        if (valueType.equals("integer")) {
+        if (operator == Operator.IN && value instanceof List<?> values) {
+          if (valueType.equals("integer")) {
+            args.put(namedParameter, values.stream()
+                .map(item -> Integer.parseInt(item.toString()))
+                .collect(Collectors.toList()));
+          } else if (valueType.equals("float")) {
+            args.put(namedParameter, values.stream()
+                .map(item -> Float.parseFloat(item.toString()))
+                .collect(Collectors.toList()));
+          } else {
+            args.put(namedParameter, value);
+          }
+        } else if (valueType.equals("integer")) {
           args.put(namedParameter, Integer.parseInt(value.toString()));
         } else if (valueType.equals("float")) {
           args.put(namedParameter, Float.parseFloat(value.toString()));

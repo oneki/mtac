@@ -444,7 +444,7 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
         } finally {
             audit(resourceEntity, null, Action.Delete, status, false);
         }
-    }    
+    }
 
     /**
      * Get an entity by its id
@@ -535,6 +535,10 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
             throw new BusinessException("NOT_FOUND", "Resource not found");
         }
         return result;
+    }
+
+    public Integer getLinkTenantId(Integer id) {
+        return resourceRepository.getTenantId(id);
     }
 
     public E getByUniqueLabelOrReturnNull(String label) {

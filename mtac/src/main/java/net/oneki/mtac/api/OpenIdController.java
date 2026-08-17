@@ -1,5 +1,6 @@
 package net.oneki.mtac.api;
 
+import java.util.Base64;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -62,7 +63,7 @@ public abstract class OpenIdController {
         this,
         OpenIdController.class.getDeclaredMethod("auth", LoginRequest.class));
 
-    // login (url-encoded - OIDC standard)
+    // login (url-encoded - OIDC standard; also supports Basic Auth header for client_id/client_secret)
     handlerMapping.registerMapping(
         RequestMappingInfo.paths(getApiBasePath() + "/oauth2/token")
             .methods(RequestMethod.POST)
@@ -71,7 +72,7 @@ public abstract class OpenIdController {
             .build(),
         this,
         OpenIdController.class.getDeclaredMethod("auth", String.class, String.class,
-            String.class, String.class));
+            String.class, String.class, String.class));
 
     // logout
     handlerMapping.registerMapping(
@@ -171,11 +172,22 @@ public abstract class OpenIdController {
   }
 
   public ResponseEntity<TokenResponse> auth(
-      @RequestParam(value = "client_id", required = true) String client_id,
+      @RequestParam(value = "client_id", required = false) String client_id,
       @RequestParam(value = "client_secret", required = false) String client_secret,
       @RequestParam(value = "grant_type", required = false) String grant_type,
-      @RequestParam(value = "refresh_token", required = false) String refresh_token)
+      @RequestParam(value = "refresh_token", required = false) String refresh_token,
+      @RequestHeader(value = "Authorization", required = false) String authorizationHeader)
       throws Exception {
+    // If Basic Auth header is present, extract client_id/client_secret from it
+    if (authorizationHeader != null && authorizationHeader.startsWith("Basic ")) {
+      String decoded = new String(Base64.getDecoder().decode(authorizationHeader.substring(6)));
+      int separator = decoded.indexOf(':');
+      if (separator != -1) {
+        client_id = decoded.substring(0, separator);
+        client_secret = decoded.substring(separator + 1);
+      }
+    }
+
     TokenResponse result = null;
     if ("refresh_token".equals(grant_type)) {
       result = getOpenIdService().refreshToken(refresh_token);

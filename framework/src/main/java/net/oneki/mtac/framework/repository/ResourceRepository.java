@@ -181,6 +181,17 @@ public class ResourceRepository extends AbstractRepository {
 
     }
 
+    public Integer getTenantId(Integer id) {
+        var sql = "SELECT tenant_id FROM resource WHERE id = :id";
+        Map<String, Object> args = new HashMap<>();
+        args.put("id", id);
+        try {
+            return jdbcTemplate.queryForObject(sql, args, Integer.class);
+        } catch (EmptyResultDataAccessException e) {
+            return null;
+        }
+    }
+
     public <T extends Resource> List<T> getByIds(List<Integer> ids, Class<T> resultContentClass) {
         return getByIds(ids, resultContentClass, null, null);
     }
