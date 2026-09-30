@@ -14,6 +14,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.zip.GZIPOutputStream;
 
@@ -119,6 +120,10 @@ public class JsonUtil {
     public static <T> T file2Object(File file, Class<T> clazz) {
         FileSystemResource resource = new FileSystemResource(file);
         return file2Object(resource, clazz);
+    }
+
+    public static <T> T map2Object(Object map, Class<T> clazz) {
+        return mapper.convertValue(map, clazz);
     }
 
     public static <T> T file2Object(Resource resource, Class<T> clazz) {

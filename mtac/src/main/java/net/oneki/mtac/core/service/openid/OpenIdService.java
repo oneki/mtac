@@ -142,7 +142,7 @@ public class OpenIdService {
     }
     switch (userOrApplication) {
       case User user -> {
-        return getUserService().userinfo(user, forceRefresh);
+        return getUserService().userinfo(user, false, forceRefresh, true);
       }
       case Application application -> {
         return applicationService.userinfo(application, forceRefresh);

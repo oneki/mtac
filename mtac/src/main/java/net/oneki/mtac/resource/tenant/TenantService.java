@@ -65,6 +65,26 @@ public abstract class TenantService<U extends UpsertRequest, E extends Tenant> e
     protected TenantRepository tenantRepository;
 
     @Override
+    public UpsertResponse<E> update(E tenant) {
+        var response = super.update(tenant);
+        refreshTenantCache(tenant);
+        return response;
+    }
+
+    @Override
+    public UpsertResponse<E> updateUnsecure(E tenant) {
+        var response = super.updateUnsecure(tenant);
+        refreshTenantCache(tenant);
+        return response;
+    }
+
+    private void refreshTenantCache(E tenant) {
+        if (tenant != null && ResourceRegistry.getCache().getTenantById(tenant.getId()) != null) {
+            ResourceRegistry.addTenant(tenant);
+        }
+    }
+
+    @Override
     public UpsertResponse<Void> delete(E tenant) {
         if (tenant == null) {
             return UpsertResponse.<Void>builder()

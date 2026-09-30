@@ -2,6 +2,7 @@ package net.oneki.mtac.framework.cache;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -14,6 +15,8 @@ import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.framework.repository.ResourceTenantTreeRepository;
 import net.oneki.mtac.framework.repository.TokenRepository;
 import net.oneki.mtac.model.core.Constants;
+import net.oneki.mtac.model.core.security.TenantUserInfo;
+import net.oneki.mtac.model.core.util.json.JsonUtil;
 import net.oneki.mtac.model.resource.Resource;
 import net.oneki.mtac.model.resource.Tenant;
 import net.oneki.mtac.model.resource.schema.Schema;
@@ -102,6 +105,15 @@ public class PgNotificationConsumer implements Consumer<PGNotification> {
                                 // .build());
                             }
                             break;
+                        case "update":
+                            if (isTenant && cache.getTenantById(id) != null) {
+                                log.debug("Update tenant id={} in cache", id);
+                                var tenant = resourceRepository.getByIdUnsecure(id, Tenant.class);
+                                if (tenant != null) {
+                                    cache.addTenant(tenant);
+                                }
+                            }
+                            break;
 
                     }
                 }
@@ -120,6 +132,11 @@ public class PgNotificationConsumer implements Consumer<PGNotification> {
                         case "update":
                             log.debug(action + " token id={} to cache", sub);
                             var claims = tokenRepository.getToken(sub);
+                            var rootTenantUserInfo = claims.get("tenants");
+                            if (rootTenantUserInfo != null) {
+                                var rootTenantUserObj= JsonUtil.map2Object(rootTenantUserInfo, TenantUserInfo.class);
+                                claims.put("tenants", rootTenantUserObj);
+                            }
                             if (claims != null) {
                                 tokenRegistry.put(sub, claims);
                             }

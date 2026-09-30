@@ -126,7 +126,7 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
     log.debug("Inside userinfo() method, get from tokenRegistry for sub: {}", sub);
     var claims = tokenRegistry.get(sub);
     log.debug("Claims from tokenRegistry: {}", claims);
-    if (claims != null) {
+    if (claims != null && !forceRefresh) {
       return claims;
     }
     var user = getByUidUnsecure(sub);
@@ -134,15 +134,17 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
   }
 
   public Claims userinfo(User user, boolean forceRefresh) {
-    return userinfo(user, false, forceRefresh);
+    return userinfo(user, false, forceRefresh, false);
   }
 
-  public Claims userinfo(User user, boolean includeRoleName, boolean forceRefresh) {
+  public Claims userinfo(User user, boolean includeRoleName, boolean forceRefresh, boolean light) {
     var claims = tokenRegistry.get(user.getUid());
-    if (claims != null) {
-      // fillUserInfo(claims, user); // sometimes there is a bug and it seems
-      // fillUserInfo was not called
-      // so we force a call here
+    if (claims != null && !forceRefresh) {
+      if (!light) {
+        // sometimes there is a bug and it seems fillUserInfo was not called
+        // so we force a call here        
+        fillUserInfo(claims, user); 
+      }
       return claims;
     } else {
       claims = new Claims();

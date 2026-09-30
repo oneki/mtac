@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -59,7 +60,11 @@ public class Cache {
 
   public void addTenant(Tenant tenant) {
     if (tenant != null) {
-      tenants.put(tenant.getId(), tenant);
+      var previousTenant = tenants.put(tenant.getId(), tenant);
+      if (previousTenant != null && !Objects.equals(previousTenant.getLabel(), tenant.getLabel())
+          && previousTenant.getLabel() != null) {
+        tenantIds.remove(previousTenant.getLabel(), tenant.getId());
+      }
       if (tenant.getLabel() != null) {
         tenantIds.put(tenant.getLabel(), tenant.getId());
       }
