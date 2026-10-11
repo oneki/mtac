@@ -5,7 +5,7 @@ CAUTION: Do not modify this file unless you know what you are doing.
 -->
 <dbmodel pgmodeler-ver="1.2.0" use-changelog="false" max-obj-count="52"
 	 gen-disabled-objs-code="false" show-sys-schemas-rects="false"
-	 last-position="0,-180" last-zoom="1" scene-rect="-20,-180,2055.64,2056.72"
+	 last-position="0,739" last-zoom="1" scene-rect="-20,-180,2055.64,2198.72"
 	 default-owner="postgres"
 	 layers="Default"
 	 active-layers="0"
@@ -2710,6 +2710,18 @@ END;]]> </definition>
 		</idxelement>
 </index>
 
+<index name="cp_transaction_site_created_idx" table="public.cp_transaction"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="site_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="created_at"/>
+		</idxelement>
+	<columns names="power_consumption"/>
+</index>
+
 <table name="audit_log" layers="0" collapse-mode="2" max-obj-count="12" z-value="0">
 	<schema name="public"/>
 	<role name="postgres"/>
@@ -2969,7 +2981,7 @@ END;]]> </definition>
 	</constraint>
 </table>
 
-<table name="alert_delivery" layers="0" collapse-mode="1" max-obj-count="23" z-value="0">
+<table name="alert_delivery" layers="0" collapse-mode="1" max-obj-count="22" z-value="0">
 	<schema name="public"/>
 	<role name="postgres"/>
 	<position x="1120" y="1220"/>
@@ -3037,15 +3049,120 @@ END;]]> </definition>
 		<columns names="notification_key" ref-type="src-columns"/>
 	</constraint>
 	<constraint name="alert_delivery_status_ck" type="ck-constr" table="public.alert_delivery">
-		<expression> <![CDATA[status IN ('PENDING', 'PROCESSING', 'RETRY_WAIT', 'SENT', 'FAILED', 'SKIPPED', 'UNSUPPORTED')]]> </expression>
+			<expression> <![CDATA[status IN ('PENDING', 'PROCESSING', 'RETRY_WAIT', 'SENT', 'FAILED', 'SKIPPED', 'UNSUPPORTED')]]> </expression>
 	</constraint>
 	<constraint name="alert_delivery_channel_type_ck" type="ck-constr" table="public.alert_delivery">
-		<expression> <![CDATA[channel_type IN ('Email', 'Telegram', 'Webhook')]]> </expression>
+			<expression> <![CDATA[channel_type IN ('Email', 'Telegram', 'Webhook')]]> </expression>
 	</constraint>
 	<constraint name="alert_delivery_attempt_count_ck" type="ck-constr" table="public.alert_delivery">
-		<expression> <![CDATA[attempt_count >= 0]]> </expression>
+			<expression> <![CDATA[attempt_count >= 0]]> </expression>
 	</constraint>
 </table>
+
+<table name="site_connectivity_transition" layers="0" collapse-mode="1" max-obj-count="4" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<position x="440" y="1520"/>
+	<column name="id" not-null="true">
+		<type name="bigserial" length="0"/>
+	</column>
+	<column name="site_uid" not-null="true">
+		<type name="varchar" length="255"/>
+	</column>
+	<column name="type" not-null="true">
+		<type name="varchar" length="32"/>
+	</column>
+	<column name="occurred_at" not-null="true">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<constraint name="site_connectivity_transition_pkey" type="pk-constr" table="public.site_connectivity_transition">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+	<constraint name="site_connectivity_transition_type_ck" type="ck-constr" table="public.site_connectivity_transition">
+			<expression> <![CDATA[type IN ('SITE_OFFLINE', 'SITE_ONLINE', 'CONTROLLER_OFFLINE', 'CONTROLLER_ONLINE')]]> </expression>
+	</constraint>
+</table>
+
+<table name="kv_store" layers="0" collapse-mode="1" max-obj-count="6" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<position x="1100" y="1700"/>
+	<column name="cache_key" not-null="true">
+		<type name="varchar" length="512"/>
+	</column>
+	<column name="cache_value" not-null="true">
+		<type name="jsonb" length="0"/>
+	</column>
+	<column name="metadata" not-null="true" default-value="'{}'">
+		<type name="jsonb" length="0"/>
+	</column>
+	<column name="type" not-null="true">
+		<type name="varchar" length="32"/>
+	</column>
+	<column name="updated_at" not-null="true" default-value="now()">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<constraint name="kv_store_pk" type="pk-constr" table="public.kv_store">
+		<columns names="cache_key" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="kv_store_metadata_gin_idx" table="public.kv_store"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="gin" factor="0">
+		<idxelement use-sorting="false">
+			<column name="metadata"/>
+		</idxelement>
+</index>
+
+<index name="kv_store_type_idx" table="public.kv_store"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="type"/>
+		</idxelement>
+</index>
+
+<index name="site_connectivity_transition_occurred_idx" table="public.site_connectivity_transition"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="true" nulls-first="false" asc-order="false">
+			<column name="occurred_at"/>
+		</idxelement>
+</index>
+
+<index name="site_connectivity_transition_site_occurred_idx" table="public.site_connectivity_transition"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="site_uid"/>
+		</idxelement>
+		<idxelement use-sorting="true" nulls-first="false" asc-order="false">
+			<column name="occurred_at"/>
+		</idxelement>
+</index>
+
+<index name="resource_schema_created_idx" table="public.resource"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="schema_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="created_at"/>
+		</idxelement>
+</index>
+
+<index name="resource_schema_updated_idx" table="public.resource"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="schema_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="updated_at"/>
+		</idxelement>
+</index>
 
 <index name="metric_bulk_export_site_batch_sequence_idx" table="public.metric_bulk_export_site"
 	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
@@ -3136,6 +3253,65 @@ END;]]> </definition>
 		</idxelement>
 		<idxelement use-sorting="true" nulls-first="true" asc-order="false">
 			<column name="created_at"/>
+		</idxelement>
+</index>
+
+<table name="cp_whitelist" layers="0" collapse-mode="1" max-obj-count="15" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<position x="540" y="1700"/>
+	<column name="id" not-null="true">
+		<type name="bigserial" length="0"/>
+	</column>
+	<column name="site_uid" not-null="true">
+		<type name="varchar" length="255"/>
+	</column>
+	<column name="idtag" not-null="true">
+		<type name="varchar" length="255"/>
+	</column>
+	<column name="first_name">
+		<type name="varchar" length="255"/>
+	</column>
+	<column name="last_name">
+		<type name="varchar" length="255"/>
+	</column>
+	<column name="active" not-null="true" default-value="true">
+		<type name="boolean" length="0"/>
+	</column>
+	<column name="max_from_grid">
+		<type name="double precision" length="0"/>
+	</column>
+	<column name="priority">
+		<type name="smallint" length="0"/>
+	</column>
+	<column name="consumption">
+		<type name="double precision" length="0"/>
+	</column>
+	<column name="price_modulation_enabled">
+		<type name="boolean" length="0"/>
+	</column>
+	<column name="price_high">
+		<type name="double precision" length="0"/>
+	</column>
+	<column name="price_low">
+		<type name="double precision" length="0"/>
+	</column>
+	<column name="updated_at" not-null="true" default-value="now()">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<constraint name="cp_whitelist_pk" type="pk-constr" table="public.cp_whitelist">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="cp_whitelist_site_idtag_uk" table="public.cp_whitelist"
+	 concurrent="false" unique="true" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="site_uid"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<expression> <![CDATA[lower(idtag)]]> </expression>
 		</idxelement>
 </index>
 
