@@ -22,4 +22,5 @@ public class OidcAuthorizationRequest {
   private Set<String> prompt;
   private Integer maxAge;
   private String loginHint;
+  private String resource; // audience key asked through the resource parameter (RFC 8707), null = identity only
 }

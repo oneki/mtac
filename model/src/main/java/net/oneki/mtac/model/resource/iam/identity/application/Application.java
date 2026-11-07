@@ -28,6 +28,10 @@ public class Application extends Identity implements OauthIdentity {
     protected String refreshToken;
     protected String name;
     private String description;
+    // token endpoint authentication; null = client_secret (see ApplicationAuthMethod.of)
+    protected ApplicationAuthMethod tokenEndpointAuthMethod;
+    protected String jwks; // private_key_jwt: JWK Set (JSON) of the public keys, or null when jwksUri is used
+    protected String jwksUri; // private_key_jwt: https URL of the JWK Set, or null when jwks is used
     @Builder.Default
     protected Integer resourceType = ResourceType.PUBLIC_RESOURCE;
 }

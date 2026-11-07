@@ -9,12 +9,15 @@ import org.jboss.aerogear.security.otp.api.Clock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import net.oneki.mtac.core.service.openid.oidc.OidcGrantRevocation;
 import net.oneki.mtac.framework.repository.TotpRepository;
 import net.oneki.mtac.framework.service.JwtTokenService;
 import net.oneki.mtac.model.core.config.MtacProperties;
 import net.oneki.mtac.model.core.openid.TokenResponse;
+import net.oneki.mtac.model.core.openid.oidc.TokenAudience;
 import net.oneki.mtac.model.core.util.StringUtils;
 import net.oneki.mtac.model.resource.iam.identity.user.User;
 import net.oneki.mtac.resource.iam.identity.user.DefaultUserService;
@@ -33,8 +36,21 @@ public class MfaService {
   private final Clock clock = new Clock();
   protected TotpRepository totpRepository;
   protected MtacProperties mtacProperties;
+  protected OidcGrantRevocation grantRevocation;
 
+  /** Second step of the Console login: the access token is for the console audience. */
+  @Transactional
   public TokenResponse verifyTotp(String verificationCode, String mfaToken, Boolean trusted, String noMfaToken) {
+    return verifyTotp(verificationCode, mfaToken, trusted, noMfaToken, TokenAudience.CONSOLE);
+  }
+
+  /**
+   * @param audience key of the audience of the access token (see
+   *                 {@link TokenAudience})
+   */
+  @Transactional
+  public TokenResponse verifyTotp(String verificationCode, String mfaToken, Boolean trusted, String noMfaToken,
+      String audience) {
     var claims = getTokenService().verify(mfaToken);
     if (!MFA_AUDIENCE.equals(claims.getAudience())) {
       throw new BadCredentialsException(
@@ -62,15 +78,27 @@ public class MfaService {
     } else {
       verifyCode(user, verificationCode);
     }
-    var randomString = UUID.randomUUID().toString();
+    String refreshToken;
+    java.util.Map<String, Object> sessionClaims = null;
+    if (consoleSessions != null) {
+      // one Console session per login: other browsers stay signed in
+      var session = consoleSessions.open(user.getId());
+      refreshToken = session.refreshToken();
+      sessionClaims = java.util.Map.of(ConsoleSessionService.CLAIM, session.sessionId());
+    } else {
+      // former single refresh token per user, only without the Console session service (tests)
+      var randomString = UUID.randomUUID().toString();
+      refreshToken = getTokenService().generateRefreshToken(user.getUid(), randomString);
+      user.setRefreshToken(randomString);
+    }
     var tokenResponse = TokenResponse.builder()
-        .accessToken(getTokenService().generateAccessToken(user.getUid(), user.getLabel()))
+        .accessToken(getTokenService().generateAccessToken(user.getUid(), user.getLabel(), null, sessionClaims,
+            audience))
         .idToken(getTokenService().generateIdToken(getUserService().userinfo(user.getUid(), true)))
-        .refreshToken(getTokenService().generateRefreshToken(user.getUid(), randomString))
+        .refreshToken(refreshToken)
         .expiresIn(getMtacProperties().getJwt().getExpirationSec())
         .build();
 
-    user.setRefreshToken(randomString);
     getUserService().updateUnsecure(user);
 
     if (trusted != null && trusted) {
@@ -108,8 +136,14 @@ public class MfaService {
    * Checks a second-factor code for a user: either the 8 character code sent by
    * mail / sms, or a TOTP code (which can be used only once).
    *
+   * <p>
+   * The first valid TOTP code activates the MFA of the user (enrolment) and
+   * revokes every delegated access of the user ({@link OidcGrantRevocation}) in
+   * the same transaction.
+   *
    * @throws BadCredentialsException if the code is wrong, expired or already used
    */
+  @Transactional
   public void verifyCode(User user, String verificationCode) {
     if (verificationCode == null) {
       throw new BadCredentialsException("Invalid verification code");
@@ -155,8 +189,11 @@ public class MfaService {
       revokeTotp(user.getId(), verificationCode);
 
       if (user.getMfaActive() == null || user.getMfaActive() == false) {
+        // (re-)enrolment of a TOTP secret, e.g. after an MFA reset: whatever was
+        // delegated before ends; the login in progress opens its own session
         user.setMfaActive(true);
         getUserService().updateUnsecure(user);
+        getGrantRevocation().revokeAll(user, OidcGrantRevocation.REASON_MFA_ENROLLED, false);
       }
     }
   }
@@ -204,6 +241,20 @@ public class MfaService {
     return mtacProperties;
   }
 
+  public OidcGrantRevocation getGrantRevocation() {
+    if (grantRevocation == null) {
+      throw new IllegalStateException("OidcGrantRevocation is not configured: credentials cannot change");
+    }
+    return grantRevocation;
+  }
+
+  protected ConsoleSessionService consoleSessions;
+
+  @Autowired
+  public void setConsoleSessions(ConsoleSessionService consoleSessions) {
+    this.consoleSessions = consoleSessions;
+  }
+
   @Autowired
   public void setTokenService(JwtTokenService tokenService) {
     this.tokenService = tokenService;
@@ -222,5 +273,10 @@ public class MfaService {
   @Autowired
   public void setMtacProperties(MtacProperties mtacProperties) {
     this.mtacProperties = mtacProperties;
+  }
+
+  @Autowired
+  public void setGrantRevocation(OidcGrantRevocation grantRevocation) {
+    this.grantRevocation = grantRevocation;
   }
 }

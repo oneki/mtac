@@ -21,4 +21,5 @@ public class OidcAuthorizationCode {
   private String codeChallenge;
   private Instant expiresAt;
   private Instant consumedAt;
+  private String resource; // audience key granted through the resource parameter (RFC 8707), null = identity only
 }

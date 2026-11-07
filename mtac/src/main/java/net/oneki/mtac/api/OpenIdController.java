@@ -1,6 +1,8 @@
 package net.oneki.mtac.api;
 
 import java.util.Base64;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.core.service.openid.ImpersonateService;
 import net.oneki.mtac.core.service.openid.MfaService;
 import net.oneki.mtac.core.service.openid.OpenIdService;
+import net.oneki.mtac.core.service.openid.PrivateKeyJwtVerifier;
 import net.oneki.mtac.core.service.openid.ResetPasswordService;
 import net.oneki.mtac.core.service.openid.oidc.OidcAuthorizationService;
 import net.oneki.mtac.core.service.security.PermissionService;
@@ -34,6 +37,8 @@ import net.oneki.mtac.model.core.openid.LoginRequest;
 import net.oneki.mtac.model.core.openid.ResetPasswordRequest;
 import net.oneki.mtac.model.core.openid.TokenResponse;
 import net.oneki.mtac.model.core.openid.TriggerResetPasswordRequest;
+import net.oneki.mtac.model.core.openid.oidc.OidcException;
+import net.oneki.mtac.model.core.openid.oidc.TokenAudience;
 import net.oneki.mtac.model.core.util.StringUtils;
 import net.oneki.mtac.resource.iam.identity.user.DefaultUserService;
 import net.oneki.mtac.resource.iam.identity.user.UserService;
@@ -74,7 +79,7 @@ public abstract class OpenIdController {
             .build(),
         this,
         OpenIdController.class.getDeclaredMethod("auth", String.class, String.class,
-            String.class, String.class, String.class));
+            String.class, String.class, String.class, String.class, String.class));
 
     // logout
     handlerMapping.registerMapping(
@@ -167,8 +172,15 @@ public abstract class OpenIdController {
     }
   }
 
-  public ResponseEntity<TokenResponse> auth(@RequestBody LoginRequest request) throws Exception {
-    var result = getOpenIdService().login(request.getClient_id(), request.getClient_secret(), false, false);
+  public ResponseEntity<?> auth(@RequestBody LoginRequest request) throws Exception {
+    TokenResponse result;
+    try {
+      // client_credentials: reserved to applications, token for the public API
+      result = getOpenIdService().login(request.getClient_id(), request.getClient_secret(), TokenAudience.API, false,
+          false);
+    } catch (OidcException e) {
+      return tokenEndpointError(e);
+    }
     // var tokenLocation = mtacProperties.getIam().getTokenLocation();
     // var httpHeaders = new HttpHeaders();
     // if ("cookie".equals(tokenLocation)) {
@@ -184,8 +196,25 @@ public abstract class OpenIdController {
       @RequestParam(value = "client_secret", required = false) String client_secret,
       @RequestParam(value = "grant_type", required = false) String grant_type,
       @RequestParam(value = "refresh_token", required = false) String refresh_token,
+      @RequestParam(value = "client_assertion_type", required = false) String client_assertion_type,
+      @RequestParam(value = "client_assertion", required = false) String client_assertion,
       @RequestHeader(value = "Authorization", required = false) String authorizationHeader)
       throws Exception {
+    // private_key_jwt: the client proves its identity with a signed JWT, never together with a secret
+    if (PrivateKeyJwtVerifier.isAssertionRequest(client_assertion_type, client_assertion)) {
+      if (client_secret != null || authorizationHeader != null || !"client_credentials".equals(grant_type)) {
+        return tokenEndpointError(OidcException.invalidClient(
+            "client_assertion is only accepted alone, with the client_credentials grant"));
+      }
+      try {
+        return ResponseEntity.ok().body(getOpenIdService().loginApplicationWithAssertion(client_assertion_type,
+            client_assertion, client_id, List.of(mtacProperties.getJwt().getIssuer() + OidcAuthorizationService.PATH_TOKEN),
+            TokenAudience.API));
+      } catch (OidcException e) {
+        return tokenEndpointError(e);
+      }
+    }
+
     // If Basic Auth header is present, extract client_id/client_secret from it
     if (authorizationHeader != null && authorizationHeader.startsWith("Basic ")) {
       String decoded = new String(Base64.getDecoder().decode(authorizationHeader.substring(6)));
@@ -203,12 +232,18 @@ public abstract class OpenIdController {
     }
 
     TokenResponse result = null;
-    if ("refresh_token".equals(grant_type)) {
-      result = getOpenIdService().refreshToken(refresh_token);
-    } else if ("client_credentials".equals(grant_type)) {
-      result = getOpenIdService().login(client_id, client_secret, false, false);
-    } else {
-      throw new IllegalArgumentException("Unsupported grant_type: " + grant_type);
+    try {
+      if ("refresh_token".equals(grant_type)) {
+        // refresh token of a Console session (the Console itself refreshes on /login/refresh)
+        result = getOpenIdService().refreshToken(refresh_token, TokenAudience.API);
+      } else if ("client_credentials".equals(grant_type)) {
+        // reserved to applications, token for the public API
+        result = getOpenIdService().login(client_id, client_secret, TokenAudience.API, false, false);
+      } else {
+        throw new IllegalArgumentException("Unsupported grant_type: " + grant_type);
+      }
+    } catch (OidcException e) {
+      return tokenEndpointError(e);
     }
     // var tokenLocation = mtacProperties.getIam().getTokenLocation();
     // var httpHeaders = new HttpHeaders();
@@ -219,6 +254,20 @@ public abstract class OpenIdController {
     // }
 
     return ResponseEntity.ok().body(result);
+  }
+
+  /** OAuth error response of the token endpoint (RFC 6749 section 5.2). */
+  protected ResponseEntity<?> tokenEndpointError(OidcException e) {
+    var headers = new HttpHeaders();
+    headers.add(HttpHeaders.CACHE_CONTROL, "no-store");
+    headers.add(HttpHeaders.PRAGMA, "no-cache");
+    if ("invalid_client".equals(e.getError())) {
+      headers.add(HttpHeaders.WWW_AUTHENTICATE, "Basic");
+    }
+    var body = new LinkedHashMap<String, String>();
+    body.put("error", e.getError());
+    body.put("error_description", e.getMessage());
+    return ResponseEntity.status(e.getStatus()).headers(headers).body(body);
   }
 
   public Map<String, Object> userinfo(@RequestParam(name="forceRefresh", required = false) Boolean forceRefresh) throws Exception {
@@ -243,9 +292,10 @@ public abstract class OpenIdController {
       @RequestHeader(value = "authorization", required = true) String authorizationHeader)
       throws Exception {
     String token = authorizationHeader.trim().substring(7);
+    // second step of the Console login
     var result = getMfaService().verifyTotp(body.getOrDefault("totp", null), token,
         StringUtils.toBoolean(body.getOrDefault("trusted_device", null)),
-        body.getOrDefault("no_mfa_token", null));
+        body.getOrDefault("no_mfa_token", null), TokenAudience.CONSOLE);
     var tokenLocation = mtacProperties.getIam().getTokenLocation();
     var httpHeaders = new HttpHeaders();
     if (tokenLocation.contains(TokenLocation.cookie)) {

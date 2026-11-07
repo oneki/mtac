@@ -110,6 +110,10 @@ public class PermissionService {
     }
 
     public boolean isSuperAdmin() {
+        // a token delegated to an OAuth client never carries the super admin power
+        if (!DelegatedScopePolicy.current().allowsSuperAdmin()) {
+            return false;
+        }
         // Check if the logged user has the role super_admin
         return hasPermission(Constants.TENANT_ROOT_ID, "iam.role|create");
     }
@@ -194,6 +198,10 @@ public class PermissionService {
         if (tenantId == null) {
             tenantId = Constants.TENANT_ROOT_ID;
         }
+        // delegated token: the rights of the user are capped by the scopes it was granted
+        if (!DelegatedScopePolicy.current().allowsCreate(schemaLabel)) {
+            return false;
+        }
         // Retrieve all roles that are directly assigned to the given tenant for a user
         var roles = roleRepository.listCompiledRolesByTenant(tenantId);
         var permissionPath = new PropertyPath(schemaLabel, "create"); // Example: "tenant.company|create"
@@ -237,6 +245,12 @@ public class PermissionService {
         // "The permission " + permission + " doesn't exist for schemaLabel " +
         // schemaLabel);
         // }
+
+        // delegated token: the rights of the user are capped by the scopes it was granted
+        // (see DelegatedScopePolicy); every other token is left to the RBAC alone
+        if (!DelegatedScopePolicy.current().allows(schemaLabel, permission)) {
+            return false;
+        }
 
         var permissionPath = new PropertyPath(schemaLabel, permission); // Example: "iam.identity.user|reset_password"
 

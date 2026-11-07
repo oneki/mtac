@@ -24,6 +24,9 @@ public abstract class BaseApplicationUpsertRequest<G extends Group> extends Upse
     private String password;
     private String description;
     private List<G> memberOf;
+    private ApplicationAuthMethod tokenEndpointAuthMethod; // null = client_secret
+    private String jwks; // private_key_jwt: JWK Set (JSON), public keys only
+    private String jwksUri; // private_key_jwt: https URL of the JWK Set
 
     public abstract Class<? extends Group> getGroupClass();
 }

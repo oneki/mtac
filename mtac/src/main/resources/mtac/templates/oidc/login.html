@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
-  <title>Sign in</title>
+  <title>{{^stepUpClient}}Sign in{{/stepUpClient}}{{#stepUpClient}}Confirm it is you{{/stepUpClient}}</title>
   <style nonce="{{nonce}}">
     body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: #f3f4f6; color: #111827; }
     main { max-width: 22rem; margin: 10vh auto; padding: 2rem; background: #fff; border-radius: .5rem; box-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
@@ -20,17 +20,20 @@
 </head>
 <body>
   <main>
-    <h1>Sign in</h1>
+    {{^stepUpClient}}<h1>Sign in</h1>{{/stepUpClient}}
+    {{#stepUpClient}}<h1>Confirm it is you</h1>
+    <p>Confirm it is you before granting {{stepUpClient}} access to your account.</p>{{/stepUpClient}}
     {{#clientName}}<p>to continue to {{clientName}}</p>{{/clientName}}
     {{#error}}<div class="error" role="alert">{{error}}</div>{{/error}}
     <form method="post" action="{{action}}">
       <input type="hidden" name="ctx" value="{{ctx}}">
       <input type="hidden" name="csrf" value="{{csrf}}">
       <label for="username">Email</label>
-      <input id="username" name="username" type="email" value="{{username}}" autocomplete="username" required autofocus>
+      {{^stepUpClient}}<input id="username" name="username" type="email" value="{{username}}" autocomplete="username" required autofocus>{{/stepUpClient}}
+      {{#stepUpClient}}<input id="username" name="username" type="email" value="{{username}}" autocomplete="username" readonly>{{/stepUpClient}}
       <label for="password">Password</label>
-      <input id="password" name="password" type="password" autocomplete="current-password" required>
-      <button type="submit">Sign in</button>
+      <input id="password" name="password" type="password" autocomplete="current-password" required{{#stepUpClient}} autofocus{{/stepUpClient}}>
+      <button type="submit">{{^stepUpClient}}Sign in{{/stepUpClient}}{{#stepUpClient}}Confirm{{/stepUpClient}}</button>
     </form>
   </main>
 </body>

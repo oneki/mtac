@@ -2792,6 +2792,7 @@ CREATE TABLE public.oidc_authorization_code (
 	code_challenge text NOT NULL,
 	expires_at timestamp with time zone NOT NULL,
 	consumed_at timestamp with time zone,
+	resource text,
 	CONSTRAINT oidc_authorization_code_pk PRIMARY KEY (code_hash)
 );
 -- ddl-end --
@@ -2827,6 +2828,8 @@ CREATE TABLE public.oidc_refresh_token (
 	expires_at timestamp with time zone NOT NULL,
 	rotated_at timestamp with time zone,
 	revoked_at timestamp with time zone,
+	resource text,
+	family_started_at timestamp with time zone,
 	CONSTRAINT oidc_refresh_token_pk PRIMARY KEY (token_hash)
 );
 -- ddl-end --
@@ -2858,6 +2861,101 @@ USING btree
 (
 	expires_at
 );
+-- ddl-end --
+
+-- object: public.oauth_client_assertion_jti | type: TABLE --
+-- DROP TABLE IF EXISTS public.oauth_client_assertion_jti CASCADE;
+CREATE TABLE public.oauth_client_assertion_jti (
+	client_id varchar(255) NOT NULL,
+	jti varchar(255) NOT NULL,
+	expires_at timestamp with time zone NOT NULL,
+	CONSTRAINT oauth_client_assertion_jti_pk PRIMARY KEY (client_id,jti)
+);
+-- ddl-end --
+ALTER TABLE public.oauth_client_assertion_jti OWNER TO postgres;
+-- ddl-end --
+
+-- object: oauth_client_assertion_jti_expires_at_idx | type: INDEX --
+-- DROP INDEX IF EXISTS public.oauth_client_assertion_jti_expires_at_idx CASCADE;
+CREATE INDEX oauth_client_assertion_jti_expires_at_idx ON public.oauth_client_assertion_jti
+USING btree
+(
+	expires_at
+);
+-- ddl-end --
+
+-- object: public.oidc_consent | type: TABLE --
+-- DROP TABLE IF EXISTS public.oidc_consent CASCADE;
+CREATE TABLE public.oidc_consent (
+	identity_id integer NOT NULL,
+	client_id text NOT NULL,
+	scope text NOT NULL,
+	created_at timestamp with time zone NOT NULL,
+	updated_at timestamp with time zone NOT NULL,
+	last_used_at timestamp with time zone,
+	CONSTRAINT oidc_consent_pk PRIMARY KEY (identity_id,client_id)
+);
+-- ddl-end --
+ALTER TABLE public.oidc_consent OWNER TO postgres;
+-- ddl-end --
+
+-- object: oidc_consent_client_id_idx | type: INDEX --
+-- DROP INDEX IF EXISTS public.oidc_consent_client_id_idx CASCADE;
+CREATE INDEX oidc_consent_client_id_idx ON public.oidc_consent
+USING btree
+(
+	client_id
+);
+-- ddl-end --
+
+-- object: public.console_refresh_token | type: TABLE --
+-- DROP TABLE IF EXISTS public.console_refresh_token CASCADE;
+CREATE TABLE public.console_refresh_token (
+	id char(32) NOT NULL,
+	token_hash char(64) NOT NULL,
+	identity_id integer NOT NULL,
+	created_at timestamp with time zone NOT NULL,
+	last_used_at timestamp with time zone NOT NULL,
+	expires_at timestamp with time zone NOT NULL,
+	revoked_at timestamp with time zone,
+	user_agent text,
+	CONSTRAINT console_refresh_token_pk PRIMARY KEY (id),
+	CONSTRAINT console_refresh_token_hash_uq UNIQUE (token_hash)
+);
+-- ddl-end --
+ALTER TABLE public.console_refresh_token OWNER TO postgres;
+-- ddl-end --
+
+-- object: console_refresh_token_identity_id_idx | type: INDEX --
+-- DROP INDEX IF EXISTS public.console_refresh_token_identity_id_idx CASCADE;
+CREATE INDEX console_refresh_token_identity_id_idx ON public.console_refresh_token
+USING btree
+(
+	identity_id
+);
+-- ddl-end --
+
+-- object: console_refresh_token_expires_at_idx | type: INDEX --
+-- DROP INDEX IF EXISTS public.console_refresh_token_expires_at_idx CASCADE;
+CREATE INDEX console_refresh_token_expires_at_idx ON public.console_refresh_token
+USING btree
+(
+	expires_at
+);
+-- ddl-end --
+
+-- object: console_refresh_token_identity_fk | type: CONSTRAINT --
+-- ALTER TABLE public.console_refresh_token DROP CONSTRAINT IF EXISTS console_refresh_token_identity_fk CASCADE;
+ALTER TABLE public.console_refresh_token ADD CONSTRAINT console_refresh_token_identity_fk FOREIGN KEY (identity_id)
+REFERENCES public.resource (id) MATCH SIMPLE
+ON DELETE CASCADE ON UPDATE NO ACTION;
+-- ddl-end --
+
+-- object: oidc_consent_identity_fk | type: CONSTRAINT --
+-- ALTER TABLE public.oidc_consent DROP CONSTRAINT IF EXISTS oidc_consent_identity_fk CASCADE;
+ALTER TABLE public.oidc_consent ADD CONSTRAINT oidc_consent_identity_fk FOREIGN KEY (identity_id)
+REFERENCES public.resource (id) MATCH SIMPLE
+ON DELETE CASCADE ON UPDATE NO ACTION;
 -- ddl-end --
 
 -- object: oidc_session_identity_fk | type: CONSTRAINT --

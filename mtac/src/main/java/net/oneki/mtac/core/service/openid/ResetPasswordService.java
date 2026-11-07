@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.oneki.mtac.core.service.openid.oidc.OidcGrantRevocation;
 import net.oneki.mtac.framework.service.JwtTokenService;
 import net.oneki.mtac.framework.util.security.PasswordUtil;
 import net.oneki.mtac.model.core.config.MtacProperties;
@@ -28,6 +29,7 @@ public class ResetPasswordService {
   protected MtacProperties mtacProperties;
   protected DefaultUserService userService;
   protected JwtTokenService tokenService;
+  protected OidcGrantRevocation grantRevocation;
 
   @Autowired
   public void setMtacProperties(MtacProperties mtacProperties) {
@@ -42,6 +44,18 @@ public class ResetPasswordService {
   @Autowired
   public void setTokenService(JwtTokenService tokenService) {
     this.tokenService = tokenService;
+  }
+
+  @Autowired
+  public void setGrantRevocation(OidcGrantRevocation grantRevocation) {
+    this.grantRevocation = grantRevocation;
+  }
+
+  protected OidcGrantRevocation requireGrantRevocation() {
+    if (grantRevocation == null) {
+      throw new IllegalStateException("OidcGrantRevocation is not configured: credentials cannot change");
+    }
+    return grantRevocation;
   }
 
   public void triggerResetPassword(String email) {
@@ -119,6 +133,11 @@ public class ResetPasswordService {
     }
   }
 
+  /**
+   * Sets the new password chosen with the reset link, then revokes every
+   * delegated access of the user and his Console session
+   * ({@link OidcGrantRevocation}), in the same transaction.
+   */
   @Transactional
   public void resetPassword(ResetPasswordRequest request) {
     try {
@@ -139,6 +158,8 @@ public class ResetPasswordService {
       user.setResetPasswordToken(null);
       user.setResetPasswordTokenIssuedAt(null);
       userService.updateUnsecure(user);
+      // same transaction: a failed revocation rolls the new password back
+      requireGrantRevocation().revokeAll(user, OidcGrantRevocation.REASON_PASSWORD_RESET, false);
 
     } catch (Exception e) {
       throw new BusinessException("RESET_PASSWORD_FAILED", "Failed to reset password: " + e.getMessage());

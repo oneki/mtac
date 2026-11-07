@@ -2757,6 +2757,9 @@ END;]]> </definition>
 	<column name="log_level">
 		<type name="smallint" length="0"/>
 	</column>
+	<column name="client_id">
+		<type name="character varying" length="255"/>
+	</column>
 	<constraint name="audit_pk" type="pk-constr" table="public.audit_log">
 		<columns names="id" ref-type="src-columns"/>
 	</constraint>
@@ -3404,7 +3407,7 @@ END;]]> </definition>
 		</idxelement>
 </index>
 
-<table name="oidc_authorization_code" layers="0" collapse-mode="1" max-obj-count="10" z-value="0">
+<table name="oidc_authorization_code" layers="0" collapse-mode="1" max-obj-count="11" z-value="0">
 	<schema name="public"/>
 	<role name="postgres"/>
 	<position x="1660" y="1900"/>
@@ -3435,6 +3438,9 @@ END;]]> </definition>
 	<column name="consumed_at">
 		<type name="timestamp with time zone" length="0" with-timezone="true"/>
 	</column>
+	<column name="resource">
+		<type name="text" length="0"/>
+	</column>
 	<constraint name="oidc_authorization_code_pk" type="pk-constr" table="public.oidc_authorization_code">
 		<columns names="code_hash" ref-type="src-columns"/>
 	</constraint>
@@ -3456,7 +3462,7 @@ END;]]> </definition>
 		</idxelement>
 </index>
 
-<table name="oidc_refresh_token" layers="0" collapse-mode="1" max-obj-count="9" z-value="0">
+<table name="oidc_refresh_token" layers="0" collapse-mode="1" max-obj-count="11" z-value="0">
 	<schema name="public"/>
 	<role name="postgres"/>
 	<position x="1660" y="2160"/>
@@ -3484,6 +3490,12 @@ END;]]> </definition>
 	<column name="revoked_at">
 		<type name="timestamp with time zone" length="0" with-timezone="true"/>
 	</column>
+	<column name="resource">
+		<type name="text" length="0"/>
+	</column>
+	<column name="family_started_at">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
 	<constraint name="oidc_refresh_token_pk" type="pk-constr" table="public.oidc_refresh_token">
 		<columns names="token_hash" ref-type="src-columns"/>
 	</constraint>
@@ -3506,6 +3518,122 @@ END;]]> </definition>
 </index>
 
 <index name="oidc_refresh_token_expires_at_idx" table="public.oidc_refresh_token"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="expires_at"/>
+		</idxelement>
+</index>
+
+<table name="oauth_client_assertion_jti" layers="0" collapse-mode="1" max-obj-count="3" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<comment> <![CDATA[Replay protection of the client assertions (private_key_jwt, RFC 7523): jti of every accepted assertion, kept until it expires.]]> </comment>
+	<position x="1660" y="2440"/>
+	<column name="client_id" not-null="true">
+		<type name="varchar" length="255"/>
+	</column>
+	<column name="jti" not-null="true">
+		<type name="varchar" length="255"/>
+	</column>
+	<column name="expires_at" not-null="true">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<constraint name="oauth_client_assertion_jti_pk" type="pk-constr" table="public.oauth_client_assertion_jti">
+		<columns names="client_id,jti" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="oauth_client_assertion_jti_expires_at_idx" table="public.oauth_client_assertion_jti"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="expires_at"/>
+		</idxelement>
+</index>
+
+<table name="oidc_consent" layers="0" collapse-mode="1" max-obj-count="7" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<comment> <![CDATA[Consents of the OpenID provider: the scopes (space separated) a user approved for a client whose consent mode is not trusted.]]> </comment>
+	<position x="1140" y="2360"/>
+	<column name="identity_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="client_id" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="scope" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="created_at" not-null="true">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="updated_at" not-null="true">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="last_used_at">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<constraint name="oidc_consent_pk" type="pk-constr" table="public.oidc_consent">
+		<columns names="identity_id,client_id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="oidc_consent_client_id_idx" table="public.oidc_consent"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="client_id"/>
+		</idxelement>
+</index>
+
+<table name="console_refresh_token" layers="0" collapse-mode="1" max-obj-count="8" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<comment> <![CDATA[Console refresh tokens, one row per login (browser): SHA-256 of the opaque token, sliding expiry (inactivity) capped by a maximum age. The row id is the sid claim of the Console access tokens.]]> </comment>
+	<position x="1140" y="2640"/>
+	<column name="id" not-null="true">
+		<type name="char" length="32"/>
+	</column>
+	<column name="token_hash" not-null="true">
+		<type name="char" length="64"/>
+	</column>
+	<column name="identity_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="created_at" not-null="true">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="last_used_at" not-null="true">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="expires_at" not-null="true">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="revoked_at">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="user_agent">
+		<type name="text" length="0"/>
+	</column>
+	<constraint name="console_refresh_token_pk" type="pk-constr" table="public.console_refresh_token">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+	<constraint name="console_refresh_token_hash_uq" type="uq-constr" table="public.console_refresh_token">
+		<columns names="token_hash" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="console_refresh_token_identity_id_idx" table="public.console_refresh_token"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="identity_id"/>
+		</idxelement>
+</index>
+
+<index name="console_refresh_token_expires_at_idx" table="public.console_refresh_token"
 	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
 	 index-type="btree" factor="0">
 		<idxelement use-sorting="false">
@@ -3723,6 +3851,18 @@ END;]]> </definition>
 	<columns names="id" ref-type="dst-columns"/>
 </constraint>
 
+<constraint name="console_refresh_token_identity_fk" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="NO ACTION" del-action="CASCADE" ref-table="public.resource" table="public.console_refresh_token">
+	<columns names="identity_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="oidc_consent_identity_fk" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="NO ACTION" del-action="CASCADE" ref-table="public.resource" table="public.oidc_consent">
+	<columns names="identity_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
 <relationship name="rel_role_schema_resource" type="relfk" layers="0"
 	 src-table="public.role_schema"
 	 dst-table="public.resource" reference-fk="role_schema_role_fk"
@@ -3926,6 +4066,16 @@ END;]]> </definition>
 <relationship name="rel_oidc_refresh_token_oidc_session" type="relfk" layers="0"
 	 src-table="public.oidc_refresh_token"
 	 dst-table="public.oidc_session" reference-fk="oidc_refresh_token_session_fk"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_oidc_consent_resource" type="relfk" layers="0"
+	 src-table="public.oidc_consent"
+	 dst-table="public.resource" reference-fk="oidc_consent_identity_fk"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_console_refresh_token_resource" type="relfk" layers="0"
+	 src-table="public.console_refresh_token"
+	 dst-table="public.resource" reference-fk="console_refresh_token_identity_fk"
 	 src-required="false" dst-required="true"/>
 
 </dbmodel>

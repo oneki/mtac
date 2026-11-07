@@ -1,24 +1,35 @@
 package net.oneki.mtac.core.service.openid;
 
+import java.util.Collection;
 import java.util.Set;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import net.oneki.mtac.framework.cache.TokenRegistry;
 import net.oneki.mtac.framework.repository.TokenRepository;
 import net.oneki.mtac.framework.service.JwtTokenService;
+import net.oneki.mtac.framework.service.TokenAudiences;
 import net.oneki.mtac.framework.util.security.PasswordUtil;
 import net.oneki.mtac.model.core.config.MtacProperties;
+import net.oneki.mtac.model.core.config.MtacProperties.AudienceEnforcement;
 import net.oneki.mtac.model.core.openid.TokenResponse;
+import net.oneki.mtac.model.core.openid.oidc.OidcException;
+import net.oneki.mtac.model.core.openid.oidc.TokenAudience;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
 import net.oneki.mtac.model.core.util.security.Claims;
 import net.oneki.mtac.model.core.util.security.SecurityContext;
+import net.oneki.mtac.model.resource.Resource;
 import net.oneki.mtac.model.resource.iam.identity.Identity;
 import net.oneki.mtac.model.resource.iam.identity.application.Application;
+import net.oneki.mtac.model.resource.iam.identity.application.ApplicationAuthMethod;
 import net.oneki.mtac.model.resource.iam.identity.user.User;
 import net.oneki.mtac.resource.DefaultResourceService;
 import net.oneki.mtac.resource.iam.identity.application.DefaultApplicationService;
@@ -26,6 +37,7 @@ import net.oneki.mtac.resource.iam.identity.user.DefaultUserService;
 import net.oneki.mtac.resource.iam.identity.user.UserService;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class OpenIdService {
   public enum OperationType {
@@ -49,8 +61,33 @@ public class OpenIdService {
   protected TokenRepository tokenRepository;
   protected SecurityContext securityContext;
   protected DefaultResourceService resourceService;
+  protected PrivateKeyJwtVerifier privateKeyJwtVerifier;
+  protected ConsoleSessionService consoleSessions;
 
+  /**
+   * Console login ({@code consoleAccess = true}: users and applications, token
+   * for the console audience) or token endpoint ({@code consoleAccess = false}:
+   * see {@link #login(String, String, String, boolean, boolean)} with the api
+   * audience and {@code allowUser = false}).
+   */
   public TokenResponse login(String username, String password, boolean consoleAccess, boolean refreshToken) {
+    return consoleAccess
+        ? login(username, password, TokenAudience.CONSOLE, true, refreshToken)
+        : login(username, password, TokenAudience.API, false, refreshToken);
+  }
+
+  /**
+   * @param audience     key of the audience of the access token (see
+   *                     {@link TokenAudience})
+   * @param allowUser    false on the token endpoint: the client_credentials
+   *                     grant is reserved to applications. A user's credentials
+   *                     are then logged ({@code audience-enforcement: log}) or
+   *                     refused with invalid_client ({@code strict}). Without
+   *                     configured audiences, users are accepted as before.
+   * @param refreshToken true to issue a refresh token to a user
+   */
+  public TokenResponse login(String username, String password, String audience, boolean allowUser,
+      boolean refreshToken) {
     boolean status = false;
     Identity identity = null;
     try {
@@ -69,42 +106,118 @@ public class OpenIdService {
 
     switch (identity) {
       case User user -> {
-        return loginUser(user, password, refreshToken);
+        if (!allowUser) {
+          checkUserOnTokenEndpoint(user, password);
+        }
+        return loginUser(user, password, audience, refreshToken);
       }
       case Application application -> {
-        return loginApplication(application, password);
+        return loginApplication(application, password, audience);
       }
       default -> throw new BusinessException("INVALID_CREDENTIALS", "Username or password incorrect");
     }
   }
 
-  public TokenResponse loginApplication(Application application, String password) {
+  /**
+   * A user's email and password sent to the token endpoint. Without configured
+   * audiences, nothing changes. In log mode the attempt is logged and goes on;
+   * in strict mode it is refused with invalid_client once the password is
+   * checked, so that the answer to a wrong password stays the same as before.
+   */
+  protected void checkUserOnTokenEndpoint(User user, String password) {
+    if (!tokenAudiences().isConfigured()) {
+      return;
+    }
+    if (mtacProperties.getJwt().getAudienceEnforcement() != AudienceEnforcement.strict) {
+      log.warn("User credentials on the token endpoint (sub={}, username={}, path={}): accepted while "
+          + "mtac.jwt.audience-enforcement is log, refused in strict mode", user.getUid(), user.getLabel(),
+          currentPath());
+      return;
+    }
+    var passwordMatches = PasswordUtil.matches(password, user.getPassword());
+    audit(user, OperationType.LoginUser, false);
+    if (!passwordMatches) {
+      throw new BusinessException("INVALID_CREDENTIALS", "Username or password incorrect");
+    }
+    log.warn("User credentials on the token endpoint refused (sub={}, username={}, path={}): the "
+        + "client_credentials grant is reserved to applications", user.getUid(), user.getLabel(), currentPath());
+    throw OidcException.invalidClient("The client_credentials grant is reserved to applications");
+  }
+
+  /**
+   * The Console refresh token of a user sent to the token endpoint, for a
+   * public API token: same rule as a user's credentials on client_credentials
+   * (the public API is for applications). Logged in log mode, refused in strict.
+   */
+  protected void checkConsoleRefreshOnTokenEndpoint(User user) {
+    if (!tokenAudiences().isConfigured()) {
+      return;
+    }
+    if (mtacProperties.getJwt().getAudienceEnforcement() != AudienceEnforcement.strict) {
+      log.warn("Console refresh token on the token endpoint (sub={}, username={}, path={}): accepted while "
+          + "mtac.jwt.audience-enforcement is log, refused in strict mode", user.getUid(), user.getLabel(),
+          currentPath());
+      return;
+    }
+    log.warn("Console refresh token on the token endpoint refused (sub={}, username={}, path={}): the public API "
+        + "is reserved to applications", user.getUid(), user.getLabel(), currentPath());
+    throw OidcException.invalidGrant("This refresh token cannot be used on the token endpoint");
+  }
+
+  public TokenResponse loginApplication(Application application, String password, String audience) {
     boolean status = false;
     try {
-      if (!PasswordUtil.matches(password, application.getPassword())) {
+      // an application authenticating with a key has no secret: refuse the secret path by intent
+      if (ApplicationAuthMethod.of(application) != ApplicationAuthMethod.CLIENT_SECRET
+          || !PasswordUtil.matches(password, application.getPassword())) {
         throw new BusinessException("INVALID_CREDENTIALS", "client ID or client Secret incorrect");
       }
       status = true;
-      var expirationSec = mtacProperties.getJwt().getExpirationSec();
-      if (application.getTokenExpiresIn() != null) {
-        expirationSec = application.getTokenExpiresIn();
-      }
-
-      // store userinfo in cache
-      tokenService.generateIdToken(applicationService.userinfo(application.getUid(), true));
-      var tokenResponse = TokenResponse.builder()
-          .accessToken(
-              tokenService.generateAccessToken(application.getUid(), application.getLabel(), expirationSec, null))
-          .expiresIn(expirationSec)
-          .build();
-      return tokenResponse;
+      return applicationToken(application, audience);
     } finally {
       audit(application, OperationType.LoginApplication, status);
     }
-
   }
 
-  public TokenResponse loginUser(User user, String password, boolean refreshToken) {
+  /**
+   * client_credentials with a signed JWT instead of a secret (private_key_jwt,
+   * RFC 7523 section 2.2).
+   *
+   * @throws OidcException invalid_client for any failure
+   */
+  public TokenResponse loginApplicationWithAssertion(String clientAssertionType, String clientAssertion,
+      String clientId, Collection<String> expectedAudiences, String audience) {
+    Application application = null;
+    boolean status = false;
+    try {
+      application = privateKeyJwtVerifier.verify(clientAssertionType, clientAssertion, clientId, expectedAudiences,
+          id -> getUserService().getByUniqueLabelUnsecureOrReturnNull(id, Identity.class) instanceof Application app
+              ? app
+              : null);
+      status = true;
+      return applicationToken(application, audience);
+    } finally {
+      audit(application != null ? application : Identity.builder().label(clientId).build(),
+          OperationType.LoginApplication, status);
+    }
+  }
+
+  protected TokenResponse applicationToken(Application application, String audience) {
+    var expirationSec = mtacProperties.getJwt().getExpirationSec();
+    if (application.getTokenExpiresIn() != null) {
+      expirationSec = application.getTokenExpiresIn();
+    }
+    // store userinfo in cache
+    tokenService.generateIdToken(applicationService.userinfo(application.getUid(), true));
+    return TokenResponse.builder()
+        .accessToken(
+            tokenService.generateAccessToken(application.getUid(), application.getLabel(), expirationSec, null,
+                audience))
+        .expiresIn(expirationSec)
+        .build();
+  }
+
+  public TokenResponse loginUser(User user, String password, String audience, boolean refreshToken) {
     boolean status = false;
     try {
       if (!PasswordUtil.matches(password, user.getPassword())) {
@@ -123,13 +236,24 @@ public class OpenIdService {
       }
 
       // If not, generate a token response with access, id and refresh tokens
-      var randomString = UUID.randomUUID().toString();
+      ConsoleSessionService.Issued session = null;
+      Map<String, Object> sessionClaims = null;
+      if (refreshToken && consoleSessions != null) {
+        // one Console session per login: other browsers stay signed in
+        session = consoleSessions.open(user.getId());
+        sessionClaims = Map.of(ConsoleSessionService.CLAIM, session.sessionId());
+      }
       var tokenResponse = TokenResponse.builder()
-          .accessToken(tokenService.generateAccessToken(user.getUid(), user.getLabel(), expirationSec, null))
+          .accessToken(tokenService.generateAccessToken(user.getUid(), user.getLabel(), expirationSec, sessionClaims,
+              audience))
           .idToken(tokenService.generateIdToken(getUserService().userinfo(user.getUid(), true)))
           .expiresIn(expirationSec)
           .build();
-      if (refreshToken == true) {
+      if (session != null) {
+        tokenResponse.setRefreshToken(session.refreshToken());
+      } else if (refreshToken) {
+        // former single refresh token per user, only without the Console session service (tests)
+        var randomString = UUID.randomUUID().toString();
         tokenResponse.setRefreshToken(tokenService.generateRefreshToken(user.getUid(), randomString));
         user.setRefreshToken(randomString);
         resourceService.updateUnsecure(user);
@@ -230,9 +354,28 @@ public class OpenIdService {
     }
   }
 
+  /** Refresh of a Console session: the new access token is for the console audience. */
   public TokenResponse refreshToken(String refreshToken) {
-    // decrypt the refresh token
-    refreshToken = PasswordUtil.decrypt(refreshToken);
+    return refreshToken(refreshToken, TokenAudience.CONSOLE);
+  }
+
+  /**
+   * @param audience key of the audience of the new access token (see
+   *                 {@link TokenAudience})
+   */
+  public TokenResponse refreshToken(String refreshToken, String audience) {
+    if (ConsoleSessionService.isSessionToken(refreshToken)) {
+      if (consoleSessions == null) {
+        throw new BadCredentialsException("Invalid refresh token");
+      }
+      return refreshConsoleSession(refreshToken, audience);
+    }
+    // former format (encrypted sub:exp:random), still accepted until it expires (30 days after the login)
+    try {
+      refreshToken = PasswordUtil.decrypt(refreshToken);
+    } catch (RuntimeException e) {
+      throw new BadCredentialsException("Invalid refresh token");
+    }
     var parts = refreshToken.split(":");
     if (parts.length != 3) {
       throw new BadCredentialsException("Invalid refresh token format");
@@ -250,8 +393,11 @@ public class OpenIdService {
       throw new BadCredentialsException("User not found for the provided refresh token");
     }
 
-    if (!user.getRefreshToken().equals(randomUUID)) {
+    if (!randomUUID.equals(user.getRefreshToken())) {
       throw new BadCredentialsException("Invalid refresh token");
+    }
+    if (TokenAudience.API.equals(audience)) {
+      checkConsoleRefreshOnTokenEndpoint(user);
     }
 
     var expirationSec = mtacProperties.getJwt().getExpirationSec();
@@ -259,7 +405,37 @@ public class OpenIdService {
       expirationSec = user.getTokenExpiresIn();
     }
     return TokenResponse.builder()
-        .accessToken(tokenService.generateAccessToken(sub, user.getLabel(), expirationSec, null))
+        .accessToken(tokenService.generateAccessToken(sub, user.getLabel(), expirationSec, null, audience))
+        .expiresIn(expirationSec)
+        .build();
+  }
+
+  /** Refresh with a Console session token: the session slides, the token does not change. */
+  protected TokenResponse refreshConsoleSession(String refreshToken, String audience) {
+    var session = consoleSessions.find(refreshToken);
+    if (session == null) {
+      throw new BadCredentialsException("Invalid refresh token");
+    }
+    var user = getUserService().getByUidUnsecure(Resource.toUid(session.getIdentityId()));
+    if (!(user instanceof User)) {
+      throw new BadCredentialsException("User not found for the provided refresh token");
+    }
+    var sessionUser = (User) user;
+    if (TokenAudience.API.equals(audience)) {
+      checkConsoleRefreshOnTokenEndpoint(sessionUser);
+    }
+    // every check passed: only now does the session slide
+    consoleSessions.slide(session);
+    var expirationSec = mtacProperties.getJwt().getExpirationSec();
+    if (sessionUser.getTokenExpiresIn() != null) {
+      expirationSec = sessionUser.getTokenExpiresIn();
+    }
+    Map<String, Object> claims = TokenAudience.CONSOLE.equals(audience)
+        ? Map.of(ConsoleSessionService.CLAIM, session.getId())
+        : null;
+    return TokenResponse.builder()
+        .accessToken(tokenService.generateAccessToken(sessionUser.getUid(), sessionUser.getLabel(), expirationSec,
+            claims, audience))
         .expiresIn(expirationSec)
         .build();
   }
@@ -267,6 +443,20 @@ public class OpenIdService {
   public void logout() {
     tokenRegistry.remove(securityContext.getSubject());
     tokenRepository.deleteToken(securityContext.getSubject());
+    if (consoleSessions != null) {
+      // the Console session of this token ends; the other browsers stay signed in
+      consoleSessions.close(securityContext.getAttribute(ConsoleSessionService.CLAIM));
+    }
+  }
+
+  @Autowired
+  public void setConsoleSessions(ConsoleSessionService consoleSessions) {
+    this.consoleSessions = consoleSessions;
+  }
+
+  @Autowired
+  public void setPrivateKeyJwtVerifier(PrivateKeyJwtVerifier privateKeyJwtVerifier) {
+    this.privateKeyJwtVerifier = privateKeyJwtVerifier;
   }
 
   @Autowired
@@ -319,6 +509,18 @@ public class OpenIdService {
   }
 
   protected void audit(Identity resourceEntity, OperationType operation, boolean status) {
+  }
+
+  protected TokenAudiences tokenAudiences() {
+    return new TokenAudiences(mtacProperties);
+  }
+
+  /** Path of the current HTTP request, for the logs; null outside a request. */
+  protected static String currentPath() {
+    var attributes = RequestContextHolder.getRequestAttributes();
+    return attributes instanceof ServletRequestAttributes servletAttributes
+        ? servletAttributes.getRequest().getRequestURI()
+        : null;
   }
 
 }

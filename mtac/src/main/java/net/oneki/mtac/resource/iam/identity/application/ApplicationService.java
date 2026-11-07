@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import net.oneki.mtac.core.service.openid.ClientJwks;
 import net.oneki.mtac.framework.cache.TokenRegistry;
 import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.framework.repository.TokenRepository;
@@ -21,6 +22,7 @@ import net.oneki.mtac.model.core.util.security.Claims;
 import net.oneki.mtac.model.core.util.security.SecurityContext;
 import net.oneki.mtac.model.resource.Resource;
 import net.oneki.mtac.model.resource.iam.identity.application.Application;
+import net.oneki.mtac.model.resource.iam.identity.application.ApplicationAuthMethod;
 import net.oneki.mtac.model.resource.iam.identity.application.BaseApplicationUpsertRequest;
 import net.oneki.mtac.model.resource.iam.identity.group.Group;
 import net.oneki.mtac.resource.ResourceService;
@@ -162,11 +164,7 @@ public abstract class ApplicationService<U extends BaseApplicationUpsertRequest<
 
   public UpsertResponse<E> create(U request) {
     var userEntity = toCreateEntity(request);
-    if (userEntity.getPassword() == null) {
-      throw new BusinessException("INVALID_PASSWORD", "Password cannot be blank");
-    } else {
-      userEntity.setPassword(PasswordUtil.hash(request.getPassword()));
-    }
+    applyCredentials(userEntity, request.getPassword(), true);
 
     var result = resourceRepository.create(userEntity);
     if (userEntity.getMemberOf() != null) {
@@ -184,14 +182,64 @@ public abstract class ApplicationService<U extends BaseApplicationUpsertRequest<
 
   public UpsertResponse<E> update(String urn, U request) {
     var userEntity = toUpdateEntity(urn, request);
-    if (request.getPassword() != null) {
-      userEntity.setPassword(PasswordUtil.hash(request.getPassword()));
-    }
+    applyCredentials(userEntity, request.getPassword(), false);
     resourceRepository.update(userEntity);
     return UpsertResponse.<E>builder()
         .status(UpsertResponse.Status.Success)
         .resource(userEntity)
         .build();
+  }
+
+  /**
+   * Validates and normalises the token endpoint credentials of an application
+   * before it is stored.
+   * <ul>
+   * <li>{@code client_secret} (default): a password is required on creation and
+   * hashed; on update the stored hash is kept when no new password is given. The
+   * key fields are cleared.</li>
+   * <li>{@code private_key_jwt}: exactly one of {@code jwks} (public keys only,
+   * RSA of at least 2048 bits or EC P-256) and {@code jwksUri} (https). No
+   * password is stored, so the application can no longer use a secret.</li>
+   * </ul>
+   *
+   * @param newPassword plain password of the request, null when none was sent
+   */
+  public static void applyCredentials(Application entity, String newPassword, boolean creating) {
+    entity.setJwks(blankToNull(entity.getJwks()));
+    entity.setJwksUri(blankToNull(entity.getJwksUri()));
+    if (ApplicationAuthMethod.of(entity) == ApplicationAuthMethod.PRIVATE_KEY_JWT) {
+      entity.setTokenEndpointAuthMethod(ApplicationAuthMethod.PRIVATE_KEY_JWT);
+      if ((entity.getJwks() == null) == (entity.getJwksUri() == null)) {
+        throw new BusinessException("INVALID_JWKS",
+            "An application using private_key_jwt needs exactly one of jwks and jwksUri");
+      }
+      try {
+        if (entity.getJwks() != null) {
+          ClientJwks.parse(entity.getJwks());
+        } else {
+          ClientJwks.validateUri(entity.getJwksUri());
+        }
+      } catch (ClientJwks.InvalidJwksException e) {
+        throw new BusinessException(entity.getJwks() != null ? "INVALID_JWKS" : "INVALID_JWKS_URI", e.getMessage());
+      }
+      entity.setPassword(null);
+      return;
+    }
+
+    entity.setTokenEndpointAuthMethod(ApplicationAuthMethod.CLIENT_SECRET);
+    entity.setJwks(null);
+    entity.setJwksUri(null);
+    if (newPassword != null) {
+      entity.setPassword(PasswordUtil.hash(newPassword));
+    } else if (creating || entity.getPassword() == null) {
+      // on update, a null password means "keep the stored hash", which does not
+      // exist when the application switches from private_key_jwt
+      throw new BusinessException("INVALID_PASSWORD", "Password cannot be blank");
+    }
+  }
+
+  private static String blankToNull(String value) {
+    return value == null || value.isBlank() ? null : value.trim();
   }
 
   public Set<Integer> listGroupSids(@NonNull Resource user) {

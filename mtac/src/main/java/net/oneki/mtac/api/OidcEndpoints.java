@@ -37,15 +37,18 @@ import net.oneki.mtac.core.service.openid.OpenIdService;
 import net.oneki.mtac.core.service.openid.oidc.LoginAttemptService;
 import net.oneki.mtac.core.service.openid.oidc.OidcAuthorizationService;
 import net.oneki.mtac.core.service.openid.oidc.OidcClientRegistry;
+import net.oneki.mtac.core.service.openid.oidc.OidcConsentService;
 import net.oneki.mtac.core.service.openid.oidc.OidcCrypto;
 import net.oneki.mtac.core.service.openid.oidc.OidcPageRenderer;
 import net.oneki.mtac.core.service.openid.oidc.OidcSessionService;
 import net.oneki.mtac.core.service.openid.oidc.TotpQrCode;
+import net.oneki.mtac.framework.repository.OidcConsentRepository;
 import net.oneki.mtac.framework.service.JwtTokenService;
 import net.oneki.mtac.model.core.config.MtacProperties;
 import net.oneki.mtac.model.core.config.MtacProperties.MtacOidcClient;
 import net.oneki.mtac.model.core.openid.oidc.OidcAuthorizationRequest;
 import net.oneki.mtac.model.core.openid.oidc.OidcException;
+import net.oneki.mtac.model.core.openid.oidc.OidcSession;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
 import net.oneki.mtac.model.resource.iam.identity.user.User;
 
@@ -55,20 +58,53 @@ import net.oneki.mtac.model.resource.iam.identity.user.User;
  *
  * <p>
  * Two kinds of endpoints live here. The interactive ones (authorize, login,
- * mfa, logout) are visited by the browser of the user and rely on the SSO
- * session cookie. The others (token, userinfo, revoke, discovery) are called by
+ * mfa, consent, logout) are visited by the browser of the user and rely on the
+ * SSO session cookie. The others (token, userinfo, revoke, discovery) are called by
  * the clients, never read a cookie, and are the only ones that may be called
  * cross-origin (see {@link OidcCorsPreflightFilter} for the preflight requests).
+ *
+ * <p>
+ * Consent (clients whose consent mode is not TRUSTED, see
+ * {@link OidcConsentService}): once the user is signed in, the authorization
+ * endpoint renders the consent page instead of issuing the code. The page
+ * posts to {@value #PATH_CONSENT} with a signed consent context (audience
+ * {@value #CONSENT_CONTEXT_AUDIENCE}, bound to the SSO session and to the
+ * scopes shown) and the CSRF token. {@code prompt=none} answers
+ * {@code consent_required} when a consent is missing. While the browser holds an
+ * impersonation cookie of the Console, a non-trusted client is refused with
+ * {@code access_denied}: an administrator acting as a user must not connect
+ * applications in the name of that user.
+ *
+ * <p>
+ * Step-up (see {@link OidcConsentService#isStepUpRequired}): when the consent
+ * page is due and the authentication of the SSO session is too old, the user
+ * proves himself again before the page, on the hosted pages of the login: the
+ * MFA page (TOTP only) when he has MFA, else the login page with his username
+ * fixed. Their login context then carries the id and the subject of the
+ * session ({@value #STEP_UP_SESSION_CLAIM}, {@value #STEP_UP_SUBJECT_CLAIM}):
+ * only the user of that session can complete it, and a success updates the
+ * authentication time and methods of that same session (no new session, same
+ * cookie) before the authorization request resumes. {@code prompt=none}
+ * answers {@code login_required} when a step-up is needed.
  */
 @Component
 @Slf4j
 public class OidcEndpoints {
   private static final String LOGIN_CONTEXT_AUDIENCE = "oidc-login";
+  public static final String CONSENT_CONTEXT_AUDIENCE = "oidc-consent";
+  public static final String PATH_CONSENT = "/oauth2/consent";
+  private static final String DECISION_ALLOW = "allow";
+  private static final String DECISION_DENY = "deny";
   private static final int LOGIN_CONTEXT_TTL_SEC = 600;
   private static final String CSRF_COOKIE = "mtac_oidc_csrf";
   private static final String MFA_COOKIE = "mtac_oidc_mfa";
   private static final int MFA_COOKIE_TTL_SEC = 300;
   private static final String EXPIRED_REQUEST = "This sign-in request has expired. Go back to the application and try again.";
+  private static final String STEP_UP_OTHER_USER = "Only the account that is signed in can confirm this request. "
+      + "Go back to the application and try again.";
+  /** Claims of a step-up login context: the SSO session to re-authenticate and its subject. */
+  private static final String STEP_UP_SESSION_CLAIM = "su_sid";
+  private static final String STEP_UP_SUBJECT_CLAIM = "su_sub";
 
   private final OidcAuthorizationService authorizationService;
   private final OidcSessionService sessionService;
@@ -77,12 +113,14 @@ public class OidcEndpoints {
   private final LoginAttemptService loginAttemptService;
   private final JwtTokenService tokenService;
   private final MtacProperties mtacProperties;
+  private final OidcConsentService consentService;
   private OpenIdService openIdService;
   private MfaService mfaService;
+  private OidcRegistrationEndpoint registrationEndpoint;
 
   public OidcEndpoints(OidcAuthorizationService authorizationService, OidcSessionService sessionService,
       OidcClientRegistry clientRegistry, OidcPageRenderer pageRenderer, LoginAttemptService loginAttemptService,
-      JwtTokenService tokenService, MtacProperties mtacProperties) {
+      JwtTokenService tokenService, MtacProperties mtacProperties, OidcConsentService consentService) {
     this.authorizationService = authorizationService;
     this.sessionService = sessionService;
     this.clientRegistry = clientRegistry;
@@ -90,6 +128,7 @@ public class OidcEndpoints {
     this.loginAttemptService = loginAttemptService;
     this.tokenService = tokenService;
     this.mtacProperties = mtacProperties;
+    this.consentService = consentService;
   }
 
   @Autowired
@@ -100,6 +139,12 @@ public class OidcEndpoints {
   @Autowired
   public void setMfaService(MfaService mfaService) {
     this.mfaService = mfaService;
+  }
+
+  /** Dynamic Client Registration (RFC 7591); the endpoint itself answers 404 unless enabled. */
+  @Autowired(required = false)
+  public void setRegistrationEndpoint(OidcRegistrationEndpoint registrationEndpoint) {
+    this.registrationEndpoint = registrationEndpoint;
   }
 
   public boolean isEnabled() {
@@ -143,6 +188,10 @@ public class OidcEndpoints {
             .consumes(form).build(),
         this, OidcEndpoints.class.getDeclaredMethod("mfa", MultiValueMap.class, HttpServletRequest.class));
 
+    handlerMapping.registerMapping(
+        RequestMappingInfo.paths(basePath + PATH_CONSENT).methods(RequestMethod.POST).consumes(form).build(),
+        this, OidcEndpoints.class.getDeclaredMethod("consent", MultiValueMap.class, HttpServletRequest.class));
+
     // more specific than the mapping of OpenIdController on the same path, which keeps the other grants
     handlerMapping.registerMapping(
         RequestMappingInfo.paths(basePath + OidcAuthorizationService.PATH_TOKEN).methods(RequestMethod.POST)
@@ -168,6 +217,15 @@ public class OidcEndpoints {
             .consumes(form).build(),
         this, OidcEndpoints.class.getDeclaredMethod("revoke", MultiValueMap.class, String.class,
             HttpServletRequest.class));
+
+    // JSON body read by the endpoint itself (size limit, content type and errors of RFC 7591)
+    if (registrationEndpoint != null) {
+      handlerMapping.registerMapping(
+          RequestMappingInfo.paths(basePath + OidcRegistrationEndpoint.PATH_REGISTER).methods(RequestMethod.POST)
+              .build(),
+          registrationEndpoint, OidcRegistrationEndpoint.class.getDeclaredMethod("register",
+              HttpServletRequest.class));
+    }
   }
 
   // ------------------------------------------------------------ discovery
@@ -199,33 +257,35 @@ public class OidcEndpoints {
     OidcAuthorizationRequest authorizationRequest;
     try {
       for (var name : query.keySet()) {
-        if (hasSeveralValues(query, name)) {
+        // several resource values are answered with invalid_target (RFC 8707) by the validation
+        if (!OidcAuthorizationService.PARAM_RESOURCE.equals(name) && hasSeveralValues(query, name)) {
           throw OidcException.invalidRequest("Duplicated parameter " + name);
         }
       }
-      authorizationRequest = authorizationService.validateAuthorizationRequest(client, params);
+      authorizationRequest = authorizationService.validateAuthorizationRequest(client, params,
+          query.get(OidcAuthorizationService.PARAM_RESOURCE));
     } catch (OidcException e) {
       return redirectError(redirectUri, e.getError(), e.getMessage(), state);
     }
 
-    // 3. a sufficient SSO session answers the request without interaction
+    // 3. a sufficient SSO session answers the request, after the consent of the user when needed
     var session = sessionService.resolve(cookieValue(request, sessionCookieName()));
     if (authorizationService.isSessionSufficient(authorizationRequest, client, session)) {
-      var response = new LinkedHashMap<String, String>();
-      response.put("code", authorizationService.issueCode(authorizationRequest, session));
-      response.put("state", state);
-      response.put("iss", authorizationService.getIssuer());
-      return redirect(OidcAuthorizationService.appendQuery(redirectUri, response), new HttpHeaders());
+      return grant(client, authorizationRequest, params, session, request);
     }
     if (authorizationRequest.getPrompt().contains(OidcAuthorizationService.PROMPT_NONE)) {
       return redirectError(redirectUri, "login_required", "The user is not signed in", state);
     }
 
     // 4. otherwise the user signs in, then comes back to this endpoint. prompt and max_age
-    // are satisfied by that fresh login and are dropped, or the request would loop.
+    // are satisfied by that fresh login and are dropped, or the request would loop;
+    // prompt=consent is kept, the consent page comes after the login.
     var resumeParams = new LinkedHashMap<>(params);
     resumeParams.remove("prompt");
     resumeParams.remove("max_age");
+    if (authorizationRequest.getPrompt().contains(OidcConsentService.PROMPT_CONSENT)) {
+      resumeParams.put("prompt", OidcConsentService.PROMPT_CONSENT);
+    }
     var context = new HashMap<String, Object>();
     context.put("aud", LOGIN_CONTEXT_AUDIENCE);
     context.put("cid", authorizationRequest.getClientId());
@@ -242,6 +302,15 @@ public class OidcEndpoints {
     if (context == null) {
       return errorPage(HttpStatus.BAD_REQUEST, EXPIRED_REQUEST);
     }
+    if (context.isStepUp()) {
+      // the username is the one of the session, it cannot be changed on the page
+      var session = stepUpSession(context, request);
+      var user = session != null ? sessionUser(session) : null;
+      if (user == null) {
+        return errorPage(HttpStatus.BAD_REQUEST, EXPIRED_REQUEST);
+      }
+      return renderLogin(context, request, HttpStatus.OK, user.getLabel(), null);
+    }
     return renderLogin(context, request, HttpStatus.OK, context.params().get("login_hint"), null);
   }
 
@@ -254,6 +323,20 @@ public class OidcEndpoints {
       return errorPage(HttpStatus.FORBIDDEN, EXPIRED_REQUEST);
     }
     var username = form.getFirst("username") != null ? form.getFirst("username").trim() : "";
+    OidcSession stepUpSession = null;
+    if (context.isStepUp()) {
+      stepUpSession = stepUpSession(context, request);
+      var sessionUser = stepUpSession != null ? sessionUser(stepUpSession) : null;
+      if (sessionUser == null || sessionUser.getLabel() == null) {
+        return errorPage(HttpStatus.BAD_REQUEST, EXPIRED_REQUEST);
+      }
+      if (!username.equalsIgnoreCase(sessionUser.getLabel())) {
+        log.warn("OIDC step-up refused: another username was posted for the session of identity {}",
+            stepUpSession.getIdentityId());
+        return errorPage(HttpStatus.FORBIDDEN, STEP_UP_OTHER_USER);
+      }
+      username = sessionUser.getLabel();
+    }
     var attemptKey = "login|" + username.toLowerCase() + "|" + clientAddress(request);
     if (loginAttemptService.isLocked(attemptKey)) {
       return renderLogin(context, request, HttpStatus.TOO_MANY_REQUESTS, username,
@@ -268,6 +351,9 @@ public class OidcEndpoints {
       return renderLogin(context, request, HttpStatus.UNAUTHORIZED, username, "Incorrect email or password.");
     }
     loginAttemptService.recordSuccess(attemptKey);
+    if (stepUpSession != null && !stepUpSession.getSub().equals(user.getUid())) {
+      return errorPage(HttpStatus.FORBIDDEN, STEP_UP_OTHER_USER);
+    }
 
     if (Boolean.TRUE.equals(user.getMfa())) {
       // second factor: the MFA token proves the password step, the session is opened only after the code
@@ -279,6 +365,9 @@ public class OidcEndpoints {
     if (context.client().isRequireMfa()) {
       return redirectError(context.params().get("redirect_uri"), "access_denied",
           "Multi-factor authentication is required for this application", context.params().get("state"));
+    }
+    if (stepUpSession != null) {
+      return completeStepUp(context, stepUpSession, List.of(OidcSessionService.AMR_PASSWORD));
     }
     return completeLogin(context, request, user, List.of(OidcSessionService.AMR_PASSWORD));
   }
@@ -295,6 +384,12 @@ public class OidcEndpoints {
     if (user == null) {
       return redirect(pageUrl(OidcAuthorizationService.PATH_LOGIN, context.token()), new HttpHeaders());
     }
+    if (context.isStepUp()) {
+      var refusal = checkStepUpUser(context, request, user);
+      if (refusal != null) {
+        return refusal;
+      }
+    }
     return renderMfa(context, request, HttpStatus.OK, user, null);
   }
 
@@ -310,12 +405,21 @@ public class OidcEndpoints {
     if (user == null) {
       return redirect(pageUrl(OidcAuthorizationService.PATH_LOGIN, context.token()), new HttpHeaders());
     }
+    OidcSession stepUpSession = null;
+    if (context.isStepUp()) {
+      var refusal = checkStepUpUser(context, request, user);
+      if (refusal != null) {
+        return refusal;
+      }
+      stepUpSession = stepUpSession(context, request);
+    }
     var attemptKey = "mfa|" + user.getUid();
     if (loginAttemptService.isLocked(attemptKey)) {
       return renderMfa(context, request, HttpStatus.TOO_MANY_REQUESTS, user,
           "Too many attempts. Try again in a few minutes.");
     }
     var code = form.getFirst("totp") != null ? form.getFirst("totp").replaceAll("\\s", "") : "";
+    var enrolling = !isEnrolled(user);
     try {
       mfaService.verifyCode(user, code);
     } catch (BadCredentialsException e) {
@@ -323,7 +427,19 @@ public class OidcEndpoints {
       return renderMfa(context, request, HttpStatus.UNAUTHORIZED, user, "Invalid verification code.");
     }
     loginAttemptService.recordSuccess(attemptKey);
-    return completeLogin(context, request, user, List.of(OidcSessionService.AMR_PASSWORD, OidcSessionService.AMR_OTP));
+    var amr = List.of(OidcSessionService.AMR_PASSWORD, OidcSessionService.AMR_OTP);
+    if (stepUpSession != null) {
+      if (sessionService.getAlive(stepUpSession.getId()) == null) {
+        // the enrolment of the TOTP secret ended the sessions of the user (grant revocation). He
+        // proved the password and the code in this flow (see startStepUp): a new session, as at
+        // the login. Otherwise the session ended meanwhile: the authorization asks a login again.
+        return enrolling ? completeLogin(context, request, user, amr)
+            : redirect(authorizationService.url(OidcAuthorizationService.PATH_AUTHORIZE) + "?" + context.query(),
+                new HttpHeaders());
+      }
+      return completeStepUp(context, stepUpSession, amr);
+    }
+    return completeLogin(context, request, user, amr);
   }
 
   /** User who passed the password step, read from the MFA cookie; null if there is none. */
@@ -354,6 +470,291 @@ public class OidcEndpoints {
     return redirect(authorizationService.url(OidcAuthorizationService.PATH_AUTHORIZE) + "?" + context.query(), headers);
   }
 
+  // -------------------------------------------------------------- step-up
+
+  /**
+   * Sends the signed-in user to prove himself again before a new consent: the
+   * MFA page when he has MFA (the session stands for the password step), the
+   * login page with his username fixed otherwise. A user who still has to
+   * enrol his TOTP secret starts with the password: the enrolment ends his
+   * sessions (grant revocation), and the code alone must not open a new one.
+   */
+  private ResponseEntity<String> startStepUp(OidcAuthorizationRequest authorizationRequest, Map<String, String> params,
+      OidcSession session) {
+    var user = sessionUser(session);
+    if (user == null || !session.getSub().equals(user.getUid())) {
+      return errorPage(HttpStatus.BAD_REQUEST, EXPIRED_REQUEST);
+    }
+    var context = new HashMap<String, Object>();
+    context.put("aud", LOGIN_CONTEXT_AUDIENCE);
+    context.put("cid", authorizationRequest.getClientId());
+    context.put("q", OidcAuthorizationService.appendQuery("", params).substring(1));
+    context.put(STEP_UP_SESSION_CLAIM, session.getId());
+    context.put(STEP_UP_SUBJECT_CLAIM, session.getSub());
+    var loginContext = tokenService.newToken(context, LOGIN_CONTEXT_TTL_SEC);
+    if (Boolean.TRUE.equals(user.getMfa()) && isEnrolled(user)) {
+      var mfaToken = mfaService.generateMfaTokenResponse(user).getMfaToken();
+      var headers = new HttpHeaders();
+      headers.add(HttpHeaders.SET_COOKIE, cookie(MFA_COOKIE, mfaToken, MFA_COOKIE_TTL_SEC, "Strict"));
+      return redirect(pageUrl(OidcAuthorizationService.PATH_MFA, loginContext), headers);
+    }
+    return redirect(pageUrl(OidcAuthorizationService.PATH_LOGIN, loginContext), new HttpHeaders());
+  }
+
+  /**
+   * The SSO session a step-up context was issued for, when it is still the
+   * session of this browser and of the same user; null otherwise (ended,
+   * signed out, or another user signed in meanwhile).
+   */
+  private OidcSession stepUpSession(LoginContext context, HttpServletRequest request) {
+    var session = sessionService.resolve(cookieValue(request, sessionCookieName()));
+    if (session == null || !session.getId().equals(context.stepUpSessionId())
+        || !context.stepUpSubject().equals(session.getSub())) {
+      return null;
+    }
+    return session;
+  }
+
+  /** Refusal page when the user of the MFA step is not the user of the step-up session, else null. */
+  private ResponseEntity<String> checkStepUpUser(LoginContext context, HttpServletRequest request, User user) {
+    var session = stepUpSession(context, request);
+    if (session == null) {
+      return errorPage(HttpStatus.BAD_REQUEST, EXPIRED_REQUEST);
+    }
+    if (!session.getSub().equals(user.getUid())) {
+      log.warn("OIDC step-up refused: the MFA step of another user was used for the session of identity {}",
+          session.getIdentityId());
+      return errorPage(HttpStatus.FORBIDDEN, STEP_UP_OTHER_USER);
+    }
+    return null;
+  }
+
+  /** True when the user validated a code of his TOTP secret already. */
+  private static boolean isEnrolled(User user) {
+    return Boolean.TRUE.equals(user.getMfaActive()) && user.getTotpSecret() != null;
+  }
+
+  /** User of a session, or null when it cannot be read. */
+  private User sessionUser(OidcSession session) {
+    try {
+      return openIdService.getUserService().getByUidUnsecure(session.getSub());
+    } catch (RuntimeException e) {
+      log.warn("Cannot read the user of the OpenID session: {}", e.getMessage());
+      return null;
+    }
+  }
+
+  /**
+   * The step-up succeeded: the same session gets a new authentication time
+   * and methods (its cookie does not change), then the authorization request
+   * resumes and shows the consent page.
+   */
+  private ResponseEntity<String> completeStepUp(LoginContext context, OidcSession session, List<String> amr) {
+    sessionService.reauthenticate(session, amr);
+    log.info("OIDC step-up of identity {} before a consent for client {} ({})", session.getIdentityId(),
+        context.params().get("client_id"), String.join(" ", amr));
+    var headers = new HttpHeaders();
+    headers.add(HttpHeaders.SET_COOKIE, cookie(MFA_COOKIE, "", 0, "Strict"));
+    headers.add(HttpHeaders.SET_COOKIE, cookie(CSRF_COOKIE, "", 0, "Strict"));
+    return redirect(authorizationService.url(OidcAuthorizationService.PATH_AUTHORIZE) + "?" + context.query(), headers);
+  }
+
+  // -------------------------------------------------------------- consent
+
+  /**
+   * The user is signed in: issues the code, unless the client needs a consent
+   * the user has not given yet, in which case the consent page is shown.
+   */
+  private ResponseEntity<String> grant(MtacOidcClient client, OidcAuthorizationRequest authorizationRequest,
+      Map<String, String> params, OidcSession session, HttpServletRequest request) {
+    var redirectUri = authorizationRequest.getRedirectUri();
+    var state = authorizationRequest.getState();
+    if (!OidcConsentService.isTrusted(client)) {
+      if (isImpersonating(request)) {
+        return redirectError(redirectUri, "access_denied",
+            "An application cannot be authorized while impersonating a user", state);
+      }
+      if (consentService.isConsentRequired(client, authorizationRequest, session.getIdentityId())) {
+        var promptNone = authorizationRequest.getPrompt().contains(OidcAuthorizationService.PROMPT_NONE);
+        // a new access needs a recent authentication: an old SSO session alone is not enough
+        if (consentService.isStepUpRequired(session)) {
+          if (promptNone) {
+            return redirectError(redirectUri, "login_required",
+                "The user must confirm his identity to authorize this application", state);
+          }
+          return startStepUp(authorizationRequest, params, session);
+        }
+        if (promptNone) {
+          return redirectError(redirectUri, "consent_required", "The user has not authorized this application",
+              state);
+        }
+        return renderConsent(client, authorizationRequest, params, session, request);
+      }
+      consentService.recordUse(session.getIdentityId(), authorizationRequest.getClientId());
+    }
+    return codeRedirect(authorizationRequest, session, new HttpHeaders());
+  }
+
+  /** Answer of the consent page: allow records the consent and issues the code, deny returns access_denied. */
+  public ResponseEntity<String> consent(@RequestParam MultiValueMap<String, String> form, HttpServletRequest request) {
+    var context = readConsentContext(form.getFirst("ctx"));
+    if (context == null) {
+      return errorPage(HttpStatus.BAD_REQUEST, EXPIRED_REQUEST);
+    }
+    if (!isCsrfTokenValid(form, request)) {
+      return errorPage(HttpStatus.FORBIDDEN, EXPIRED_REQUEST);
+    }
+    var params = context.params();
+    var redirectUri = params.get("redirect_uri");
+    var state = params.get("state");
+
+    // the request is validated again: the client may have changed since the page was shown
+    MtacOidcClient client;
+    try {
+      client = authorizationService.validateClient(params.get("client_id"), redirectUri);
+    } catch (OidcException e) {
+      return errorPage(HttpStatus.BAD_REQUEST, e.getMessage());
+    }
+    OidcAuthorizationRequest authorizationRequest;
+    try {
+      authorizationRequest = authorizationService.validateAuthorizationRequest(client, params);
+    } catch (OidcException e) {
+      return redirectError(redirectUri, e.getError(), e.getMessage(), state);
+    }
+    // same browser session, same scopes as the ones the user saw
+    var session = sessionService.resolve(cookieValue(request, sessionCookieName()));
+    if (session == null || !session.getId().equals(context.sessionId())
+        || !OidcConsentRepository.joinScopes(authorizationRequest.getScopes()).equals(context.scopes())) {
+      return errorPage(HttpStatus.BAD_REQUEST, EXPIRED_REQUEST);
+    }
+
+    var headers = new HttpHeaders();
+    headers.add(HttpHeaders.SET_COOKIE, cookie(CSRF_COOKIE, "", 0, "Strict"));
+    if (isImpersonating(request)) {
+      return redirectError(redirectUri, "access_denied",
+          "An application cannot be authorized while impersonating a user", state, headers);
+    }
+    var decision = form.getFirst("decision");
+    if (DECISION_DENY.equals(decision)) {
+      return redirectError(redirectUri, "access_denied", "The user denied the request", state, headers);
+    }
+    if (!DECISION_ALLOW.equals(decision)) {
+      return errorPage(HttpStatus.BAD_REQUEST, EXPIRED_REQUEST);
+    }
+    consentService.recordApproval(session.getIdentityId(), authorizationRequest.getClientId(),
+        OidcConsentService.consentScopes(authorizationRequest));
+    return codeRedirect(authorizationRequest, session, headers);
+  }
+
+  /** Issues the authorization code and sends the browser back to the client. */
+  private ResponseEntity<String> codeRedirect(OidcAuthorizationRequest authorizationRequest, OidcSession session,
+      HttpHeaders headers) {
+    var response = new LinkedHashMap<String, String>();
+    response.put("code", authorizationService.issueCode(authorizationRequest, session));
+    response.put("state", authorizationRequest.getState());
+    response.put("iss", authorizationService.getIssuer());
+    return redirect(OidcAuthorizationService.appendQuery(authorizationRequest.getRedirectUri(), response), headers);
+  }
+
+  private ResponseEntity<String> renderConsent(MtacOidcClient client, OidcAuthorizationRequest authorizationRequest,
+      Map<String, String> params, OidcSession session, HttpServletRequest request) {
+    var scopes = OidcConsentRepository.joinScopes(authorizationRequest.getScopes());
+    var context = new HashMap<String, Object>();
+    context.put("aud", CONSENT_CONTEXT_AUDIENCE);
+    context.put("cid", authorizationRequest.getClientId());
+    context.put("q", OidcAuthorizationService.appendQuery("", params).substring(1));
+    context.put("sid", session.getId());
+    context.put("scp", scopes);
+    var consentContext = tokenService.newToken(context, LOGIN_CONTEXT_TTL_SEC);
+
+    var clientId = authorizationRequest.getClientId();
+    var model = new HashMap<String, String>();
+    model.put("action", authorizationService.url(PATH_CONSENT));
+    model.put("ctx", consentContext);
+    model.put("clientName", client.getName() != null && !client.getName().isBlank() ? client.getName() : clientId);
+    model.put("clientHost", OidcConsentService.clientHost(clientId, client, authorizationRequest.getRedirectUri()));
+    model.put("redirectHost", OidcConsentService.host(authorizationRequest.getRedirectUri()));
+    model.put("username", userLabel(session));
+    model.put("loopback", OidcConsentService.isLoopbackOnly(client) ? "true" : null);
+    model.put("resource", resourceLabel(authorizationRequest.getResource()));
+    var items = new ArrayList<Map<String, String>>();
+    for (var scope : OidcConsentRepository.splitScopes(scopes)) {
+      var item = new HashMap<String, String>();
+      item.put("name", scope);
+      item.put("label", consentService.scopeLabel(scope));
+      items.add(item);
+    }
+    return page("consent", model, Map.of("scopes", items), HttpStatus.OK, request, client, new HttpHeaders());
+  }
+
+  /** What the consent page shows of the user: the label (email) of the session's identity. */
+  private String userLabel(OidcSession session) {
+    try {
+      var user = openIdService.getUserService().getByUidUnsecure(session.getSub());
+      if (user != null && user.getLabel() != null) {
+        return user.getLabel();
+      }
+    } catch (RuntimeException e) {
+      log.warn("Cannot read the user of the OpenID session for the consent page: {}", e.getMessage());
+    }
+    return session.getSub();
+  }
+
+  /** URL of the audience asked through the resource parameter, or null. */
+  private String resourceLabel(String resource) {
+    if (resource == null || resource.isBlank()) {
+      return null;
+    }
+    var audiences = mtacProperties.getJwt().getAudiences();
+    var url = audiences != null ? audiences.get(resource) : null;
+    return url != null ? url : resource;
+  }
+
+  /**
+   * True while the browser holds an impersonation cookie of the Console. On a
+   * separate authentication host the Console cookies are not sent (host-only
+   * cookies): the check matters when the provider and the Console share a host.
+   */
+  private boolean isImpersonating(HttpServletRequest request) {
+    var iam = mtacProperties.getIam();
+    return isCookieSet(cookieValue(request, iam.getImpersonateTokenCookieName()))
+        || isCookieSet(cookieValue(request, iam.getImpersonateActiveCookieName()));
+  }
+
+  private static boolean isCookieSet(String value) {
+    return value != null && !value.isBlank() && !"deleted".equals(value);
+  }
+
+  private record ConsentContext(Map<String, String> params, String sessionId, String scopes) {
+  }
+
+  /** Context of the consent page, or null if it is missing, expired, tampered or of another kind. */
+  private ConsentContext readConsentContext(String token) {
+    if (token == null || token.isBlank()) {
+      return null;
+    }
+    try {
+      var claims = tokenService.verify(token);
+      if (!CONSENT_CONTEXT_AUDIENCE.equals(claims.getAudience())) {
+        return null;
+      }
+      var clientId = claims.get("cid", String.class);
+      var query = claims.get("q", String.class);
+      var sessionId = claims.get("sid", String.class);
+      var scopes = claims.get("scp", String.class);
+      if (clientId == null || query == null || sessionId == null || scopes == null) {
+        return null;
+      }
+      var params = parseQuery(query);
+      if (!clientId.equals(params.get("client_id"))) {
+        return null;
+      }
+      return new ConsentContext(params, sessionId, scopes);
+    } catch (Exception e) {
+      return null;
+    }
+  }
+
   // ---------------------------------------------------------------- token
 
   public ResponseEntity<?> token(@RequestParam MultiValueMap<String, String> form,
@@ -367,7 +768,8 @@ public class OidcEndpoints {
       }
       var client = clientCredentials(form.getFirst("client_id"), form.getFirst("client_secret"), authorization);
       return tokenResponse(authorizationService.exchangeCode(client[0], client[1], origin, form.getFirst("code"),
-          form.getFirst("redirect_uri"), form.getFirst("code_verifier")), origin);
+          form.getFirst("redirect_uri"), form.getFirst("code_verifier"),
+          form.get(OidcAuthorizationService.PARAM_RESOURCE)), origin);
     } catch (OidcException e) {
       return jsonError(e, origin);
     }
@@ -379,11 +781,15 @@ public class OidcEndpoints {
    */
   public ResponseEntity<?> refresh(String clientId, String clientSecret, String refreshToken) {
     var attributes = RequestContextHolder.getRequestAttributes();
-    var origin = attributes instanceof ServletRequestAttributes servletAttributes
-        ? servletAttributes.getRequest().getHeader("Origin")
+    var servletRequest = attributes instanceof ServletRequestAttributes servletAttributes
+        ? servletAttributes.getRequest()
+        : null;
+    var origin = servletRequest != null ? servletRequest.getHeader("Origin") : null;
+    var resources = servletRequest != null ? servletRequest.getParameterValues(OidcAuthorizationService.PARAM_RESOURCE)
         : null;
     try {
-      return tokenResponse(authorizationService.refresh(clientId, clientSecret, origin, refreshToken), origin);
+      return tokenResponse(authorizationService.refresh(clientId, clientSecret, origin, refreshToken,
+          resources != null ? List.of(resources) : null), origin);
     } catch (OidcException e) {
       return jsonError(e, origin);
     }
@@ -482,7 +888,12 @@ public class OidcEndpoints {
    * is signed in. It travels in a signed token: the pages never redirect to an
    * address taken from a plain parameter.
    */
-  private record LoginContext(String token, String query, Map<String, String> params, MtacOidcClient client) {
+  private record LoginContext(String token, String query, Map<String, String> params, MtacOidcClient client,
+      String stepUpSessionId, String stepUpSubject) {
+    /** True for the step-up of a signed-in user before a consent. */
+    boolean isStepUp() {
+      return stepUpSessionId != null;
+    }
   }
 
   private LoginContext readLoginContext(String token) {
@@ -499,18 +910,27 @@ public class OidcEndpoints {
       if (client == null || query == null) {
         return null;
       }
-      var params = new LinkedHashMap<String, String>();
-      for (var pair : query.split("&")) {
-        var separator = pair.indexOf('=');
-        if (separator > 0) {
-          params.put(URLDecoder.decode(pair.substring(0, separator), StandardCharsets.UTF_8),
-              URLDecoder.decode(pair.substring(separator + 1), StandardCharsets.UTF_8));
-        }
+      var stepUpSessionId = claims.get(STEP_UP_SESSION_CLAIM, String.class);
+      var stepUpSubject = claims.get(STEP_UP_SUBJECT_CLAIM, String.class);
+      if ((stepUpSessionId == null) != (stepUpSubject == null)) {
+        return null;
       }
-      return new LoginContext(token, query, params, client);
+      return new LoginContext(token, query, parseQuery(query), client, stepUpSessionId, stepUpSubject);
     } catch (Exception e) {
       return null;
     }
+  }
+
+  private static Map<String, String> parseQuery(String query) {
+    var params = new LinkedHashMap<String, String>();
+    for (var pair : query.split("&")) {
+      var separator = pair.indexOf('=');
+      if (separator > 0) {
+        params.put(URLDecoder.decode(pair.substring(0, separator), StandardCharsets.UTF_8),
+            URLDecoder.decode(pair.substring(separator + 1), StandardCharsets.UTF_8));
+      }
+    }
+    return params;
   }
 
   private String pageUrl(String path, String loginContext) {
@@ -524,7 +944,12 @@ public class OidcEndpoints {
     var model = new HashMap<String, String>();
     model.put("action", authorizationService.url(OidcAuthorizationService.PATH_LOGIN));
     model.put("ctx", context.token());
-    model.put("clientName", context.client().getName());
+    if (context.isStepUp()) {
+      // the page says why the user signs in again, and the username field is read-only
+      model.put("stepUpClient", clientLabel(context));
+    } else {
+      model.put("clientName", context.client().getName());
+    }
     model.put("username", username);
     model.put("error", error);
     return page("login", model, status, request, context.client(), new HttpHeaders());
@@ -536,6 +961,9 @@ public class OidcEndpoints {
     model.put("action", authorizationService.url(OidcAuthorizationService.PATH_MFA));
     model.put("ctx", context.token());
     model.put("clientName", context.client().getName());
+    if (context.isStepUp()) {
+      model.put("stepUpClient", clientLabel(context));
+    }
     model.put("username", user.getLabel());
     model.put("error", error);
     // a user who never validated a code has to enrol the secret first
@@ -545,6 +973,12 @@ public class OidcEndpoints {
       model.put("qrCode", TotpQrCode.dataUri(TotpQrCode.otpAuthUri(issuerName, user.getLabel(), user.getTotpSecret())));
     }
     return page("mfa", model, status, request, context.client(), new HttpHeaders());
+  }
+
+  /** Name of the client of a login context, its client_id when it has none. */
+  private static String clientLabel(LoginContext context) {
+    var name = context.client().getName();
+    return name != null && !name.isBlank() ? name : context.params().get("client_id");
   }
 
   private ResponseEntity<String> errorPage(HttpStatus status, String message) {
@@ -562,6 +996,12 @@ public class OidcEndpoints {
    */
   private ResponseEntity<String> page(String template, Map<String, String> model, HttpStatus status,
       HttpServletRequest request, MtacOidcClient client, HttpHeaders headers) {
+    return page(template, model, Map.of(), status, request, client, headers);
+  }
+
+  private ResponseEntity<String> page(String template, Map<String, String> model,
+      Map<String, List<Map<String, String>>> lists, HttpStatus status, HttpServletRequest request,
+      MtacOidcClient client, HttpHeaders headers) {
     var nonce = OidcCrypto.randomToken();
     model.put("nonce", nonce);
     if (request != null) {
@@ -588,7 +1028,7 @@ public class OidcEndpoints {
     headers.add("X-Frame-Options", "DENY");
     headers.add("X-Content-Type-Options", "nosniff");
     headers.add("Referrer-Policy", "no-referrer");
-    return ResponseEntity.status(status).headers(headers).body(pageRenderer.render(template, model));
+    return ResponseEntity.status(status).headers(headers).body(pageRenderer.render(template, model, lists));
   }
 
   private static Set<String> origins(MtacOidcClient client) {
@@ -598,6 +1038,13 @@ public class OidcEndpoints {
     for (var value : uris) {
       try {
         var uri = URI.create(value);
+        if (client.isLoopback() && OidcClientRegistry.parseLoopback(value) != null) {
+          // a loopback client is sent back on any port (RFC 8252)
+          if (!"[::1]".equals(uri.getHost())) {
+            result.add("http://" + uri.getHost() + ":*");
+          }
+          continue;
+        }
         if (uri.getScheme() != null && uri.getHost() != null) {
           result.add(uri.getScheme() + "://" + uri.getHost() + (uri.getPort() > 0 ? ":" + uri.getPort() : ""));
         }
@@ -620,12 +1067,17 @@ public class OidcEndpoints {
 
   /** Error returned to the client through its redirect URI, which is already validated. */
   private ResponseEntity<String> redirectError(String redirectUri, String error, String description, String state) {
+    return redirectError(redirectUri, error, description, state, new HttpHeaders());
+  }
+
+  private ResponseEntity<String> redirectError(String redirectUri, String error, String description, String state,
+      HttpHeaders headers) {
     var params = new LinkedHashMap<String, String>();
     params.put("error", error);
     params.put("error_description", description);
     params.put("state", state);
     params.put("iss", authorizationService.getIssuer());
-    return redirect(OidcAuthorizationService.appendQuery(redirectUri, params), new HttpHeaders());
+    return redirect(OidcAuthorizationService.appendQuery(redirectUri, params), headers);
   }
 
   private ResponseEntity<?> tokenResponse(Object body, String origin) {

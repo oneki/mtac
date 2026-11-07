@@ -1,7 +1,5 @@
 package net.oneki.mtac.core.service.openid;
 
-import java.util.UUID;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -10,6 +8,7 @@ import net.oneki.mtac.core.service.security.PermissionService;
 import net.oneki.mtac.framework.service.JwtTokenService;
 import net.oneki.mtac.model.core.openid.ImpersonateUserRequest;
 import net.oneki.mtac.model.core.openid.ImpersonateUserResponse;
+import net.oneki.mtac.model.core.openid.oidc.TokenAudience;
 import net.oneki.mtac.model.core.util.exception.ForbiddenException;
 import net.oneki.mtac.model.core.util.security.Claims;
 import net.oneki.mtac.model.core.util.security.SecurityContext;
@@ -36,13 +35,12 @@ public class ImpersonateService {
         throw new IllegalArgumentException("User not found: " + request.getUserUid());
       }
       var claims = new Claims();
-      claims.put("jti", UUID.randomUUID().toString());
-      var sub = Resource.toUid(user.getId());
-      claims.put("sub", sub);
-      claims.put("username", user.getLabel());
       claims.put("imp", true);
       claims.put("onbehalf", securityContext.getUsername());
-      var accessToken = getTokenService().newToken(claims, 3600); // 1 hour expiration
+      var sub = Resource.toUid(user.getId());
+      // impersonation happens in the Console only: console audience, 1 hour expiration
+      var accessToken = getTokenService().generateAccessToken(sub, user.getLabel(), 3600, claims,
+          TokenAudience.CONSOLE);
       return ImpersonateUserResponse.builder()
           .accessToken(accessToken)
           .originalAccessToken(securityContext.getJwtToken())

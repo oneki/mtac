@@ -9,6 +9,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationManagerResolver;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.core.AuthenticationException;
@@ -30,6 +31,7 @@ import net.oneki.mtac.core.service.openid.OpenIdService;
 import net.oneki.mtac.framework.cache.TokenRegistry;
 import net.oneki.mtac.framework.repository.TokenRepository;
 import net.oneki.mtac.model.core.config.MtacProperties;
+import net.oneki.mtac.model.core.openid.oidc.TokenAudience;
 import net.oneki.mtac.model.core.util.json.JsonUtil;
 import net.oneki.mtac.model.core.util.security.DefaultJwtAuthoritiesExtractor;
 import net.oneki.mtac.model.core.util.security.DefaultJwtAuthoritiesExtractor.AuthorityKey;
@@ -62,6 +64,8 @@ public abstract class BaseResourceServerConfig {
     protected TokenRegistry tokenRegistry;
     @Autowired
     protected TokenRepository tokenRepository;
+    @Autowired
+    protected MtacProperties mtacProperties;
 
     @Bean
     public BearerTokenResolver bearerTokenResolver(MtacProperties mtacProperties) {
@@ -115,11 +119,10 @@ public abstract class BaseResourceServerConfig {
 
     protected void resourceServer(final HttpSecurity http, 
             BearerTokenResolver bearerTokenResolver) throws Exception {
+        // one authentication manager per audience, chosen from the request path
         http.oauth2ResourceServer(o -> {
             o.bearerTokenResolver(bearerTokenResolver);
-            o.jwt(j -> {
-                j.authenticationManager(getAuthenticationManager());
-            });
+            o.authenticationManagerResolver(getAuthenticationManagerResolver());
         });
         // http.oauth2ResourceServer()
         // .jwt()
@@ -241,8 +244,27 @@ public abstract class BaseResourceServerConfig {
                 new AuthorityKey("groups", true));
     }
 
+    /** Request path -> audience -> authentication manager (see {@link AudienceAuthenticationManagerResolver}). */
+    protected AuthenticationManagerResolver<HttpServletRequest> getAuthenticationManagerResolver() {
+        return new AudienceAuthenticationManagerResolver(this::getAuthenticationManager);
+    }
+
+    /** Authentication manager of the console audience. */
     protected AuthenticationManager getAuthenticationManager() {
-        return new JwtAuthenticationManager(getJwtAuthoritiesExtractor(), jwtDecoder, tokenRegistry, tokenRepository, getOpenIdService());
+        return getAuthenticationManager(TokenAudience.CONSOLE);
+    }
+
+    /**
+     * The {@code jwtDecoder} bean must accept the header {@code typ: at+jwt} of the
+     * access tokens, which the default validator of Spring Security 7 refuses: see
+     * {@link JwtAuthenticationManager#accessTokenValidator()}.
+     *
+     * @param requiredAudience key of the audience the path requires (see
+     *                         {@link TokenAudience})
+     */
+    protected AuthenticationManager getAuthenticationManager(String requiredAudience) {
+        return new JwtAuthenticationManager(getJwtAuthoritiesExtractor(), jwtDecoder, tokenRegistry, tokenRepository,
+                getOpenIdService(), requiredAudience, mtacProperties);
     }
 
     protected List<RequestMatcher> getPublicMatchers() {

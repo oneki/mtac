@@ -20,4 +20,6 @@ public class OidcRefreshToken {
   private Instant expiresAt;
   private Instant rotatedAt; // set when the token was exchanged for its successor
   private Instant revokedAt;
+  private String resource; // audience key of the family (RFC 8707), null = identity only
+  private Instant familyStartedAt; // first token of the family, bounds it with the client's sessionMaxDays
 }

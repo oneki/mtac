@@ -1,15 +1,20 @@
 package net.oneki.mtac.resource.iam.identity.user;
 
+import java.text.ParseException;
 import java.time.Instant;
 import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.nimbusds.jwt.SignedJWT;
 
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.oneki.mtac.core.service.openid.oidc.OidcGrantRevocation;
 import net.oneki.mtac.framework.cache.TokenRegistry;
 import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.framework.repository.TokenRepository;
@@ -47,6 +52,7 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
   protected TokenRepository tokenRepository;
   protected MtacProperties mtacProperties;
   protected DefaultTenantService tenantService;
+  protected OidcGrantRevocation grantRevocation;
 
   @Value("${mtac.iam.tenants-in-idtoken.enabled:false}")
   private boolean storeTenantsInIdToken;
@@ -101,6 +107,11 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
   @Autowired
   public void setTenantService(DefaultTenantService defaultTenantService) {
     this.tenantService = defaultTenantService;
+  }
+
+  @Autowired
+  public void setGrantRevocation(OidcGrantRevocation grantRevocation) {
+    this.grantRevocation = grantRevocation;
   }
 
   @Value("${jwt.expiration-sec:86400}")
@@ -306,16 +317,67 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
 
   }
 
+  /**
+   * Updates a user. A new password or a change of the MFA requirement revokes
+   * every delegated access of the user ({@link OidcGrantRevocation}) in the same
+   * transaction: if the revocation fails, the update is rolled back. The user who
+   * changes his own password keeps his Console session; any other change
+   * (password set by somebody else, MFA turned on or off) invalidates it too.
+   */
+  @Transactional
   public UpsertResponse<E> update(String urn, U request) {
     var userEntity = toUpdateEntity(urn, request);
-    if (request.getPassword() != null) {
+    var passwordChanged = request.getPassword() != null;
+    if (passwordChanged) {
       userEntity.setPassword(PasswordUtil.hash(request.getPassword()));
     }
+    // toUpdateEntity already merged the request: read the stored value
+    var mfaChanged = request.getMfa() != null
+        && Boolean.TRUE.equals(getByUidUnsecure(urn).getMfa()) != Boolean.TRUE.equals(request.getMfa());
     resourceRepository.update(userEntity);
+    if (mfaChanged) {
+      requireGrantRevocation().revokeAll(userEntity, OidcGrantRevocation.REASON_MFA_CHANGED, false);
+    } else if (passwordChanged) {
+      var self = isCurrentUser(userEntity);
+      requireGrantRevocation().revokeAll(userEntity,
+          self ? OidcGrantRevocation.REASON_PASSWORD_CHANGED : OidcGrantRevocation.REASON_PASSWORD_SET_BY_ADMIN,
+          self);
+    }
     return UpsertResponse.<E>builder()
         .status(UpsertResponse.Status.Success)
         .resource(userEntity)
         .build();
+  }
+
+  /**
+   * True when the caller is the user himself, not an administrator impersonating
+   * him. The {@code imp} claim of an impersonation token is not copied into the
+   * principal attributes (userinfo claims only), so it is read from the bearer
+   * token, already verified by the resource server. When in doubt: false.
+   */
+  protected boolean isCurrentUser(User user) {
+    if (securityContext == null || user.getUid() == null || !user.getUid().equals(securityContext.getSubject())) {
+      return false;
+    }
+    if (securityContext.getAttributes().containsKey("imp")) {
+      return false;
+    }
+    var token = securityContext.getJwtToken();
+    if (token == null) {
+      return false;
+    }
+    try {
+      return SignedJWT.parse(token).getJWTClaimsSet().getClaim("imp") == null;
+    } catch (ParseException e) {
+      return false;
+    }
+  }
+
+  protected OidcGrantRevocation requireGrantRevocation() {
+    if (grantRevocation == null) {
+      throw new IllegalStateException("OidcGrantRevocation is not configured: credentials cannot change");
+    }
+    return grantRevocation;
   }
 
   public Set<Integer> listGroupSids(@NonNull Resource user) {

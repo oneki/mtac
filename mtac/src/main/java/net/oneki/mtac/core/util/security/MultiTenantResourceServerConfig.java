@@ -12,6 +12,9 @@ import org.springframework.security.authentication.AuthenticationManagerResolver
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.server.resource.InvalidBearerTokenException;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 import net.oneki.mtac.core.service.openid.OpenIdService;
 import net.oneki.mtac.core.util.security.JwtIssuerAuthenticationManagerResolver.JwtClaimIssuerConverter;
@@ -19,6 +22,8 @@ import net.oneki.mtac.framework.cache.TokenRegistry;
 import net.oneki.mtac.framework.config.IssuerConfig.IssuersProperties;
 import net.oneki.mtac.framework.config.IssuerConfig.IssuersProperties.IssuerProperties;
 import net.oneki.mtac.framework.repository.TokenRepository;
+import net.oneki.mtac.model.core.config.MtacProperties;
+import net.oneki.mtac.model.core.openid.oidc.TokenAudience;
 import net.oneki.mtac.model.core.util.security.JwtAuthoritiesExtractor;
 
 public abstract class MultiTenantResourceServerConfig extends BaseResourceServerConfig {
@@ -33,11 +38,19 @@ public abstract class MultiTenantResourceServerConfig extends BaseResourceServer
             BearerTokenResolver bearerTokenResolver) throws Exception {
         var trustedIssuerJwtAuthenticationManagerResolver = new TrustedIssuerJwtAuthenticationManagerResolver(
                 issuersProperties, getJwtAuthoritiesExtractor(),
-                appContext, tokenRegistry, tokenRepository, getOpenIdService());
+                appContext, tokenRegistry, tokenRepository, getOpenIdService(), mtacProperties);
         var issuerConverter = new JwtClaimIssuerConverter(bearerTokenResolver);
 
-        JwtIssuerAuthenticationManagerResolver resolver = new JwtIssuerAuthenticationManagerResolver(
-                trustedIssuerJwtAuthenticationManagerResolver, issuerConverter);
+        // manager chosen by the issuer of the token and by the audience the request path requires
+        AuthenticationManagerResolver<HttpServletRequest> resolver = request -> {
+            var issuer = issuerConverter.convert(request);
+            var audience = AudienceAuthenticationManagerResolver.audienceOf(request);
+            var authenticationManager = trustedIssuerJwtAuthenticationManagerResolver.resolve(issuer, audience);
+            if (authenticationManager == null) {
+                throw new InvalidBearerTokenException("Invalid issuer");
+            }
+            return authenticationManager;
+        };
         http.oauth2ResourceServer(o -> {
             o.bearerTokenResolver(bearerTokenResolver);
             o.authenticationManagerResolver(resolver);
@@ -52,17 +65,28 @@ public abstract class MultiTenantResourceServerConfig extends BaseResourceServer
             implements AuthenticationManagerResolver<String> {
 
         private final Map<String, AuthenticationManager> authenticationManagers = new ConcurrentHashMap<>();
+        private final Map<String, JwtDecoder> jwtDecoders = new ConcurrentHashMap<>();
         private final Map<String, IssuerProperties> trustedIssuers;
         private final JwtAuthoritiesExtractor jwtAuthoritiesExtractor;
         private final ApplicationContext appContext;
         private final TokenRegistry tokenRegistry;
         private final TokenRepository tokenRepository;
         private final OpenIdService openIdService;
+        private final MtacProperties mtacProperties; // null = no audience check (former behaviour)
 
         public TrustedIssuerJwtAuthenticationManagerResolver(IssuersProperties issuersProperties,
                 JwtAuthoritiesExtractor jwtAuthoritiesExtractor, ApplicationContext appContext,
                 TokenRegistry tokenRegistry, TokenRepository tokenRepository,
                 OpenIdService openIdService) {
+            this(issuersProperties, jwtAuthoritiesExtractor, appContext, tokenRegistry, tokenRepository, openIdService,
+                    null);
+        }
+
+        public TrustedIssuerJwtAuthenticationManagerResolver(IssuersProperties issuersProperties,
+                JwtAuthoritiesExtractor jwtAuthoritiesExtractor, ApplicationContext appContext,
+                TokenRegistry tokenRegistry, TokenRepository tokenRepository,
+                OpenIdService openIdService, MtacProperties mtacProperties) {
+            this.mtacProperties = mtacProperties;
             this.tokenRegistry = tokenRegistry;
             this.tokenRepository = tokenRepository;
             this.openIdService = openIdService;
@@ -79,22 +103,38 @@ public abstract class MultiTenantResourceServerConfig extends BaseResourceServer
             this.appContext = appContext;
         }
 
+        /** Manager of an issuer for the console audience. */
         @Override
         public AuthenticationManager resolve(String issuer) {
+            return resolve(issuer, TokenAudience.CONSOLE);
+        }
+
+        /**
+         * @param audience key of the audience the request path requires (see
+         *                 {@link TokenAudience})
+         * @return null when the issuer is not trusted
+         */
+        public AuthenticationManager resolve(String issuer, String audience) {
             IssuerProperties trustedIssuer = this.trustedIssuers.get(issuer);
             if (this.trustedIssuers.containsKey(issuer) && trustedIssuer != null) {
-                JwtDecoder jwtDecoder;
-                if (trustedIssuer != null && StringUtils.isNotBlank(trustedIssuer.getDecoderUri())) {
-                    // Get the bean extending JwtDecoder to use
-                    jwtDecoder = (JwtDecoder) appContext.getBean(trustedIssuer.getJwtDecoderBean());
-                } else {
-                    jwtDecoder = NimbusJwtDecoder.withJwkSetUri(trustedIssuer.getJwkSetUri()).build();
-                }
-                return this.authenticationManagers.computeIfAbsent(issuer,
-                        k -> new JwtAuthenticationManager(jwtAuthoritiesExtractor, jwtDecoder, tokenRegistry,
-                                tokenRepository, openIdService));
+                // one decoder per issuer (it caches the JWKS), one manager per issuer and audience
+                var jwtDecoder = this.jwtDecoders.computeIfAbsent(issuer, k -> jwtDecoder(trustedIssuer));
+                return this.authenticationManagers.computeIfAbsent(issuer + " " + audience,
+                        k -> new JwtAuthenticationManager(jwtAuthoritiesExtractor, jwtDecoder,
+                                tokenRegistry, tokenRepository, openIdService, audience, mtacProperties));
             }
             return null;
+        }
+
+        private JwtDecoder jwtDecoder(IssuerProperties trustedIssuer) {
+            if (StringUtils.isNotBlank(trustedIssuer.getDecoderUri())) {
+                // Get the bean extending JwtDecoder to use; it must accept the typ at+jwt itself
+                // (see JwtAuthenticationManager.accessTokenValidator)
+                return (JwtDecoder) appContext.getBean(trustedIssuer.getJwtDecoderBean());
+            }
+            var jwtDecoder = NimbusJwtDecoder.withJwkSetUri(trustedIssuer.getJwkSetUri()).build();
+            jwtDecoder.setJwtValidator(JwtAuthenticationManager.accessTokenValidator());
+            return jwtDecoder;
         }
     }
 

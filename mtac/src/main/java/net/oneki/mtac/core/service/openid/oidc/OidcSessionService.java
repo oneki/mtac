@@ -77,6 +77,20 @@ public class OidcSessionService {
     session.setLastSeenAt(now);
   }
 
+  /**
+   * The user of the session proved himself again (step-up before a new
+   * consent): the authentication time and methods of the same session are
+   * updated. The session keeps its id, hence its cookie, codes and refresh
+   * tokens; its absolute lifetime does not start again.
+   */
+  public void reauthenticate(OidcSession session, List<String> amr) {
+    var now = Instant.now();
+    oidcRepository.updateSessionAuthentication(session.getId(), now, amr);
+    session.setAuthTime(now);
+    session.setAmr(amr);
+    session.setLastSeenAt(now);
+  }
+
   /** Ends the session of the browser, and with it its codes and refresh tokens. */
   public void end(String cookieValue) {
     if (cookieValue != null && !cookieValue.isBlank()) {

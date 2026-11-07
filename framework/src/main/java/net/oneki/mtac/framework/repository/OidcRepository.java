@@ -5,6 +5,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 
@@ -72,10 +73,35 @@ public class OidcRepository extends AbstractRepository {
     jdbcTemplate.update(SQL_DELETE_SESSION, params);
   }
 
+  private static final String SQL_UPDATE_SESSION_AUTHENTICATION = "UPDATE oidc_session SET auth_time = :auth_time, amr = :amr, last_seen_at = :auth_time WHERE id = :id";
+
+  /** The user proved himself again in this session (step-up): new authentication time and methods. */
+  public void updateSessionAuthentication(String id, Instant authTime, Collection<String> amr) {
+    var params = new HashMap<String, Object>();
+    params.put("id", id);
+    params.put("auth_time", Timestamp.from(authTime));
+    params.put("amr", String.join(" ", amr));
+    jdbcTemplate.update(SQL_UPDATE_SESSION_AUTHENTICATION, params);
+  }
+
+  private static final String SQL_DELETE_SESSIONS_OF_IDENTITY = "DELETE FROM oidc_session WHERE identity_id = :identity_id";
+
+  /**
+   * Ends every SSO session of an identity. The authorization codes and refresh
+   * tokens of these sessions go with them (ON DELETE CASCADE).
+   *
+   * @return the number of sessions deleted
+   */
+  public int deleteSessionsOfIdentity(Integer identityId) {
+    var params = new HashMap<String, Object>();
+    params.put("identity_id", identityId);
+    return jdbcTemplate.update(SQL_DELETE_SESSIONS_OF_IDENTITY, params);
+  }
+
   // ---------------------------------------------------- authorization codes
 
-  private static final String SQL_INSERT_CODE = "INSERT INTO oidc_authorization_code (code_hash, client_id, session_id, redirect_uri, scope, nonce, code_challenge, expires_at) "
-      + "VALUES (:code_hash, :client_id, :session_id, :redirect_uri, :scope, :nonce, :code_challenge, :expires_at)";
+  private static final String SQL_INSERT_CODE = "INSERT INTO oidc_authorization_code (code_hash, client_id, session_id, redirect_uri, scope, nonce, code_challenge, expires_at, resource) "
+      + "VALUES (:code_hash, :client_id, :session_id, :redirect_uri, :scope, :nonce, :code_challenge, :expires_at, :resource)";
 
   public void insertAuthorizationCode(OidcAuthorizationCode code) {
     var params = new HashMap<String, Object>();
@@ -87,6 +113,7 @@ public class OidcRepository extends AbstractRepository {
     params.put("nonce", code.getNonce());
     params.put("code_challenge", code.getCodeChallenge());
     params.put("expires_at", Timestamp.from(code.getExpiresAt()));
+    params.put("resource", code.getResource());
     jdbcTemplate.update(SQL_INSERT_CODE, params);
   }
 
@@ -105,6 +132,7 @@ public class OidcRepository extends AbstractRepository {
         .codeChallenge(rs.getString("code_challenge"))
         .expiresAt(instant(rs, "expires_at"))
         .consumedAt(instant(rs, "consumed_at"))
+        .resource(rs.getString("resource"))
         .build()));
   }
 
@@ -125,8 +153,8 @@ public class OidcRepository extends AbstractRepository {
 
   // --------------------------------------------------------- refresh tokens
 
-  private static final String SQL_INSERT_REFRESH_TOKEN = "INSERT INTO oidc_refresh_token (token_hash, family_id, client_id, session_id, scope, expires_at) "
-      + "VALUES (:token_hash, :family_id, :client_id, :session_id, :scope, :expires_at)";
+  private static final String SQL_INSERT_REFRESH_TOKEN = "INSERT INTO oidc_refresh_token (token_hash, family_id, client_id, session_id, scope, expires_at, resource, family_started_at) "
+      + "VALUES (:token_hash, :family_id, :client_id, :session_id, :scope, :expires_at, :resource, :family_started_at)";
 
   public void insertRefreshToken(OidcRefreshToken token) {
     var params = new HashMap<String, Object>();
@@ -136,6 +164,8 @@ public class OidcRepository extends AbstractRepository {
     params.put("session_id", token.getSessionId());
     params.put("scope", token.getScope());
     params.put("expires_at", Timestamp.from(token.getExpiresAt()));
+    params.put("resource", token.getResource());
+    params.put("family_started_at", token.getFamilyStartedAt() != null ? Timestamp.from(token.getFamilyStartedAt()) : null);
     jdbcTemplate.update(SQL_INSERT_REFRESH_TOKEN, params);
   }
 
@@ -153,6 +183,8 @@ public class OidcRepository extends AbstractRepository {
         .expiresAt(instant(rs, "expires_at"))
         .rotatedAt(instant(rs, "rotated_at"))
         .revokedAt(instant(rs, "revoked_at"))
+        .resource(rs.getString("resource"))
+        .familyStartedAt(instant(rs, "family_started_at"))
         .build()));
   }
 
@@ -179,6 +211,38 @@ public class OidcRepository extends AbstractRepository {
     params.put("family_id", familyId);
     params.put("now", Timestamp.from(now));
     jdbcTemplate.update(SQL_REVOKE_REFRESH_TOKEN_FAMILY, params);
+  }
+
+  // ------------------------------------------------------ client revocation
+
+  private static final String SQL_REVOKE_REFRESH_TOKENS_OF_CLIENT = "UPDATE oidc_refresh_token SET revoked_at = :now "
+      + "WHERE client_id = :client_id AND revoked_at IS NULL";
+
+  /**
+   * Revokes every refresh token of a client (client deleted, or its redirect URIs
+   * changed).
+   *
+   * @return the number of tokens revoked
+   */
+  public int revokeRefreshTokensOfClient(String clientId, Instant now) {
+    var params = new HashMap<String, Object>();
+    params.put("client_id", clientId);
+    params.put("now", Timestamp.from(now));
+    return jdbcTemplate.update(SQL_REVOKE_REFRESH_TOKENS_OF_CLIENT, params);
+  }
+
+  private static final String SQL_DELETE_UNUSED_CODES_OF_CLIENT = "DELETE FROM oidc_authorization_code "
+      + "WHERE client_id = :client_id AND consumed_at IS NULL";
+
+  /**
+   * Deletes the authorization codes of a client that were not exchanged yet.
+   * Used codes are kept: presenting one again must still be detected as a
+   * replay.
+   */
+  public int deleteUnusedAuthorizationCodesOfClient(String clientId) {
+    var params = new HashMap<String, Object>();
+    params.put("client_id", clientId);
+    return jdbcTemplate.update(SQL_DELETE_UNUSED_CODES_OF_CLIENT, params);
   }
 
   // ---------------------------------------------------------------- cleanup

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Authorize application</title>
+  <style nonce="{{nonce}}">
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: #f3f4f6; color: #111827; }
+    main { max-width: 26rem; margin: 10vh auto; padding: 2rem; background: #fff; border-radius: .5rem; box-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
+    h1 { margin: 0 0 .25rem; font-size: 1.25rem; }
+    p { margin: .5rem 0; color: #4b5563; font-size: .9rem; line-height: 1.4; }
+    ul { margin: .5rem 0 0; padding-left: 1.25rem; font-size: .9rem; line-height: 1.5; }
+    li code { color: #6b7280; font-size: .8rem; }
+    button { width: 100%; margin-top: 1rem; padding: .7rem; font-size: 1rem; font-weight: 600; color: #fff; background: #1d4ed8; border: 0; border-radius: .375rem; cursor: pointer; }
+    button.secondary { color: #111827; background: #e5e7eb; }
+    .host { font-weight: 600; color: #111827; word-break: break-all; }
+    .warning { margin-top: 1rem; padding: .6rem; color: #92400e; background: #fef3c7; border-radius: .375rem; font-size: .9rem; }
+    code { word-break: break-all; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>{{clientName}} wants to access your account</h1>
+    <p>Application: <span class="host">{{clientName}}</span>{{#clientHost}} (<span class="host">{{clientHost}}</span>){{/clientHost}}</p>
+    <p>Signed in as <span class="host">{{username}}</span></p>
+    {{#loopback}}<div class="warning" role="alert">This is an application installed on this computer. Allow it only if you started it yourself.</div>{{/loopback}}
+    <p>It will be able to:</p>
+    <ul>
+      {{*scopes}}<li>{{label}} <code>{{name}}</code></li>{{/scopes}}
+    </ul>
+    {{#resource}}<p>Access to: <span class="host">{{resource}}</span></p>{{/resource}}
+    <p>After your decision you will be sent to <span class="host">{{redirectHost}}</span>.</p>
+    <form method="post" action="{{action}}">
+      <input type="hidden" name="ctx" value="{{ctx}}">
+      <input type="hidden" name="csrf" value="{{csrf}}">
+      <button type="submit" name="decision" value="allow">Allow</button>
+      <button type="submit" name="decision" value="deny" class="secondary">Deny</button>
+    </form>
+  </main>
+</body>
+</html>

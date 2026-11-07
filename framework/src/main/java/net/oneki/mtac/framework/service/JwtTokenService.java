@@ -33,6 +33,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.oneki.mtac.framework.util.security.PasswordUtil;
 import net.oneki.mtac.model.core.config.MtacProperties;
+import net.oneki.mtac.model.core.openid.oidc.TokenAudience;
 import net.oneki.mtac.model.core.util.exception.UnexpectedException;
 import net.oneki.mtac.model.core.util.security.Claims;
 
@@ -48,15 +49,45 @@ public class JwtTokenService implements Clock {
 	private JWK jwk;
 
 	// Access token
+	/**
+	 * Access token without audience: the former MTAC behaviour, kept for the
+	 * applications that configure no {@code mtac.jwt.audiences}. Prefer the
+	 * variants taking an audience key.
+	 */
 	public String generateAccessToken(String sub) {
 		return generateAccessToken(sub, null);
 	}
 
+	/** See {@link #generateAccessToken(String)}: no audience. */
 	public String generateAccessToken(String sub, String username) {
 		return generateAccessToken(sub, username, null, null);
 	}
 
+	/** See {@link #generateAccessToken(String)}: no audience. */
 	public String generateAccessToken(String sub, String username, Integer expirationSec, Map<String, Object> additionalClaims) {
+		return accessToken(sub, username, expirationSec, additionalClaims, null);
+	}
+
+	/**
+	 * Access token for one audience.
+	 *
+	 * @param audience key of {@code mtac.jwt.audiences} (see
+	 *                 {@link net.oneki.mtac.model.core.openid.oidc.TokenAudience}),
+	 *                 written in the aud claim as its configured URL. Ignored while
+	 *                 no audience is configured (former MTAC behaviour); otherwise
+	 *                 an unknown key is an {@link IllegalArgumentException}.
+	 */
+	public String generateAccessToken(String sub, String username, String audience) {
+		return generateAccessToken(sub, username, null, null, audience);
+	}
+
+	public String generateAccessToken(String sub, String username, Integer expirationSec, Map<String, Object> additionalClaims,
+			String audience) {
+		return accessToken(sub, username, expirationSec, additionalClaims, audienceUrl(audience));
+	}
+
+	private String accessToken(String sub, String username, Integer expirationSec, Map<String, Object> additionalClaims,
+			String audienceUrl) {
 		if (expirationSec == null) {
 			expirationSec = mtacProperties.getJwt().getExpirationSec();
 		}
@@ -69,7 +100,41 @@ public class JwtTokenService implements Clock {
 		if (additionalClaims != null) {
 			claims.putAll(additionalClaims);
 		}
-		return newToken(claims, expirationSec);
+		if (audienceUrl != null) {
+			claims.put("aud", audienceUrl);
+		}
+		return newAccessToken(claims, expirationSec);
+	}
+
+	/**
+	 * URL of an audience key, or null when no audience is configured.
+	 *
+	 * @throws IllegalArgumentException if audiences are configured and the key is
+	 *                                  missing or not one of them
+	 */
+	public String audienceUrl(String audience) {
+		var audiences = new TokenAudiences(mtacProperties);
+		if (!audiences.isConfigured()) {
+			return null;
+		}
+		var url = audience != null ? audiences.url(audience) : null;
+		if (url == null) {
+			throw new IllegalArgumentException("Unknown access token audience: " + audience
+					+ " (expected a key of mtac.jwt.audiences)");
+		}
+		return url;
+	}
+
+	/**
+	 * Signs an access token: same as {@link #newToken(Map, int)} plus the JOSE
+	 * header {@code typ: at+jwt} (RFC 9068), which no other token signed with
+	 * this key carries (ID, MFA, trusted device, reset link, login context).
+	 */
+	public String newAccessToken(final Map<String, Object> attributes, final int expiresInSec) {
+		// without configured audiences MTAC keeps its former tokens: a decoder still on the Spring Security default
+		// validator refuses the at+jwt type
+		var typ = mtacProperties.getJwt().getAudiences().isEmpty() ? null : TokenAudience.ACCESS_TOKEN_TYP;
+		return newToken(attributes, expiresInSec, typ);
 	}
 
 	// id token
@@ -138,6 +203,10 @@ public class JwtTokenService implements Clock {
 	}
 
 	public String newToken(final Map<String, Object> attributes, final int expiresInSec) {
+		return newToken(attributes, expiresInSec, null);
+	}
+
+	private String newToken(final Map<String, Object> attributes, final int expiresInSec, final String typ) {
 		final DateTime now = DateTime.now(DateTimeZone.UTC);
 		final io.jsonwebtoken.Claims claims = Jwts.claims().setIssuer(mtacProperties.getJwt().getIssuer()).setIssuedAt(now.toDate());
 
@@ -148,8 +217,11 @@ public class JwtTokenService implements Clock {
 		claims.putAll(attributes);
 
 		var keyAlias = mtacProperties.getJwt().getKeystoreKeyAlias();
-		return Jwts.builder()
-			.setHeaderParam("kid", keyAlias)
+		var builder = Jwts.builder().setHeaderParam("kid", keyAlias);
+		if (typ != null) {
+			builder.setHeaderParam("typ", typ);
+		}
+		return builder
 			.setClaims(claims)
 			.signWith(SignatureAlgorithm.RS256, getPrivateKeyEntry().getPrivateKey())
 			.compact();
