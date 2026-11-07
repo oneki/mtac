@@ -22,6 +22,7 @@ import net.oneki.mtac.core.service.openid.ImpersonateService;
 import net.oneki.mtac.core.service.openid.MfaService;
 import net.oneki.mtac.core.service.openid.OpenIdService;
 import net.oneki.mtac.core.service.openid.ResetPasswordService;
+import net.oneki.mtac.core.service.openid.oidc.OidcAuthorizationService;
 import net.oneki.mtac.core.service.security.PermissionService;
 import net.oneki.mtac.framework.service.JwtTokenService;
 import net.oneki.mtac.model.core.config.MtacProperties;
@@ -49,6 +50,7 @@ public abstract class OpenIdController {
   protected RequestMappingHandlerMapping handlerMapping;
   protected MtacProperties mtacProperties;
   protected ImpersonateService impersonateService;
+  protected OidcEndpoints oidcEndpoints;
 
   @PostConstruct
   public void init() throws NoSuchMethodException {
@@ -157,6 +159,12 @@ public abstract class OpenIdController {
             .build(),
         this,
         OpenIdController.class.getDeclaredMethod("exitImpersonation", HttpServletRequest.class));
+
+    // OpenID Connect provider (authorization code flow), only when a client is declared
+    if (oidcEndpoints.isEnabled()) {
+      oidcEndpoints.use(getOpenIdService(), getMfaService());
+      oidcEndpoints.register(handlerMapping, getApiBasePath());
+    }
   }
 
   public ResponseEntity<TokenResponse> auth(@RequestBody LoginRequest request) throws Exception {
@@ -171,7 +179,7 @@ public abstract class OpenIdController {
     return ResponseEntity.ok().body(result);
   }
 
-  public ResponseEntity<TokenResponse> auth(
+  public ResponseEntity<?> auth(
       @RequestParam(value = "client_id", required = false) String client_id,
       @RequestParam(value = "client_secret", required = false) String client_secret,
       @RequestParam(value = "grant_type", required = false) String grant_type,
@@ -186,6 +194,12 @@ public abstract class OpenIdController {
         client_id = decoded.substring(0, separator);
         client_secret = decoded.substring(separator + 1);
       }
+    }
+
+    // refresh tokens issued to an OpenID client carry a prefix the other ones cannot have
+    if ("refresh_token".equals(grant_type) && refresh_token != null
+        && refresh_token.startsWith(OidcAuthorizationService.REFRESH_TOKEN_PREFIX) && oidcEndpoints.isEnabled()) {
+      return oidcEndpoints.refresh(client_id, client_secret, refresh_token);
     }
 
     TokenResponse result = null;
@@ -329,6 +343,11 @@ public abstract class OpenIdController {
   @Autowired
   public void setImpersonateService(ImpersonateService impersonateService) {
     this.impersonateService = impersonateService;
+  }
+
+  @Autowired
+  public void setOidcEndpoints(OidcEndpoints oidcEndpoints) {
+    this.oidcEndpoints = oidcEndpoints;
   }
 
   protected void cleanCookies(HttpHeaders httpHeaders) {

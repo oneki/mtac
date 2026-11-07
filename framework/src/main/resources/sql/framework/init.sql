@@ -2746,4 +2746,137 @@ REFERENCES public.resource (id) MATCH SIMPLE
 ON DELETE CASCADE ON UPDATE CASCADE;
 -- ddl-end --
 
+-- object: public.oidc_session | type: TABLE --
+-- DROP TABLE IF EXISTS public.oidc_session CASCADE;
+CREATE TABLE public.oidc_session (
+	id char(64) NOT NULL,
+	identity_id integer NOT NULL,
+	sub text NOT NULL,
+	auth_time timestamp with time zone NOT NULL,
+	amr text NOT NULL,
+	last_seen_at timestamp with time zone NOT NULL,
+	expires_at timestamp with time zone NOT NULL,
+	CONSTRAINT oidc_session_pk PRIMARY KEY (id)
+);
+-- ddl-end --
+ALTER TABLE public.oidc_session OWNER TO postgres;
+-- ddl-end --
 
+-- object: oidc_session_identity_id_idx | type: INDEX --
+-- DROP INDEX IF EXISTS public.oidc_session_identity_id_idx CASCADE;
+CREATE INDEX oidc_session_identity_id_idx ON public.oidc_session
+USING btree
+(
+	identity_id
+);
+-- ddl-end --
+
+-- object: oidc_session_expires_at_idx | type: INDEX --
+-- DROP INDEX IF EXISTS public.oidc_session_expires_at_idx CASCADE;
+CREATE INDEX oidc_session_expires_at_idx ON public.oidc_session
+USING btree
+(
+	expires_at
+);
+-- ddl-end --
+
+-- object: public.oidc_authorization_code | type: TABLE --
+-- DROP TABLE IF EXISTS public.oidc_authorization_code CASCADE;
+CREATE TABLE public.oidc_authorization_code (
+	code_hash char(64) NOT NULL,
+	client_id text NOT NULL,
+	session_id char(64) NOT NULL,
+	redirect_uri text NOT NULL,
+	scope text NOT NULL,
+	nonce text,
+	code_challenge text NOT NULL,
+	expires_at timestamp with time zone NOT NULL,
+	consumed_at timestamp with time zone,
+	CONSTRAINT oidc_authorization_code_pk PRIMARY KEY (code_hash)
+);
+-- ddl-end --
+ALTER TABLE public.oidc_authorization_code OWNER TO postgres;
+-- ddl-end --
+
+-- object: oidc_authorization_code_session_id_idx | type: INDEX --
+-- DROP INDEX IF EXISTS public.oidc_authorization_code_session_id_idx CASCADE;
+CREATE INDEX oidc_authorization_code_session_id_idx ON public.oidc_authorization_code
+USING btree
+(
+	session_id
+);
+-- ddl-end --
+
+-- object: oidc_authorization_code_expires_at_idx | type: INDEX --
+-- DROP INDEX IF EXISTS public.oidc_authorization_code_expires_at_idx CASCADE;
+CREATE INDEX oidc_authorization_code_expires_at_idx ON public.oidc_authorization_code
+USING btree
+(
+	expires_at
+);
+-- ddl-end --
+
+-- object: public.oidc_refresh_token | type: TABLE --
+-- DROP TABLE IF EXISTS public.oidc_refresh_token CASCADE;
+CREATE TABLE public.oidc_refresh_token (
+	token_hash char(64) NOT NULL,
+	family_id char(64) NOT NULL,
+	client_id text NOT NULL,
+	session_id char(64) NOT NULL,
+	scope text NOT NULL,
+	expires_at timestamp with time zone NOT NULL,
+	rotated_at timestamp with time zone,
+	revoked_at timestamp with time zone,
+	CONSTRAINT oidc_refresh_token_pk PRIMARY KEY (token_hash)
+);
+-- ddl-end --
+ALTER TABLE public.oidc_refresh_token OWNER TO postgres;
+-- ddl-end --
+
+-- object: oidc_refresh_token_family_id_idx | type: INDEX --
+-- DROP INDEX IF EXISTS public.oidc_refresh_token_family_id_idx CASCADE;
+CREATE INDEX oidc_refresh_token_family_id_idx ON public.oidc_refresh_token
+USING btree
+(
+	family_id
+);
+-- ddl-end --
+
+-- object: oidc_refresh_token_session_id_idx | type: INDEX --
+-- DROP INDEX IF EXISTS public.oidc_refresh_token_session_id_idx CASCADE;
+CREATE INDEX oidc_refresh_token_session_id_idx ON public.oidc_refresh_token
+USING btree
+(
+	session_id
+);
+-- ddl-end --
+
+-- object: oidc_refresh_token_expires_at_idx | type: INDEX --
+-- DROP INDEX IF EXISTS public.oidc_refresh_token_expires_at_idx CASCADE;
+CREATE INDEX oidc_refresh_token_expires_at_idx ON public.oidc_refresh_token
+USING btree
+(
+	expires_at
+);
+-- ddl-end --
+
+-- object: oidc_session_identity_fk | type: CONSTRAINT --
+-- ALTER TABLE public.oidc_session DROP CONSTRAINT IF EXISTS oidc_session_identity_fk CASCADE;
+ALTER TABLE public.oidc_session ADD CONSTRAINT oidc_session_identity_fk FOREIGN KEY (identity_id)
+REFERENCES public.resource (id) MATCH SIMPLE
+ON DELETE CASCADE ON UPDATE NO ACTION;
+-- ddl-end --
+
+-- object: oidc_authorization_code_session_fk | type: CONSTRAINT --
+-- ALTER TABLE public.oidc_authorization_code DROP CONSTRAINT IF EXISTS oidc_authorization_code_session_fk CASCADE;
+ALTER TABLE public.oidc_authorization_code ADD CONSTRAINT oidc_authorization_code_session_fk FOREIGN KEY (session_id)
+REFERENCES public.oidc_session (id) MATCH SIMPLE
+ON DELETE CASCADE ON UPDATE NO ACTION;
+-- ddl-end --
+
+-- object: oidc_refresh_token_session_fk | type: CONSTRAINT --
+-- ALTER TABLE public.oidc_refresh_token DROP CONSTRAINT IF EXISTS oidc_refresh_token_session_fk CASCADE;
+ALTER TABLE public.oidc_refresh_token ADD CONSTRAINT oidc_refresh_token_session_fk FOREIGN KEY (session_id)
+REFERENCES public.oidc_session (id) MATCH SIMPLE
+ON DELETE CASCADE ON UPDATE NO ACTION;
+-- ddl-end --

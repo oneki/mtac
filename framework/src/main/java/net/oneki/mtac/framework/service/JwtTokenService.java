@@ -160,32 +160,85 @@ public class JwtTokenService implements Clock {
 
 	public io.jsonwebtoken.Claims verify(final String token) {
 		var config = mtacProperties.getJwt();
+		io.jsonwebtoken.Claims claims = null;
 		try {
-			final JwtParser parser = Jwts.parser().requireIssuer(config.getIssuer()).setClock(this)
+			final JwtParser parser = Jwts.parser().setClock(this)
 					.setAllowedClockSkewSeconds(config.getClockSkewSec()).setSigningKey( getPrivateKeyEntry().getCertificate().getPublicKey());
-			return parser.parseClaimsJws(token).getBody();
+			claims = parser.parseClaimsJws(token).getBody();
 		} catch (Exception e) {
 		}
 
-		try {
-			final JwtParser parser = Jwts.parser().requireIssuer(config.getIssuer()).setClock(this)
-					.setAllowedClockSkewSeconds(config.getClockSkewSec()).setSigningKey(config.getSecretKey());
-			return parser.parseClaimsJws(token).getBody();
-		} catch (Exception e) {
-			log.error("Invalid token", e);
+		if (claims == null) {
+			try {
+				final JwtParser parser = Jwts.parser().setClock(this)
+						.setAllowedClockSkewSeconds(config.getClockSkewSec()).setSigningKey(config.getSecretKey());
+				claims = parser.parseClaimsJws(token).getBody();
+			} catch (Exception e) {
+				log.error("Invalid token", e);
+				throw new BadCredentialsException("Invalid token");
+			}
+		}
+
+		if (!isAcceptedIssuer(claims.getIssuer())) {
+			log.error("Invalid token: unexpected issuer {}", claims.getIssuer());
 			throw new BadCredentialsException("Invalid token");
 		}
+		return claims;
+	}
 
+	/**
+	 * Same as {@link #verify(String)} but an expired token is accepted, as long as
+	 * its signature is valid. Meant for the {@code id_token_hint} of a logout,
+	 * which only identifies the session to end.
+	 */
+	public io.jsonwebtoken.Claims verifyIgnoringExpiration(final String token) {
+		var config = mtacProperties.getJwt();
+		io.jsonwebtoken.Claims claims;
+		try {
+			final JwtParser parser = Jwts.parser().setClock(this)
+					.setAllowedClockSkewSeconds(config.getClockSkewSec()).setSigningKey( getPrivateKeyEntry().getCertificate().getPublicKey());
+			claims = parser.parseClaimsJws(token).getBody();
+		} catch (io.jsonwebtoken.ExpiredJwtException e) {
+			// the signature is checked before the expiration
+			claims = e.getClaims();
+		} catch (Exception e) {
+			throw new BadCredentialsException("Invalid token");
+		}
+		if (!isAcceptedIssuer(claims.getIssuer())) {
+			throw new BadCredentialsException("Invalid token");
+		}
+		return claims;
 	}
 
 	public io.jsonwebtoken.Claims untrusted(final String token) {
 		var config = mtacProperties.getJwt();
-		final JwtParser parser = Jwts.parser().requireIssuer(config.getIssuer()).setClock(this)
+		final JwtParser parser = Jwts.parser().setClock(this)
 				.setAllowedClockSkewSeconds(config.getClockSkewSec());
 
 		// See: https://github.com/jwtk/jjwt/issues/135
 		final String withoutSignature = StringUtils.substringBeforeLast(token, DOT) + DOT;
-		return parser.parseClaimsJwt(withoutSignature).getBody();
+		var claims = parser.parseClaimsJwt(withoutSignature).getBody();
+		if (!isAcceptedIssuer(claims.getIssuer())) {
+			throw new BadCredentialsException("Invalid token");
+		}
+		return claims;
+	}
+
+	/**
+	 * A token is accepted when it was issued under the current issuer or under one
+	 * of the former ones still listed in {@code mtac.jwt.accepted-issuers}, so that
+	 * renaming the issuer does not invalidate the tokens already in circulation.
+	 */
+	public boolean isAcceptedIssuer(String issuer) {
+		if (issuer == null) {
+			return false;
+		}
+		var config = mtacProperties.getJwt();
+		if (issuer.equals(config.getIssuer())) {
+			return true;
+		}
+		var acceptedIssuers = config.getAcceptedIssuers();
+		return acceptedIssuers != null && acceptedIssuers.contains(issuer);
 	}
 
 	public PrivateKeyEntry getPrivateKeyEntry() {

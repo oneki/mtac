@@ -5,7 +5,7 @@ CAUTION: Do not modify this file unless you know what you are doing.
 -->
 <dbmodel pgmodeler-ver="1.2.0" use-changelog="false" max-obj-count="52"
 	 gen-disabled-objs-code="false" show-sys-schemas-rects="false"
-	 last-position="0,739" last-zoom="1" scene-rect="-20,-180,2055.64,2198.72"
+	 last-position="0,1101" last-zoom="1" scene-rect="-20,-180,2108.09,2560.72"
 	 default-owner="postgres"
 	 layers="Default"
 	 active-layers="0"
@@ -3083,6 +3083,46 @@ END;]]> </definition>
 	</constraint>
 </table>
 
+<table name="controller_ssh_key" layers="0" collapse-mode="1" max-obj-count="9" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<comment> <![CDATA[Fuzz Secure Link SSH keys, one row per Local Controller. The cloud private key is encrypted by the SSH Connector, which alone holds the key to decrypt it. The reverse SSH port is read from the controller resource.]]> </comment>
+	<position x="440" y="2300"/>
+	<column name="id" not-null="true">
+		<type name="serial" length="0"/>
+	</column>
+	<column name="controller_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="pi_public_key" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="pi_public_key_fingerprint" not-null="true">
+		<type name="varchar" length="64"/>
+	</column>
+	<column name="pi_host_key" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="cloud_public_key" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="cloud_private_key_encrypted" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="created_at" not-null="true" default-value="now()">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<constraint name="controller_ssh_key_pkey" type="pk-constr" table="public.controller_ssh_key">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+	<constraint name="controller_ssh_key_controller_uq" type="uq-constr" table="public.controller_ssh_key">
+		<columns names="controller_id" ref-type="src-columns"/>
+	</constraint>
+	<constraint name="controller_ssh_key_fingerprint_uq" type="uq-constr" table="public.controller_ssh_key">
+		<columns names="pi_public_key_fingerprint" ref-type="src-columns"/>
+	</constraint>
+</table>
+
 <table name="kv_store" layers="0" collapse-mode="1" max-obj-count="6" z-value="0">
 	<schema name="public"/>
 	<role name="postgres"/>
@@ -3296,6 +3336,9 @@ END;]]> </definition>
 	<column name="price_low">
 		<type name="double precision" length="0"/>
 	</column>
+	<column name="price_modulation_delay_sec">
+		<type name="integer" length="0"/>
+	</column>
 	<column name="updated_at" not-null="true" default-value="now()">
 		<type name="timestamp with time zone" length="0" with-timezone="true"/>
 	</column>
@@ -3312,6 +3355,161 @@ END;]]> </definition>
 		</idxelement>
 		<idxelement use-sorting="false">
 			<expression> <![CDATA[lower(idtag)]]> </expression>
+		</idxelement>
+</index>
+
+<table name="oidc_session" layers="0" collapse-mode="1" max-obj-count="8" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<position x="1140" y="2020"/>
+	<column name="id" not-null="true">
+		<type name="char" length="64"/>
+	</column>
+	<column name="identity_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="sub" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="auth_time" not-null="true">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="amr" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="last_seen_at" not-null="true">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="expires_at" not-null="true">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<constraint name="oidc_session_pk" type="pk-constr" table="public.oidc_session">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="oidc_session_identity_id_idx" table="public.oidc_session"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="identity_id"/>
+		</idxelement>
+</index>
+
+<index name="oidc_session_expires_at_idx" table="public.oidc_session"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="expires_at"/>
+		</idxelement>
+</index>
+
+<table name="oidc_authorization_code" layers="0" collapse-mode="1" max-obj-count="10" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<position x="1660" y="1900"/>
+	<column name="code_hash" not-null="true">
+		<type name="char" length="64"/>
+	</column>
+	<column name="client_id" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="session_id" not-null="true">
+		<type name="char" length="64"/>
+	</column>
+	<column name="redirect_uri" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="scope" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="nonce">
+		<type name="text" length="0"/>
+	</column>
+	<column name="code_challenge" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="expires_at" not-null="true">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="consumed_at">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<constraint name="oidc_authorization_code_pk" type="pk-constr" table="public.oidc_authorization_code">
+		<columns names="code_hash" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="oidc_authorization_code_session_id_idx" table="public.oidc_authorization_code"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="session_id"/>
+		</idxelement>
+</index>
+
+<index name="oidc_authorization_code_expires_at_idx" table="public.oidc_authorization_code"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="expires_at"/>
+		</idxelement>
+</index>
+
+<table name="oidc_refresh_token" layers="0" collapse-mode="1" max-obj-count="9" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<position x="1660" y="2160"/>
+	<column name="token_hash" not-null="true">
+		<type name="char" length="64"/>
+	</column>
+	<column name="family_id" not-null="true">
+		<type name="char" length="64"/>
+	</column>
+	<column name="client_id" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="session_id" not-null="true">
+		<type name="char" length="64"/>
+	</column>
+	<column name="scope" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="expires_at" not-null="true">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="rotated_at">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="revoked_at">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<constraint name="oidc_refresh_token_pk" type="pk-constr" table="public.oidc_refresh_token">
+		<columns names="token_hash" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="oidc_refresh_token_family_id_idx" table="public.oidc_refresh_token"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="family_id"/>
+		</idxelement>
+</index>
+
+<index name="oidc_refresh_token_session_id_idx" table="public.oidc_refresh_token"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="session_id"/>
+		</idxelement>
+</index>
+
+<index name="oidc_refresh_token_expires_at_idx" table="public.oidc_refresh_token"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="expires_at"/>
 		</idxelement>
 </index>
 
@@ -3501,6 +3699,30 @@ END;]]> </definition>
 	<columns names="id" ref-type="dst-columns"/>
 </constraint>
 
+<constraint name="controller_ssh_key_controller_id_fkey" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="NO ACTION" del-action="CASCADE" ref-table="public.resource" table="public.controller_ssh_key">
+	<columns names="controller_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="oidc_session_identity_fk" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="NO ACTION" del-action="CASCADE" ref-table="public.resource" table="public.oidc_session">
+	<columns names="identity_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="oidc_authorization_code_session_fk" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="NO ACTION" del-action="CASCADE" ref-table="public.oidc_session" table="public.oidc_authorization_code">
+	<columns names="session_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="oidc_refresh_token_session_fk" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="NO ACTION" del-action="CASCADE" ref-table="public.oidc_session" table="public.oidc_refresh_token">
+	<columns names="session_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
 <relationship name="rel_role_schema_resource" type="relfk" layers="0"
 	 src-table="public.role_schema"
 	 dst-table="public.resource" reference-fk="role_schema_role_fk"
@@ -3684,6 +3906,26 @@ END;]]> </definition>
 <relationship name="rel_alert_delivery_tenant_resource" type="relfk" layers="0"
 	 src-table="public.alert_delivery"
 	 dst-table="public.resource" reference-fk="alert_delivery_tenant_id_fkey"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_controller_ssh_key_resource" type="relfk" layers="0"
+	 src-table="public.controller_ssh_key"
+	 dst-table="public.resource" reference-fk="controller_ssh_key_controller_id_fkey"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_oidc_session_resource" type="relfk" layers="0"
+	 src-table="public.oidc_session"
+	 dst-table="public.resource" reference-fk="oidc_session_identity_fk"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_oidc_authorization_code_oidc_session" type="relfk" layers="0"
+	 src-table="public.oidc_authorization_code"
+	 dst-table="public.oidc_session" reference-fk="oidc_authorization_code_session_fk"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_oidc_refresh_token_oidc_session" type="relfk" layers="0"
+	 src-table="public.oidc_refresh_token"
+	 dst-table="public.oidc_session" reference-fk="oidc_refresh_token_session_fk"
 	 src-required="false" dst-required="true"/>
 
 </dbmodel>

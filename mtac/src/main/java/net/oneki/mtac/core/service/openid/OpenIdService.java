@@ -1,5 +1,6 @@
 package net.oneki.mtac.core.service.openid;
 
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +34,11 @@ public class OpenIdService {
     LoginApplication,
     RefreshToken
   }
+
+  // hash of a random password: lets authenticateUser spend the same time on an unknown user
+  private static volatile String dummyPasswordHash;
+  // claims of the application userinfo that the profile and email scopes already cover
+  private static final Set<String> PROFILE_CLAIMS = Set.of("sub", "username", "email", "firstName", "lastName");
 
   protected DefaultUserService userService;
   protected DefaultApplicationService applicationService;
@@ -132,6 +138,79 @@ public class OpenIdService {
       return tokenResponse;
     } finally {
       audit(user, OperationType.LoginUser, status);
+    }
+  }
+
+  /**
+   * Checks the credentials of a user without issuing any token. Used by the hosted
+   * login page of the OpenID provider, which opens an SSO session instead.
+   *
+   * @throws BusinessException INVALID_CREDENTIALS, whatever the reason
+   */
+  public User authenticateUser(String username, String password) {
+    boolean status = false;
+    Identity identity = null;
+    try {
+      if (username == null || password == null || password.equals("")) {
+        throw new BusinessException("INVALID_CREDENTIALS", "Username or password incorrect");
+      }
+      identity = getUserService().getByUniqueLabelUnsecureOrReturnNull(username, Identity.class);
+      if (!(identity instanceof User user)) {
+        // same cost as a real check, so that the response time does not tell
+        // whether the user exists
+        if (dummyPasswordHash == null) {
+          dummyPasswordHash = PasswordUtil.hash(PasswordUtil.randomPassword());
+        }
+        PasswordUtil.matches(password, dummyPasswordHash);
+        throw new BusinessException("INVALID_CREDENTIALS", "Username or password incorrect");
+      }
+      if (!PasswordUtil.matches(password, user.getPassword())) {
+        throw new BusinessException("INVALID_CREDENTIALS", "Username or password incorrect");
+      }
+      status = true;
+      return user;
+    } finally {
+      audit(identity != null ? identity : Identity.builder().label(username).build(), OperationType.LoginUser, status);
+    }
+  }
+
+  /**
+   * Claims released to an OpenID client about a user, according to the granted
+   * scopes: {@code profile}, {@code email}, and the scope configured under
+   * {@code mtac.openid.server.tenants-scope} for the tenant / role claims.
+   */
+  public Claims oidcClaims(String sub, Set<String> scopes) {
+    var user = getUserService().getByUidUnsecure(sub);
+    if (user == null) {
+      throw new BusinessException("INVALID_CREDENTIALS", "User not found");
+    }
+    var claims = new Claims();
+    claims.put("sub", user.getUid());
+    if (scopes.contains("profile")) {
+      var name = ((user.getFirstName() != null ? user.getFirstName() : "") + " "
+          + (user.getLastName() != null ? user.getLastName() : "")).trim();
+      putIfPresent(claims, "name", name.isEmpty() ? null : name);
+      putIfPresent(claims, "given_name", user.getFirstName());
+      putIfPresent(claims, "family_name", user.getLastName());
+      putIfPresent(claims, "preferred_username", user.getLabel());
+    }
+    if (scopes.contains("email")) {
+      putIfPresent(claims, "email", user.getEmail());
+    }
+    if (scopes.contains(mtacProperties.getOpenId().getServer().getTenantsScope())) {
+      var applicationClaims = getUserService().buildClaims(sub, false);
+      applicationClaims.forEach((key, value) -> {
+        if (value != null && !PROFILE_CLAIMS.contains(key)) {
+          claims.put(key, value);
+        }
+      });
+    }
+    return claims;
+  }
+
+  private static void putIfPresent(Claims claims, String key, Object value) {
+    if (value != null) {
+      claims.put(key, value);
     }
   }
 

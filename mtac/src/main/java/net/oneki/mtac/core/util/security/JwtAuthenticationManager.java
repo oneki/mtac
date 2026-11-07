@@ -72,6 +72,13 @@ public class JwtAuthenticationManager implements AuthenticationManager {
 			if (sub == null) {
 				throw new JwtException("Missing claim 'sub' in JWT token");
 			}
+			// Access tokens carry no audience. Every other token signed with the same key
+			// (MFA step, trusted device, tokens issued to an OIDC client) is bound to one
+			// and must never be accepted as a bearer.
+			var audience = jwt.getAudience();
+			if (audience != null && !audience.isEmpty()) {
+				throw new JwtException("The token was not issued to access this API");
+			}
 			var claims = openIdService.userinfo(sub, false);
 			Collection<GrantedAuthority> authorities = new ArrayList<>(); // TODO
 
