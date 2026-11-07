@@ -9,6 +9,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.jboss.aerogear.security.otp.api.Base32;
+
 import com.nimbusds.jwt.SignedJWT;
 
 import lombok.NonNull;
@@ -23,6 +25,8 @@ import net.oneki.mtac.framework.util.security.PasswordUtil;
 import net.oneki.mtac.model.core.config.MtacProperties;
 import net.oneki.mtac.model.core.dto.UpsertResponse;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
+import net.oneki.mtac.model.core.util.exception.ForbiddenException;
+import net.oneki.mtac.model.core.util.exception.NotFoundException;
 import net.oneki.mtac.model.core.util.security.Claims;
 import net.oneki.mtac.model.core.util.security.SecurityContext;
 import net.oneki.mtac.model.resource.Resource;
@@ -347,6 +351,31 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
         .status(UpsertResponse.Status.Success)
         .resource(userEntity)
         .build();
+  }
+
+  /**
+   * MFA reset by an administrator (the user lost his authenticator). A new TOTP
+   * secret replaces the old one, so the codes of the old authenticator stop
+   * working, and the user enrols the new secret (QR code on the hosted MFA page)
+   * at his next sign-in when MFA applies to him. Every delegated access and every
+   * Console session of the user end. Needs the update permission on the user.
+   */
+  @Transactional
+  public void resetMfa(String uid) {
+    var user = getByUid(uid);
+    if (user == null) {
+      throw new NotFoundException("Cannot find the user " + uid);
+    }
+    if (!permissionService.hasPermission(user, "update")) {
+      throw new ForbiddenException("The MFA reset of the user " + user.getLabel() + " is forbidden for user "
+          + securityContext.getUsername());
+    }
+    var before = getByUidUnsecure(uid);
+    user.setMfaActive(false);
+    user.setTotpSecret(Base32.random());
+    resourceRepository.update(user);
+    requireGrantRevocation().revokeAll(user, OidcGrantRevocation.REASON_MFA_RESET, false);
+    audit(user, before, Action.Update, true, false);
   }
 
   /**

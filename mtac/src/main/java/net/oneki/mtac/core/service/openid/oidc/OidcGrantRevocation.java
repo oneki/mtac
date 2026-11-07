@@ -66,6 +66,8 @@ public class OidcGrantRevocation {
   public static final String REASON_PASSWORD_RESET = "password-reset";
   /** The MFA requirement of the user was turned on or off. */
   public static final String REASON_MFA_CHANGED = "mfa-changed";
+  /** An administrator reset the MFA of the user (lost authenticator): a new secret is to enrol. */
+  public static final String REASON_MFA_RESET = "mfa-reset";
   /** A TOTP secret was enrolled (first enrolment or after an MFA reset). */
   public static final String REASON_MFA_ENROLLED = "mfa-enrolled";
 
