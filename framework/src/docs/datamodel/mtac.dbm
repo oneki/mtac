@@ -3462,7 +3462,7 @@ END;]]> </definition>
 		</idxelement>
 </index>
 
-<table name="oidc_refresh_token" layers="0" collapse-mode="1" max-obj-count="11" z-value="0">
+<table name="oidc_refresh_token" layers="0" collapse-mode="1" max-obj-count="15" z-value="0">
 	<schema name="public"/>
 	<role name="postgres"/>
 	<position x="1660" y="2160"/>
@@ -3475,7 +3475,7 @@ END;]]> </definition>
 	<column name="client_id" not-null="true">
 		<type name="text" length="0"/>
 	</column>
-	<column name="session_id" not-null="true">
+	<column name="session_id">
 		<type name="char" length="64"/>
 	</column>
 	<column name="scope" not-null="true">
@@ -3495,6 +3495,18 @@ END;]]> </definition>
 	</column>
 	<column name="family_started_at">
 		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="identity_id">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="sub">
+		<type name="text" length="0"/>
+	</column>
+	<column name="auth_time">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="amr">
+		<type name="text" length="0"/>
 	</column>
 	<constraint name="oidc_refresh_token_pk" type="pk-constr" table="public.oidc_refresh_token">
 		<columns names="token_hash" ref-type="src-columns"/>
@@ -3588,7 +3600,7 @@ END;]]> </definition>
 		</idxelement>
 </index>
 
-<table name="console_refresh_token" layers="0" collapse-mode="1" max-obj-count="8" z-value="0">
+<table name="console_refresh_token" layers="0" collapse-mode="1" max-obj-count="12" z-value="0">
 	<schema name="public"/>
 	<role name="postgres"/>
 	<comment> <![CDATA[Console refresh tokens, one row per login (browser): SHA-256 of the opaque token, sliding expiry (inactivity) capped by a maximum age. The row id is the sid claim of the Console access tokens.]]> </comment>
@@ -3617,6 +3629,15 @@ END;]]> </definition>
 	<column name="user_agent">
 		<type name="text" length="0"/>
 	</column>
+	<column name="sso_session_id">
+		<type name="char" length="64"/>
+	</column>
+	<column name="impersonated_identity_id">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="impersonation_expires_at">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
 	<constraint name="console_refresh_token_pk" type="pk-constr" table="public.console_refresh_token">
 		<columns names="id" ref-type="src-columns"/>
 	</constraint>
@@ -3638,6 +3659,22 @@ END;]]> </definition>
 	 index-type="btree" factor="0">
 		<idxelement use-sorting="false">
 			<column name="expires_at"/>
+		</idxelement>
+</index>
+
+<index name="oidc_refresh_token_identity_id_idx" table="public.oidc_refresh_token"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="identity_id"/>
+		</idxelement>
+</index>
+
+<index name="console_refresh_token_sso_session_id_idx" table="public.console_refresh_token"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="sso_session_id"/>
 		</idxelement>
 </index>
 
@@ -3846,7 +3883,7 @@ END;]]> </definition>
 </constraint>
 
 <constraint name="oidc_refresh_token_session_fk" type="fk-constr" comparison-type="MATCH SIMPLE"
-	 upd-action="NO ACTION" del-action="CASCADE" ref-table="public.oidc_session" table="public.oidc_refresh_token">
+	 upd-action="NO ACTION" del-action="SET NULL" ref-table="public.oidc_session" table="public.oidc_refresh_token">
 	<columns names="session_id" ref-type="src-columns"/>
 	<columns names="id" ref-type="dst-columns"/>
 </constraint>
@@ -3854,6 +3891,18 @@ END;]]> </definition>
 <constraint name="console_refresh_token_identity_fk" type="fk-constr" comparison-type="MATCH SIMPLE"
 	 upd-action="NO ACTION" del-action="CASCADE" ref-table="public.resource" table="public.console_refresh_token">
 	<columns names="identity_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="oidc_refresh_token_identity_fk" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="NO ACTION" del-action="CASCADE" ref-table="public.resource" table="public.oidc_refresh_token">
+	<columns names="identity_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="console_refresh_token_impersonated_fk" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="NO ACTION" del-action="SET NULL" ref-table="public.resource" table="public.console_refresh_token">
+	<columns names="impersonated_identity_id" ref-type="src-columns"/>
 	<columns names="id" ref-type="dst-columns"/>
 </constraint>
 
@@ -4066,7 +4115,7 @@ END;]]> </definition>
 <relationship name="rel_oidc_refresh_token_oidc_session" type="relfk" layers="0"
 	 src-table="public.oidc_refresh_token"
 	 dst-table="public.oidc_session" reference-fk="oidc_refresh_token_session_fk"
-	 src-required="false" dst-required="true"/>
+	 src-required="false" dst-required="false"/>
 
 <relationship name="rel_oidc_consent_resource" type="relfk" layers="0"
 	 src-table="public.oidc_consent"
@@ -4077,5 +4126,15 @@ END;]]> </definition>
 	 src-table="public.console_refresh_token"
 	 dst-table="public.resource" reference-fk="console_refresh_token_identity_fk"
 	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_oidc_refresh_token_resource" type="relfk" layers="0"
+	 src-table="public.oidc_refresh_token"
+	 dst-table="public.resource" reference-fk="oidc_refresh_token_identity_fk"
+	 src-required="false" dst-required="false"/>
+
+<relationship name="rel_console_refresh_token_impersonated" type="relfk" layers="0"
+	 src-table="public.console_refresh_token"
+	 dst-table="public.resource" reference-fk="console_refresh_token_impersonated_fk"
+	 src-required="false" dst-required="false"/>
 
 </dbmodel>

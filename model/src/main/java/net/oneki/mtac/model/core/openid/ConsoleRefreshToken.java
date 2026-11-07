@@ -25,4 +25,7 @@ public class ConsoleRefreshToken {
   private Instant expiresAt;
   private Instant revokedAt;
   private String userAgent;
+  private String ssoSessionId; // SSO session of the OpenID provider the Console session comes from; ending it ends this one
+  private Integer impersonatedIdentityId; // impersonation in progress, null when none
+  private Instant impersonationExpiresAt;
 }

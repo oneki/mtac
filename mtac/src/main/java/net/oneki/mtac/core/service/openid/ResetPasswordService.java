@@ -1,5 +1,7 @@
 package net.oneki.mtac.core.service.openid;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
@@ -26,6 +28,11 @@ import net.oneki.mtac.resource.iam.identity.user.DefaultUserService;
 @RequiredArgsConstructor
 @Slf4j
 public class ResetPasswordService {
+  /** Shortest password accepted when a password is chosen with a reset link. */
+  public static final int PASSWORD_MIN_LENGTH = 8;
+  /** Longest password accepted, in UTF-8 bytes: BCrypt ignores (or refuses) anything beyond. */
+  public static final int PASSWORD_MAX_BYTES = 72;
+
   protected MtacProperties mtacProperties;
   protected DefaultUserService userService;
   protected JwtTokenService tokenService;
@@ -60,6 +67,32 @@ public class ResetPasswordService {
 
   public void triggerResetPassword(String email) {
     triggerResetPassword(email, getResetLinkSender());
+  }
+
+  /**
+   * Same as {@link #triggerResetPassword(String)}, the link sent also carries
+   * the given query parameters (for instance the context of the hosted pages
+   * of the OpenID provider, to resume a sign-in once the password is changed).
+   */
+  public void triggerResetPassword(String email, Map<String, String> linkParams) {
+    BiConsumer<String, User> sender = getResetLinkSender();
+    triggerResetPassword(email, (link, user) -> sender.accept(appendParams(link, linkParams), user));
+  }
+
+  private static String appendParams(String link, Map<String, String> params) {
+    if (params == null || params.isEmpty()) {
+      return link;
+    }
+    var result = new StringBuilder(link);
+    for (var param : params.entrySet()) {
+      if (param.getValue() == null) {
+        continue;
+      }
+      result.append(result.indexOf("?") < 0 ? '?' : '&')
+          .append(URLEncoder.encode(param.getKey(), StandardCharsets.UTF_8)).append('=')
+          .append(URLEncoder.encode(param.getValue(), StandardCharsets.UTF_8));
+    }
+    return result.toString();
   }
 
   public void triggerResetPassword(String email, BiConsumer<String, User> resetLinkSender) {
@@ -117,20 +150,76 @@ public class ResetPasswordService {
     return resetLink;
   }
 
+  /**
+   * Checks a reset link: its signature, its expiration and that it is the last
+   * link issued to the user (a link is used once: a reset, or a newer link,
+   * replaces the identifier stored on the user).
+   */
   public SuccessErrorResponse verifyResetToken(String resetToken) {
-    try {
-      tokenService.verify(resetToken);
+    if (resolveResetToken(resetToken) != null) {
       return SuccessErrorResponse.builder()
           .status(Status.Success)
           .message("Reset token is valid")
           .build();
-    } catch (Exception e) {
-      return SuccessErrorResponse.builder()
-          .status(Status.Error)
-          .errorCode("INVALID_RESET_TOKEN")
-          .message("Invalid reset token: " + e.getMessage())
-          .build();
     }
+    return SuccessErrorResponse.builder()
+        .status(Status.Error)
+        .errorCode("INVALID_RESET_TOKEN")
+        .message("Invalid reset token")
+        .build();
+  }
+
+  /**
+   * The user a reset link was issued to, or null when the link is invalid:
+   * bad signature, no or past expiration, unknown user, or an identifier that
+   * is not the one stored on the user (already used, or replaced by a newer
+   * link). Nothing about the token is logged.
+   */
+  public User resolveResetToken(String resetToken) {
+    if (resetToken == null || resetToken.isBlank()) {
+      return null;
+    }
+    try {
+      // the expiration is checked below: an expired link is a normal case, not an error to log
+      var claims = tokenService.verifyIgnoringExpiration(resetToken);
+      var expiration = claims.getExpiration();
+      if (expiration == null || !expiration.toInstant().isAfter(Instant.now())) {
+        return null;
+      }
+      var email = claims.get("email", String.class);
+      var uuid = claims.get("resetToken", String.class);
+      if (email == null || uuid == null) {
+        return null;
+      }
+      var user = userService.getByUniqueLabelUnsecureOrReturnNull(email);
+      if (user == null || user.getResetPasswordToken() == null || !user.getResetPasswordToken().equals(uuid)) {
+        return null;
+      }
+      return user;
+    } catch (Exception e) {
+      return null;
+    }
+  }
+
+  /**
+   * Rules of a password chosen with a reset link: not blank, at least
+   * {@value #PASSWORD_MIN_LENGTH} characters and at most
+   * {@value #PASSWORD_MAX_BYTES} bytes in UTF-8.
+   *
+   * @return the message to show, or null when the password is accepted
+   */
+  public static String passwordRuleError(String password) {
+    if (password == null || password.isBlank()) {
+      return "Enter a new password.";
+    }
+    if (password.codePointCount(0, password.length()) < PASSWORD_MIN_LENGTH) {
+      return "The password must be at least " + PASSWORD_MIN_LENGTH + " characters long.";
+    }
+    if (password.getBytes(StandardCharsets.UTF_8).length > PASSWORD_MAX_BYTES) {
+      return "The password is too long: " + PASSWORD_MAX_BYTES
+          + " characters at most (fewer with accented letters or symbols).";
+    }
+    return null;
   }
 
   /**
@@ -153,6 +242,10 @@ public class ResetPasswordService {
       }
       if (user.getResetPasswordToken() == null || !user.getResetPasswordToken().equals(resetToken)) {
         throw new BusinessException("INVALID_RESET_TOKEN", "Invalid reset token");
+      }
+      var ruleError = passwordRuleError(request.getNewPassword());
+      if (ruleError != null) {
+        throw new BusinessException("INVALID_PASSWORD", ruleError);
       }
       user.setPassword(PasswordUtil.hash(request.getNewPassword()));
       user.setResetPasswordToken(null);

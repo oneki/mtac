@@ -119,16 +119,19 @@ public class OidcConsentRepository extends AbstractRepository {
 
   // ------------------------------------------------------- grants of a user
 
+  // by identity_id: the SSO session of a refresh token may have ended (session_id null) while the token lives on;
+  // a token stored before identity_id existed is still found through its session
   private static final String SQL_REVOKE_REFRESH_TOKENS = "UPDATE oidc_refresh_token SET revoked_at = :now "
       + "WHERE client_id = :client_id AND revoked_at IS NULL "
-      + "AND session_id IN (SELECT id FROM oidc_session WHERE identity_id = :identity_id)";
+      + "AND (identity_id = :identity_id OR session_id IN (SELECT id FROM oidc_session WHERE identity_id = :identity_id))";
   private static final String SQL_DELETE_UNUSED_CODES = "DELETE FROM oidc_authorization_code "
       + "WHERE client_id = :client_id AND consumed_at IS NULL "
       + "AND session_id IN (SELECT id FROM oidc_session WHERE identity_id = :identity_id)";
 
   /**
-   * Revokes what a client holds for one user: the refresh tokens of the user's
-   * sessions, and the authorization codes not exchanged yet. Used codes are
+   * Revokes what a client holds for one user: the refresh tokens issued to the
+   * user (whether their SSO session is still alive or not), and the
+   * authorization codes not exchanged yet (codes always belong to a session). Used codes are
    * kept so that a replay is still detected. Access tokens are JWT: they stay
    * valid until they expire.
    *

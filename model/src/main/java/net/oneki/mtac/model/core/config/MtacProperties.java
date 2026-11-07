@@ -50,7 +50,10 @@ public class MtacProperties {
     private boolean corsEnabled = false; // true when no reverse proxy adds the CORS headers (local development)
     private int authorizationCodeTtlSec = 60;
     private int accessTokenTtlSec = 300; // also the lifetime of the id token
-    private int refreshTokenTtlSec = 28800; // 8 hours, never longer than the SSO session
+    // sliding: each refresh token expires that long after it was issued (a family unused that long ends)
+    private int refreshTokenTtlSec = 28800; // 8 hours
+    // absolute: a family ends that long after its first token, however often it is used; 0 = refreshTokenTtlSec
+    private int refreshTokenMaxAgeSec = 0;
     private int loginMaxAttempts = 5; // failed attempts before the login is locked
     private int loginLockSec = 300;
     // a new consent needs an authentication this recent (seconds); older, the user proves himself again first
@@ -78,7 +81,7 @@ public class MtacProperties {
     private boolean refreshToken = true;
     // false: a user without MFA may connect an agent; a user who enabled MFA is asked for the code at sign-in anyway
     private boolean requireMfa = false;
-    private int sessionMaxDays = 30;
+    private int sessionMaxDays = 30; // absolute maximum of a refresh token family of these clients
   }
 
   /** Dynamic Client Registration (RFC 7591), option d. */
@@ -130,7 +133,7 @@ public class MtacProperties {
     private OidcConsentMode consentMode = OidcConsentMode.TRUSTED; // yml clients are first-party
     private OidcAccessMode accessMode = OidcAccessMode.IDENTITY;
     private List<String> resources = new ArrayList<>(); // audience keys of mtac.jwt.audiences, API access mode only
-    private Integer sessionMaxDays; // maximum age of a refresh token family; null = no limit beyond the SSO session
+    private Integer sessionMaxDays; // maximum age of a refresh token family; null = refreshTokenMaxAgeSec only
     private OidcClientSource source = OidcClientSource.YML;
     private String uid; // uid of the iam.oidc.client resource, null for yml and CIMD clients
   }
@@ -146,6 +149,28 @@ public class MtacProperties {
     private String impersonateActiveCookieName = "mtac_impersonate_active";
     private String requestParamTokenName = "mtac_token";
     private MtacIamTenantsInIdtoken tenantsInIdtoken = new MtacIamTenantsInIdtoken();
+    private MtacBrowserSession browserSession = new MtacBrowserSession();
+  }
+
+  /**
+   * Sign-in of the Console (a browser application served with the API) through
+   * the OpenID provider, the API being the client (backend for frontend): the
+   * API exchanges the code and keeps the session in HttpOnly cookies, no token
+   * ever reaches the browser storage.
+   */
+  @Data
+  public static class MtacBrowserSession {
+    private boolean enabled = false;
+    private String clientId = "fuzz-console"; // OpenID client of the Console (yml client, public, PKCE, trusted)
+    private String redirectUri; // <console>/api/auth/callback, a redirect URI of the client
+    private String postLoginPath = "/login/callback"; // Console route the callback redirects to
+    private String postLoginErrorPath = "/login"; // Console route shown with ?error=<code>
+    private List<String> origins = new ArrayList<>(); // Console origins (scheme://host[:port]): CSRF, WebSocket, post-logout
+    private String sessionCookieName = "fuzz.session"; // opaque Console session (refresh) token
+    private String transactionCookieName = "fuzz.auth_tx"; // state + PKCE verifier between login and callback
+    private boolean secure = true; // Secure attribute of the cookies (false only for http://localhost)
+    private int renewBeforeSec = 60; // the access token cookie is renewed when it expires within that delay
+    private boolean passwordLoginEnabled = false; // former Console login (/api/login, /api/totp/verify), transition only
   }
 
   @Data

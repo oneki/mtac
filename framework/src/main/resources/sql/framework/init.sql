@@ -2823,13 +2823,17 @@ CREATE TABLE public.oidc_refresh_token (
 	token_hash char(64) NOT NULL,
 	family_id char(64) NOT NULL,
 	client_id text NOT NULL,
-	session_id char(64) NOT NULL,
+	session_id char(64),
 	scope text NOT NULL,
 	expires_at timestamp with time zone NOT NULL,
 	rotated_at timestamp with time zone,
 	revoked_at timestamp with time zone,
 	resource text,
 	family_started_at timestamp with time zone,
+	identity_id integer,
+	sub text,
+	auth_time timestamp with time zone,
+	amr text,
 	CONSTRAINT oidc_refresh_token_pk PRIMARY KEY (token_hash)
 );
 -- ddl-end --
@@ -2919,6 +2923,9 @@ CREATE TABLE public.console_refresh_token (
 	expires_at timestamp with time zone NOT NULL,
 	revoked_at timestamp with time zone,
 	user_agent text,
+	sso_session_id char(64),
+	impersonated_identity_id integer,
+	impersonation_expires_at timestamp with time zone,
 	CONSTRAINT console_refresh_token_pk PRIMARY KEY (id),
 	CONSTRAINT console_refresh_token_hash_uq UNIQUE (token_hash)
 );
@@ -2942,6 +2949,22 @@ USING btree
 (
 	expires_at
 );
+-- ddl-end --
+
+-- object: console_refresh_token_sso_session_id_idx | type: INDEX --
+-- DROP INDEX IF EXISTS public.console_refresh_token_sso_session_id_idx CASCADE;
+CREATE INDEX console_refresh_token_sso_session_id_idx ON public.console_refresh_token
+USING btree
+(
+	sso_session_id
+);
+-- ddl-end --
+
+-- object: console_refresh_token_impersonated_fk | type: CONSTRAINT --
+-- ALTER TABLE public.console_refresh_token DROP CONSTRAINT IF EXISTS console_refresh_token_impersonated_fk CASCADE;
+ALTER TABLE public.console_refresh_token ADD CONSTRAINT console_refresh_token_impersonated_fk FOREIGN KEY (impersonated_identity_id)
+REFERENCES public.resource (id) MATCH SIMPLE
+ON DELETE SET NULL ON UPDATE NO ACTION;
 -- ddl-end --
 
 -- object: console_refresh_token_identity_fk | type: CONSTRAINT --
@@ -2976,5 +2999,21 @@ ON DELETE CASCADE ON UPDATE NO ACTION;
 -- ALTER TABLE public.oidc_refresh_token DROP CONSTRAINT IF EXISTS oidc_refresh_token_session_fk CASCADE;
 ALTER TABLE public.oidc_refresh_token ADD CONSTRAINT oidc_refresh_token_session_fk FOREIGN KEY (session_id)
 REFERENCES public.oidc_session (id) MATCH SIMPLE
+ON DELETE SET NULL ON UPDATE NO ACTION;
+-- ddl-end --
+
+-- object: oidc_refresh_token_identity_fk | type: CONSTRAINT --
+-- ALTER TABLE public.oidc_refresh_token DROP CONSTRAINT IF EXISTS oidc_refresh_token_identity_fk CASCADE;
+ALTER TABLE public.oidc_refresh_token ADD CONSTRAINT oidc_refresh_token_identity_fk FOREIGN KEY (identity_id)
+REFERENCES public.resource (id) MATCH SIMPLE
 ON DELETE CASCADE ON UPDATE NO ACTION;
+-- ddl-end --
+
+-- object: oidc_refresh_token_identity_id_idx | type: INDEX --
+-- DROP INDEX IF EXISTS public.oidc_refresh_token_identity_id_idx CASCADE;
+CREATE INDEX oidc_refresh_token_identity_id_idx ON public.oidc_refresh_token
+USING btree
+(
+	identity_id
+);
 -- ddl-end --

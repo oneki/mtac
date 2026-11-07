@@ -22,4 +22,9 @@ public class OidcRefreshToken {
   private Instant revokedAt;
   private String resource; // audience key of the family (RFC 8707), null = identity only
   private Instant familyStartedAt; // first token of the family, bounds it with the client's sessionMaxDays
+  // identity of the family: a refresh no longer needs the SSO session (null when ended), the grant lives on its own
+  private Integer identityId;
+  private String sub;
+  private Instant authTime;
+  private java.util.List<String> amr;
 }

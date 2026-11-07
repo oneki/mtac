@@ -14,6 +14,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
@@ -27,6 +28,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import net.oneki.mtac.core.service.openid.BrowserSessionService;
 import net.oneki.mtac.core.service.openid.OpenIdService;
 import net.oneki.mtac.framework.cache.TokenRegistry;
 import net.oneki.mtac.framework.repository.TokenRepository;
@@ -66,6 +68,8 @@ public abstract class BaseResourceServerConfig {
     protected TokenRepository tokenRepository;
     @Autowired
     protected MtacProperties mtacProperties;
+    @Autowired(required = false)
+    protected BrowserSessionService browserSessionService;
 
     @Bean
     public BearerTokenResolver bearerTokenResolver(MtacProperties mtacProperties) {
@@ -114,7 +118,35 @@ public abstract class BaseResourceServerConfig {
         // .sameOrigin();
 
         resourceServer(http, bearerTokenResolver);
+        // Console browser session: first the CSRF check of the cookie-authenticated unsafe requests, so that a
+        // forged request is refused before it can renew (keep alive) the session
+        var cookieCsrfFilter = cookieCsrfFilter();
+        if (cookieCsrfFilter != null) {
+            http.addFilterBefore(cookieCsrfFilter, BearerTokenAuthenticationFilter.class);
+        }
+        // then an expiring access token cookie is renewed from the session cookie (same order as the CSRF
+        // filter: the filters of equal order keep their registration order)
+        var consoleSessionCookieFilter = consoleSessionCookieFilter();
+        if (consoleSessionCookieFilter != null) {
+            http.addFilterBefore(consoleSessionCookieFilter, BearerTokenAuthenticationFilter.class);
+        }
         return http.build();
+    }
+
+    /** The cookie renewal filter, null when {@code mtac.iam.browser-session.enabled} is false. */
+    protected ConsoleSessionCookieFilter consoleSessionCookieFilter() {
+        if (browserSessionService == null || !mtacProperties.getIam().getBrowserSession().isEnabled()) {
+            return null;
+        }
+        return new ConsoleSessionCookieFilter(mtacProperties, browserSessionService);
+    }
+
+    /** The CSRF filter of the Console cookies, null when {@code mtac.iam.browser-session.enabled} is false. */
+    protected CookieCsrfFilter cookieCsrfFilter() {
+        if (!mtacProperties.getIam().getBrowserSession().isEnabled()) {
+            return null;
+        }
+        return new CookieCsrfFilter(mtacProperties);
     }
 
     protected void resourceServer(final HttpSecurity http, 

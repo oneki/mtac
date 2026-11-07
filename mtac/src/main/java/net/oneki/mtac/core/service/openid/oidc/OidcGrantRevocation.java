@@ -1,6 +1,7 @@
 package net.oneki.mtac.core.service.openid.oidc;
 
 import net.oneki.mtac.core.service.openid.ConsoleSessionService;
+import java.time.Instant;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,10 +25,13 @@ import net.oneki.mtac.resource.DefaultResourceService;
  * <p>
  * {@link #revokeAll(User, String, boolean)}:
  * <ul>
+ * <li>revokes every OIDC refresh token of the user ({@code oidc_refresh_token},
+ * by {@code identity_id}), whether its SSO session is still alive or not, so no
+ * connector can get a new access token any more;</li>
  * <li>deletes the SSO sessions of the user ({@code oidc_session}); their
- * authorization codes and OIDC refresh tokens go with them (ON DELETE CASCADE,
- * every refresh token belongs to a session), so no connector can get a new
- * access token any more;</li>
+ * authorization codes go with them (ON DELETE CASCADE). Refresh tokens do not
+ * (ON DELETE SET NULL): they outlive a browser logout on purpose, hence the
+ * explicit revocation above;</li>
  * <li>deletes the consents of the user ({@code oidc_consent}): the next
  * authorization of any client shows the consent page again;</li>
  * <li>unless {@code keepConsoleSession}, gives the user a new random
@@ -68,8 +72,9 @@ public class OidcGrantRevocation {
   /**
    * What a revocation removed.
    *
-   * @param sessions                  SSO sessions deleted, with their codes and
-   *                                  refresh tokens
+   * @param sessions                  SSO sessions deleted, with their codes (the
+   *                                  refresh tokens of the user are revoked as
+   *                                  well, counted in the log only)
    * @param consents                  consents deleted
    * @param consoleSessionInvalidated true when the Console refresh token was
    *                                  invalidated
@@ -99,8 +104,8 @@ public class OidcGrantRevocation {
   }
 
   /**
-   * Revokes every delegated access of a user: SSO sessions (with their codes and
-   * OIDC refresh tokens), consents and, unless {@code keepConsoleSession}, the
+   * Revokes every delegated access of a user: OIDC refresh tokens, SSO sessions
+   * (with their codes), consents and, unless {@code keepConsoleSession}, the
    * Console refresh token. Access tokens already issued stay valid until they
    * expire (15 min Console, 5 min OIDC).
    *
@@ -122,6 +127,8 @@ public class OidcGrantRevocation {
       throw new IllegalArgumentException("A persisted user is required");
     }
     var identityId = user.getId();
+    // before the sessions: a token stored before identity_id existed is still found through its session
+    var refreshTokens = oidcRepository.revokeRefreshTokensOfIdentity(identityId, Instant.now());
     var sessions = oidcRepository.deleteSessionsOfIdentity(identityId);
     var consents = consentRepository.deleteByIdentity(identityId);
     if (!keepConsoleSession) {
@@ -140,8 +147,8 @@ public class OidcGrantRevocation {
     var revocation = new Revocation(identityId, reason, sessions, consents,
         !keepConsoleSession || consoleSessionsClosed > 0);
     log.info(
-        "Delegated access revoked for user {} (id {}), reason {}: {} SSO session(s) with their codes and refresh tokens, {} consent(s), {} Console session(s) closed{}",
-        user.getLabel(), identityId, reason, sessions, consents, consoleSessionsClosed,
+        "Delegated access revoked for user {} (id {}), reason {}: {} OIDC refresh token(s) revoked, {} SSO session(s) with their codes, {} consent(s), {} Console session(s) closed{}",
+        user.getLabel(), identityId, reason, refreshTokens, sessions, consents, consoleSessionsClosed,
         keepConsoleSession ? " (the current browser stays signed in)" : "");
     afterCommit(() -> {
       try {

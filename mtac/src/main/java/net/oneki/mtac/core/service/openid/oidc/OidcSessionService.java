@@ -3,9 +3,11 @@ package net.oneki.mtac.core.service.openid.oidc;
 import java.time.Instant;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
+import net.oneki.mtac.framework.repository.ConsoleRefreshTokenRepository;
 import net.oneki.mtac.framework.repository.OidcRepository;
 import net.oneki.mtac.model.core.config.MtacProperties;
 import net.oneki.mtac.model.core.openid.oidc.OidcSession;
@@ -14,6 +16,13 @@ import net.oneki.mtac.model.resource.iam.identity.user.User;
 /**
  * Single sign-on sessions of the OpenID provider. The browser holds a random
  * value in a cookie; only its hash is stored.
+ *
+ * <p>Ending a session (logout, inactivity or lifetime noticed by
+ * {@link #getAlive}) also ends the Console sessions opened from it (browser
+ * session of the Console, {@code console_refresh_token.sso_session_id}). The
+ * repository is used directly, not {@code ConsoleSessionService}, which
+ * depends on this service: no bean cycle. The sessions deleted by the expiry
+ * purge are caught by {@code ConsoleSessionService.purge()}.
  */
 @Service
 @RequiredArgsConstructor
@@ -23,6 +32,12 @@ public class OidcSessionService {
 
   private final OidcRepository oidcRepository;
   private final MtacProperties mtacProperties;
+  private ConsoleRefreshTokenRepository consoleSessions; // null: no Console session follows the SSO sessions
+
+  @Autowired(required = false)
+  public void setConsoleRefreshTokenRepository(ConsoleRefreshTokenRepository consoleSessions) {
+    this.consoleSessions = consoleSessions;
+  }
 
   /**
    * Opens a session for a fully authenticated user.
@@ -65,6 +80,7 @@ public class OidcSessionService {
     if (!now.isBefore(session.getExpiresAt())
         || !now.isBefore(session.getLastSeenAt().plusSeconds(config().getIdleTimeoutSec()))) {
       oidcRepository.deleteSession(sessionId);
+      closeConsoleSessions(sessionId);
       return null;
     }
     return session;
@@ -91,16 +107,28 @@ public class OidcSessionService {
     session.setLastSeenAt(now);
   }
 
-  /** Ends the session of the browser, and with it its codes and refresh tokens. */
+  /**
+   * Ends the session of the browser, and with it its authorization codes and
+   * the Console sessions opened from it. The OpenID refresh tokens of the
+   * connectors survive it (their session_id becomes null): they are revoked
+   * in Connected applications or by a password change.
+   */
   public void end(String cookieValue) {
     if (cookieValue != null && !cookieValue.isBlank()) {
-      oidcRepository.deleteSession(OidcCrypto.sha256Hex(cookieValue));
+      endById(OidcCrypto.sha256Hex(cookieValue));
     }
   }
 
   public void endById(String sessionId) {
     if (sessionId != null) {
       oidcRepository.deleteSession(sessionId);
+      closeConsoleSessions(sessionId);
+    }
+  }
+
+  private void closeConsoleSessions(String sessionId) {
+    if (consoleSessions != null) {
+      consoleSessions.revokeBySsoSession(sessionId, Instant.now());
     }
   }
 

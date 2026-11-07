@@ -7,6 +7,7 @@ import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -20,6 +21,7 @@ import org.springframework.web.util.WebUtils;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import net.oneki.mtac.core.service.openid.BrowserSessionService;
 import net.oneki.mtac.core.service.openid.ImpersonateService;
 import net.oneki.mtac.core.service.openid.MfaService;
 import net.oneki.mtac.core.service.openid.OpenIdService;
@@ -27,10 +29,10 @@ import net.oneki.mtac.core.service.openid.PrivateKeyJwtVerifier;
 import net.oneki.mtac.core.service.openid.ResetPasswordService;
 import net.oneki.mtac.core.service.openid.oidc.OidcAuthorizationService;
 import net.oneki.mtac.core.service.security.PermissionService;
+import net.oneki.mtac.core.util.security.BrowserSessionCookies;
 import net.oneki.mtac.framework.service.JwtTokenService;
 import net.oneki.mtac.model.core.config.MtacProperties;
 import net.oneki.mtac.model.core.config.MtacProperties.MtacIam.TokenLocation;
-import net.oneki.mtac.model.core.dto.SuccessErrorResponse;
 import net.oneki.mtac.model.core.openid.ImpersonateUserRequest;
 import net.oneki.mtac.model.core.openid.JwksResponse;
 import net.oneki.mtac.model.core.openid.LoginRequest;
@@ -56,6 +58,8 @@ public abstract class OpenIdController {
   protected MtacProperties mtacProperties;
   protected ImpersonateService impersonateService;
   protected OidcEndpoints oidcEndpoints;
+  protected BrowserSessionEndpoints browserSessionEndpoints;
+  protected BrowserSessionService browserSessionService;
 
   @PostConstruct
   public void init() throws NoSuchMethodException {
@@ -153,7 +157,8 @@ public abstract class OpenIdController {
             .produces(MediaType.APPLICATION_JSON_VALUE)
             .build(),
         this,
-        OpenIdController.class.getDeclaredMethod("impersonate", ImpersonateUserRequest.class));
+        OpenIdController.class.getDeclaredMethod("impersonate", ImpersonateUserRequest.class,
+            HttpServletRequest.class));
 
     // Exit impersonation
     handlerMapping.registerMapping(
@@ -168,7 +173,19 @@ public abstract class OpenIdController {
     // OpenID Connect provider (authorization code flow), only when a client is declared
     if (oidcEndpoints.isEnabled()) {
       oidcEndpoints.use(getOpenIdService(), getMfaService());
+      oidcEndpoints.useResetPasswordService(getResetPasswordService()); // the application's (sends the email)
       oidcEndpoints.register(handlerMapping, getApiBasePath());
+    }
+
+    // Console sign-in through the OpenID provider, the API being the client (backend for frontend)
+    if (browserSessionEndpoints != null && browserSessionEndpoints.isEnabled()) {
+      if (oidcEndpoints.isEnabled()) {
+        browserSessionEndpoints.use(getOpenIdService());
+        browserSessionEndpoints.register(handlerMapping, getApiBasePath());
+      } else {
+        org.slf4j.LoggerFactory.getLogger(OpenIdController.class).error("mtac.iam.browser-session.enabled is true "
+            + "but the OpenID provider has no client: the Console sign-in endpoints are not registered");
+      }
     }
   }
 
@@ -291,6 +308,9 @@ public abstract class OpenIdController {
   public ResponseEntity<?> verifyTotp(@RequestBody Map<String, String> body,
       @RequestHeader(value = "authorization", required = true) String authorizationHeader)
       throws Exception {
+    if (!isPasswordLoginEnabled()) {
+      return ResponseEntity.notFound().build();
+    }
     String token = authorizationHeader.trim().substring(7);
     // second step of the Console login
     var result = getMfaService().verifyTotp(body.getOrDefault("totp", null), token,
@@ -298,51 +318,102 @@ public abstract class OpenIdController {
         body.getOrDefault("no_mfa_token", null), TokenAudience.CONSOLE);
     var tokenLocation = mtacProperties.getIam().getTokenLocation();
     var httpHeaders = new HttpHeaders();
-    if (tokenLocation.contains(TokenLocation.cookie)) {
-      var cookieName = mtacProperties.getIam().getAccessTokenCookieName();
-      httpHeaders.add("Set-Cookie",
-          cookieName + "=" + result.getAccessToken() + "; Path=/; SameSite=Strict; httpOnly");
+    if (tokenLocation.contains(TokenLocation.cookie) && result.getAccessToken() != null) {
+      httpHeaders.add(HttpHeaders.SET_COOKIE, cookies().accessToken(result.getAccessToken(), result.getExpiresIn()));
     }
 
     return ResponseEntity.ok().headers(httpHeaders).body(result);
   }
 
-  public void triggerResetpassword(@RequestBody TriggerResetPasswordRequest request) {
+  // Former Console forgot / reset password pages: the hosted pages (/oauth2/forgot-password,
+  // /oauth2/reset-password) replace them, with the same answer for every address and the per-IP lock
+  public ResponseEntity<?> triggerResetpassword(@RequestBody TriggerResetPasswordRequest request) {
+    if (!isPasswordLoginEnabled()) {
+      return ResponseEntity.notFound().build();
+    }
     getResetPasswordService().triggerResetPassword(request.getEmail());
+    return ResponseEntity.ok().build();
   }
 
-  public SuccessErrorResponse verifyResetPassword(@RequestParam("resetToken") String resetToken) {
-    return getResetPasswordService().verifyResetToken(resetToken);
+  public ResponseEntity<?> verifyResetPassword(@RequestParam("resetToken") String resetToken) {
+    if (!isPasswordLoginEnabled()) {
+      return ResponseEntity.notFound().build();
+    }
+    return ResponseEntity.ok(getResetPasswordService().verifyResetToken(resetToken));
   }
 
-  public void resetPassword(@RequestBody ResetPasswordRequest request) {
+  public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordRequest request) {
+    if (!isPasswordLoginEnabled()) {
+      return ResponseEntity.notFound().build();
+    }
     getResetPasswordService().resetPassword(request);
+    return ResponseEntity.ok().build();
   }
 
-  public ResponseEntity<?> impersonate(@RequestBody ImpersonateUserRequest request) {
-    var result = getImpersonateService().impersonateUser(request);
-    var cookieName = mtacProperties.getIam().getAccessTokenCookieName();
+  /**
+   * Starts impersonating a user. With a Console browser session (the session
+   * cookie of the session of the access token), the impersonation is kept by
+   * that session: {@code fuzz.token} becomes the impersonation token, renewed as
+   * such by the cookie filter until the impersonation ends, and the API sets
+   * the indicator cookie read by the Console. Without one (former password
+   * login), a one-hour impersonation token, the original token kept in the
+   * impersonation token cookie.
+   */
+  public ResponseEntity<?> impersonate(@RequestBody ImpersonateUserRequest request, HttpServletRequest httpRequest) {
+    var impersonation = getImpersonateService();
+    var session = browserSessionService != null
+        ? browserSessionService.sessionOf(httpRequest, impersonation.consoleSessionId())
+        : null;
     var httpHeaders = new HttpHeaders();
-    httpHeaders.add("Set-Cookie", cookieName + "=" + result.getAccessToken() + "; Path=/; SameSite=Strict; httpOnly");
-    httpHeaders.add("Set-Cookie",
-       mtacProperties.getIam().getImpersonateTokenCookieName() + "=" + result.getOriginalAccessToken() + "; Path=/; SameSite=Strict; httpOnly");
-
-    // redirect the user to the home page via a 302 response
+    if (session != null) {
+      // the permission and nested impersonation checks, then the session keeps it
+      var target = impersonation.checkImpersonation(request);
+      var started = browserSessionService.startImpersonation(session, target);
+      if (started == null) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+      }
+      httpHeaders.add(HttpHeaders.SET_COOKIE, cookies().accessToken(started.accessToken(), started.accessTokenTtlSec()));
+      httpHeaders.add(HttpHeaders.SET_COOKIE, cookies().impersonationActive(started.impersonationMaxAgeSec()));
+      // a former impersonation of this browser, if any
+      httpHeaders.add(HttpHeaders.SET_COOKIE, cookies().clearImpersonationToken());
+      // no token in the body: the browser holds none
+      return ResponseEntity.ok().headers(httpHeaders).body(Map.of("expiresIn", started.impersonationMaxAgeSec()));
+    }
+    var result = impersonation.impersonateUser(request);
+    httpHeaders.add(HttpHeaders.SET_COOKIE, cookies().accessToken(result.getAccessToken(), null));
+    httpHeaders.add(HttpHeaders.SET_COOKIE, cookies().impersonationToken(result.getOriginalAccessToken()));
+    // the indicator is set by the API in both cases, for the lifetime of the impersonation token
+    httpHeaders.add(HttpHeaders.SET_COOKIE, cookies().impersonationActive(ImpersonateService.IMPERSONATION_SEC));
     return ResponseEntity.ok().headers(httpHeaders).body(result);
   }
 
+  /**
+   * Ends the impersonation. With a Console browser session: clears it on the
+   * session and gives the token of the session user back. Without one: the
+   * original token of the impersonation token cookie.
+   */
   public ResponseEntity<?> exitImpersonation(HttpServletRequest request) {
+    var session = browserSessionService != null
+        ? browserSessionService.sessionOf(request, getImpersonateService().consoleSessionId())
+        : null;
+    var httpHeaders = new HttpHeaders();
+    if (session != null) {
+      var restored = browserSessionService.stopImpersonation(session);
+      if (restored == null) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+      }
+      httpHeaders.add(HttpHeaders.SET_COOKIE,
+          cookies().accessToken(restored.accessToken(), restored.accessTokenTtlSec()));
+      cookies().clearImpersonation().forEach(cookie -> httpHeaders.add(HttpHeaders.SET_COOKIE, cookie));
+      return ResponseEntity.ok().headers(httpHeaders).build();
+    }
     var impTokenCookie = WebUtils.getCookie(request, mtacProperties.getIam().getImpersonateTokenCookieName());
     if (impTokenCookie == null) {
       return ResponseEntity.badRequest().body("No impersonation token found");
     }
     var impToken = impTokenCookie.getValue();
-    var httpHeaders = new HttpHeaders();
-    httpHeaders.add("Set-Cookie",
-        mtacProperties.getIam().getAccessTokenCookieName() + "=" + impToken + "; Path=/; SameSite=Strict; httpOnly");
-    httpHeaders.add("Set-Cookie",
-        mtacProperties.getIam().getImpersonateTokenCookieName()
-            + "=deleted; Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict; httpOnly");
+    httpHeaders.add(HttpHeaders.SET_COOKIE, cookies().accessToken(impToken, null));
+    cookies().clearImpersonation().forEach(cookie -> httpHeaders.add(HttpHeaders.SET_COOKIE, cookie));
     return ResponseEntity.ok().headers(httpHeaders).build();
   }
 
@@ -400,14 +471,43 @@ public abstract class OpenIdController {
     this.oidcEndpoints = oidcEndpoints;
   }
 
+  @Autowired(required = false)
+  public void setBrowserSessionService(BrowserSessionService browserSessionService) {
+    this.browserSessionService = browserSessionService;
+  }
+
+  @Autowired(required = false)
+  public void setBrowserSessionEndpoints(BrowserSessionEndpoints browserSessionEndpoints) {
+    this.browserSessionEndpoints = browserSessionEndpoints;
+  }
+
+  /**
+   * False while the Console signs in through the OpenID provider only
+   * ({@code mtac.iam.browser-session.enabled} without
+   * {@code password-login-enabled}): the former password login endpoints
+   * ({@code /login}, {@code /login/refresh}, {@code /totp/verify}) and the
+   * former reset password ones ({@code /login/trigger-reset-password},
+   * {@code /login/verify-reset-token}, {@code /login/reset-password}) then answer
+   * 404. Always true without browser session.
+   */
+  protected boolean isPasswordLoginEnabled() {
+    var browserSession = mtacProperties.getIam().getBrowserSession();
+    return !browserSession.isEnabled() || browserSession.isPasswordLoginEnabled();
+  }
+
+  /** Set-Cookie values of the Console cookies (same attributes everywhere). */
+  protected BrowserSessionCookies cookies() {
+    return new BrowserSessionCookies(mtacProperties);
+  }
+
   protected void cleanCookies(HttpHeaders httpHeaders) {
-    var cookieName = mtacProperties.getIam().getAccessTokenCookieName();
-    httpHeaders.add("Set-Cookie",
-        cookieName + "=deleted; Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict; httpOnly");
-    httpHeaders.add("Set-Cookie",
-        mtacProperties.getIam().getImpersonateTokenCookieName()
-            + "=deleted; Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict; httpOnly");
-    httpHeaders.add("Set-Cookie", mtacProperties.getIam().getImpersonateActiveCookieName() + "=deleted; Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict");
+    var cookies = cookies();
+    httpHeaders.add(HttpHeaders.SET_COOKIE, cookies.clearAccessToken());
+    cookies.clearImpersonation().forEach(cookie -> httpHeaders.add(HttpHeaders.SET_COOKIE, cookie));
+    if (mtacProperties.getIam().getBrowserSession().isEnabled()) {
+      // the Console session was closed by the logout (csid of the access token)
+      httpHeaders.add(HttpHeaders.SET_COOKIE, cookies.clearSession());
+    }
   }
 
   protected abstract UserService<?, ?> getUserService();

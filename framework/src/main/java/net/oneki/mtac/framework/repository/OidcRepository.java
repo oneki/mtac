@@ -17,8 +17,11 @@ import net.oneki.mtac.model.core.openid.oidc.OidcSession;
 
 /**
  * Storage of the OpenID provider: SSO sessions, authorization codes and refresh
- * tokens. Secrets are stored hashed. Codes and refresh tokens are deleted with
- * their session (ON DELETE CASCADE).
+ * tokens. Secrets are stored hashed. Codes are deleted with their session (ON
+ * DELETE CASCADE). Refresh tokens are not: they carry the identity they were
+ * issued for, and ending their session only clears their {@code session_id}
+ * (ON DELETE SET NULL); they are deleted with their identity (ON DELETE
+ * CASCADE).
  */
 @Repository
 public class OidcRepository extends AbstractRepository {
@@ -87,8 +90,9 @@ public class OidcRepository extends AbstractRepository {
   private static final String SQL_DELETE_SESSIONS_OF_IDENTITY = "DELETE FROM oidc_session WHERE identity_id = :identity_id";
 
   /**
-   * Ends every SSO session of an identity. The authorization codes and refresh
-   * tokens of these sessions go with them (ON DELETE CASCADE).
+   * Ends every SSO session of an identity. The authorization codes of these
+   * sessions go with them (ON DELETE CASCADE); their refresh tokens do NOT (ON
+   * DELETE SET NULL): see {@link #revokeRefreshTokensOfIdentity(Integer, Instant)}.
    *
    * @return the number of sessions deleted
    */
@@ -153,9 +157,14 @@ public class OidcRepository extends AbstractRepository {
 
   // --------------------------------------------------------- refresh tokens
 
-  private static final String SQL_INSERT_REFRESH_TOKEN = "INSERT INTO oidc_refresh_token (token_hash, family_id, client_id, session_id, scope, expires_at, resource, family_started_at) "
-      + "VALUES (:token_hash, :family_id, :client_id, :session_id, :scope, :expires_at, :resource, :family_started_at)";
+  private static final String SQL_INSERT_REFRESH_TOKEN = "INSERT INTO oidc_refresh_token (token_hash, family_id, client_id, session_id, scope, expires_at, resource, family_started_at, identity_id, sub, auth_time, amr) "
+      + "VALUES (:token_hash, :family_id, :client_id, :session_id, :scope, :expires_at, :resource, :family_started_at, :identity_id, :sub, :auth_time, :amr)";
 
+  /**
+   * Stores a refresh token. {@code sessionId} may be null (the family outlived
+   * its SSO session); the identity, sub, auth_time and amr of the family are
+   * stored with each token so that a refresh does not need the session.
+   */
   public void insertRefreshToken(OidcRefreshToken token) {
     var params = new HashMap<String, Object>();
     params.put("token_hash", token.getTokenHash());
@@ -166,6 +175,11 @@ public class OidcRepository extends AbstractRepository {
     params.put("expires_at", Timestamp.from(token.getExpiresAt()));
     params.put("resource", token.getResource());
     params.put("family_started_at", token.getFamilyStartedAt() != null ? Timestamp.from(token.getFamilyStartedAt()) : null);
+    params.put("identity_id", token.getIdentityId());
+    params.put("sub", token.getSub());
+    params.put("auth_time", token.getAuthTime() != null ? Timestamp.from(token.getAuthTime()) : null);
+    // space separated, like oidc_session.amr
+    params.put("amr", token.getAmr() != null ? String.join(" ", token.getAmr()) : null);
     jdbcTemplate.update(SQL_INSERT_REFRESH_TOKEN, params);
   }
 
@@ -185,6 +199,10 @@ public class OidcRepository extends AbstractRepository {
         .revokedAt(instant(rs, "revoked_at"))
         .resource(rs.getString("resource"))
         .familyStartedAt(instant(rs, "family_started_at"))
+        .identityId(integer(rs, "identity_id"))
+        .sub(rs.getString("sub"))
+        .authTime(instant(rs, "auth_time"))
+        .amr(amr(rs.getString("amr")))
         .build()));
   }
 
@@ -211,6 +229,25 @@ public class OidcRepository extends AbstractRepository {
     params.put("family_id", familyId);
     params.put("now", Timestamp.from(now));
     jdbcTemplate.update(SQL_REVOKE_REFRESH_TOKEN_FAMILY, params);
+  }
+
+  // a token stored before identity_id existed is still found through its session
+  private static final String SQL_REVOKE_REFRESH_TOKENS_OF_IDENTITY = "UPDATE oidc_refresh_token SET revoked_at = :now "
+      + "WHERE revoked_at IS NULL AND (identity_id = :identity_id "
+      + "OR session_id IN (SELECT id FROM oidc_session WHERE identity_id = :identity_id))";
+
+  /**
+   * Revokes every refresh token of an identity, of every client, with or
+   * without a live SSO session (credentials changed, account disabled). Revoked
+   * tokens are kept until they expire, like the other revoked ones.
+   *
+   * @return the number of tokens revoked
+   */
+  public int revokeRefreshTokensOfIdentity(Integer identityId, Instant now) {
+    var params = new HashMap<String, Object>();
+    params.put("identity_id", identityId);
+    params.put("now", Timestamp.from(now));
+    return jdbcTemplate.update(SQL_REVOKE_REFRESH_TOKENS_OF_IDENTITY, params);
   }
 
   // ------------------------------------------------------ client revocation
@@ -254,6 +291,8 @@ public class OidcRepository extends AbstractRepository {
   /**
    * Deletes what can no longer be used. Used codes are kept for a while after
    * their expiration so that presenting one again is still detected as a replay.
+   * Refresh tokens are deleted on their own expiration only: an expired session
+   * leaves them with a null {@code session_id}.
    */
   public void deleteExpired(Instant now, Instant idleLimit, Instant codeLimit) {
     var params = new HashMap<String, Object>();
@@ -263,6 +302,19 @@ public class OidcRepository extends AbstractRepository {
     jdbcTemplate.update(SQL_DELETE_EXPIRED_REFRESH_TOKENS, params);
     jdbcTemplate.update(SQL_DELETE_EXPIRED_CODES, params);
     jdbcTemplate.update(SQL_DELETE_EXPIRED_SESSIONS, params);
+  }
+
+  private static Integer integer(ResultSet rs, String column) throws SQLException {
+    var value = rs.getInt(column);
+    return rs.wasNull() ? null : value;
+  }
+
+  /** Space separated methods, null or empty list when the column is null or blank. */
+  private static List<String> amr(String value) {
+    if (value == null) {
+      return null;
+    }
+    return value.isBlank() ? List.of() : Arrays.asList(value.trim().split(" +"));
   }
 
   private static Instant instant(ResultSet rs, String column) throws SQLException {

@@ -6,12 +6,15 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Semaphore;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -20,6 +23,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Component;
+import org.springframework.util.ClassUtils;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -34,6 +38,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import net.oneki.mtac.core.service.openid.MfaService;
 import net.oneki.mtac.core.service.openid.OpenIdService;
+import net.oneki.mtac.core.service.openid.ResetPasswordService;
 import net.oneki.mtac.core.service.openid.oidc.LoginAttemptService;
 import net.oneki.mtac.core.service.openid.oidc.OidcAuthorizationService;
 import net.oneki.mtac.core.service.openid.oidc.OidcClientRegistry;
@@ -46,6 +51,7 @@ import net.oneki.mtac.framework.repository.OidcConsentRepository;
 import net.oneki.mtac.framework.service.JwtTokenService;
 import net.oneki.mtac.model.core.config.MtacProperties;
 import net.oneki.mtac.model.core.config.MtacProperties.MtacOidcClient;
+import net.oneki.mtac.model.core.openid.ResetPasswordRequest;
 import net.oneki.mtac.model.core.openid.oidc.OidcAuthorizationRequest;
 import net.oneki.mtac.model.core.openid.oidc.OidcException;
 import net.oneki.mtac.model.core.openid.oidc.OidcSession;
@@ -86,6 +92,20 @@ import net.oneki.mtac.model.resource.iam.identity.user.User;
  * authentication time and methods of that same session (no new session, same
  * cookie) before the authorization request resumes. {@code prompt=none}
  * answers {@code login_required} when a step-up is needed.
+ *
+ * <p>
+ * Password reset ({@value #PATH_FORGOT_PASSWORD}, {@value #PATH_RESET_PASSWORD}):
+ * the login page links to the forgot password page with its login context.
+ * That page always gives the same answer, known address or not, and a request
+ * within the cooldown included (no account enumeration); the requests of an
+ * address are limited by {@link LoginAttemptService}. The link of the email
+ * opens the reset page, which checks the link (signature, expiration, last
+ * link of the user) and sets the new password through
+ * {@link ResetPasswordService#resetPassword}, which ends the sessions and the
+ * delegated accesses of the user. When the request started from a sign-in, the
+ * link also carries a return context (audience {@value #RESET_RETURN_AUDIENCE}):
+ * the final "Sign in" button resumes that authorization request; otherwise it
+ * opens the Console ({@code mtac.base-url}).
  */
 @Component
 @Slf4j
@@ -105,6 +125,15 @@ public class OidcEndpoints {
   /** Claims of a step-up login context: the SSO session to re-authenticate and its subject. */
   private static final String STEP_UP_SESSION_CLAIM = "su_sid";
   private static final String STEP_UP_SUBJECT_CLAIM = "su_sub";
+  public static final String PATH_FORGOT_PASSWORD = "/oauth2/forgot-password";
+  public static final String PATH_RESET_PASSWORD = "/oauth2/reset-password";
+  /** Audience of the context carried by a reset link to resume a sign-in once the password is changed. */
+  public static final String RESET_RETURN_AUDIENCE = "oidc-reset-return";
+  /** Longest delay after which a reset still resumes the sign-in it started from. */
+  private static final int RESET_RETURN_TTL_SEC = 3600;
+  private static final int MAX_EMAIL_LENGTH = 254;
+  private static final String TOO_MANY_ATTEMPTS = "Too many attempts. Try again in a few minutes.";
+  private static final String PAGE_EXPIRED = "This page has expired. Try again.";
 
   private final OidcAuthorizationService authorizationService;
   private final OidcSessionService sessionService;
@@ -117,6 +146,12 @@ public class OidcEndpoints {
   private OpenIdService openIdService;
   private MfaService mfaService;
   private OidcRegistrationEndpoint registrationEndpoint;
+  private ResetPasswordService resetPasswordService;
+  /** Runs the reset requests (lookup + email) off the request: the answer time does not tell whether the account exists. */
+  private Executor resetRequestExecutor = task -> Thread.ofVirtual().name("oidc-reset-request").start(task);
+  /** Reset requests in progress at most (lookup + email); beyond, a request is dropped with the same answer. */
+  private static final int MAX_RESET_REQUESTS_IN_FLIGHT = 4;
+  private final Semaphore resetRequestsInFlight = new Semaphore(MAX_RESET_REQUESTS_IN_FLIGHT);
 
   public OidcEndpoints(OidcAuthorizationService authorizationService, OidcSessionService sessionService,
       OidcClientRegistry clientRegistry, OidcPageRenderer pageRenderer, LoginAttemptService loginAttemptService,
@@ -147,6 +182,39 @@ public class OidcEndpoints {
     this.registrationEndpoint = registrationEndpoint;
   }
 
+  /**
+   * The reset password service of the application: the most specific one when
+   * several are declared (an application subclass sends the emails, the MTAC
+   * default only logs the link).
+   */
+  @Autowired(required = false)
+  public void setResetPasswordServices(List<ResetPasswordService> services) {
+    ResetPasswordService selected = null;
+    var selectedDepth = -1;
+    for (var service : services) {
+      var depth = 0;
+      for (Class<?> type = ClassUtils.getUserClass(service); type != null
+          && type != ResetPasswordService.class; type = type.getSuperclass()) {
+        depth++;
+      }
+      if (depth > selectedDepth) {
+        selected = service;
+        selectedDepth = depth;
+      }
+    }
+    this.resetPasswordService = selected;
+  }
+
+  /** Makes the hosted reset pages use this service (the one the OpenIdController of the application returns). */
+  public void useResetPasswordService(ResetPasswordService resetPasswordService) {
+    this.resetPasswordService = resetPasswordService;
+  }
+
+  /** Where the reset requests run; tests run them in the calling thread. */
+  public void setResetRequestExecutor(Executor resetRequestExecutor) {
+    this.resetRequestExecutor = resetRequestExecutor;
+  }
+
   public boolean isEnabled() {
     return clientRegistry.isEnabled();
   }
@@ -174,7 +242,8 @@ public class OidcEndpoints {
 
     handlerMapping.registerMapping(
         RequestMappingInfo.paths(basePath + OidcAuthorizationService.PATH_LOGIN).methods(RequestMethod.GET).build(),
-        this, OidcEndpoints.class.getDeclaredMethod("loginPage", String.class, HttpServletRequest.class));
+        this, OidcEndpoints.class.getDeclaredMethod("loginPage", String.class, String.class,
+            HttpServletRequest.class));
     handlerMapping.registerMapping(
         RequestMappingInfo.paths(basePath + OidcAuthorizationService.PATH_LOGIN).methods(RequestMethod.POST)
             .consumes(form).build(),
@@ -187,6 +256,25 @@ public class OidcEndpoints {
         RequestMappingInfo.paths(basePath + OidcAuthorizationService.PATH_MFA).methods(RequestMethod.POST)
             .consumes(form).build(),
         this, OidcEndpoints.class.getDeclaredMethod("mfa", MultiValueMap.class, HttpServletRequest.class));
+
+    if (resetPasswordService != null) {
+      handlerMapping.registerMapping(
+          RequestMappingInfo.paths(basePath + PATH_FORGOT_PASSWORD).methods(RequestMethod.GET).build(),
+          this, OidcEndpoints.class.getDeclaredMethod("forgotPasswordPage", String.class, String.class,
+              HttpServletRequest.class));
+      handlerMapping.registerMapping(
+          RequestMappingInfo.paths(basePath + PATH_FORGOT_PASSWORD).methods(RequestMethod.POST).consumes(form).build(),
+          this, OidcEndpoints.class.getDeclaredMethod("forgotPassword", MultiValueMap.class,
+              HttpServletRequest.class));
+      handlerMapping.registerMapping(
+          RequestMappingInfo.paths(basePath + PATH_RESET_PASSWORD).methods(RequestMethod.GET).build(),
+          this, OidcEndpoints.class.getDeclaredMethod("resetPasswordPage", String.class, String.class,
+              HttpServletRequest.class));
+      handlerMapping.registerMapping(
+          RequestMappingInfo.paths(basePath + PATH_RESET_PASSWORD).methods(RequestMethod.POST).consumes(form).build(),
+          this, OidcEndpoints.class.getDeclaredMethod("resetPassword", MultiValueMap.class,
+              HttpServletRequest.class));
+    }
 
     handlerMapping.registerMapping(
         RequestMappingInfo.paths(basePath + PATH_CONSENT).methods(RequestMethod.POST).consumes(form).build(),
@@ -296,8 +384,17 @@ public class OidcEndpoints {
 
   // ---------------------------------------------------------------- login
 
+  public ResponseEntity<String> loginPage(String ctx, HttpServletRequest request) {
+    return loginPage(ctx, null, request);
+  }
+
+  /**
+   * @param loginHint email to prefill (the forgot password and reset pages send
+   *                  the user back with the address he typed); the login_hint
+   *                  of the authorization request otherwise
+   */
   public ResponseEntity<String> loginPage(@RequestParam(name = "ctx", required = false) String ctx,
-      HttpServletRequest request) {
+      @RequestParam(name = "login_hint", required = false) String loginHint, HttpServletRequest request) {
     var context = readLoginContext(ctx);
     if (context == null) {
       return errorPage(HttpStatus.BAD_REQUEST, EXPIRED_REQUEST);
@@ -311,7 +408,8 @@ public class OidcEndpoints {
       }
       return renderLogin(context, request, HttpStatus.OK, user.getLabel(), null);
     }
-    return renderLogin(context, request, HttpStatus.OK, context.params().get("login_hint"), null);
+    var hint = emailValue(loginHint);
+    return renderLogin(context, request, HttpStatus.OK, hint != null ? hint : context.params().get("login_hint"), null);
   }
 
   public ResponseEntity<String> login(@RequestParam MultiValueMap<String, String> form, HttpServletRequest request) {
@@ -827,8 +925,10 @@ public class OidcEndpoints {
 
   /**
    * RP-initiated logout. With a valid id_token_hint the request comes from a
-   * client of the user and the session ends at once. Without it anyone could
-   * have sent the user here, so a confirmation is asked.
+   * client of the user and the session ends at once: the session named by its
+   * sid, or, for a hint without sid (ID token refreshed after its SSO session
+   * ended), the session of this browser when it belongs to the same subject.
+   * Otherwise anyone could have sent the user here, so a confirmation is asked.
    */
   public ResponseEntity<String> logoutRequest(@RequestParam MultiValueMap<String, String> query,
       HttpServletRequest request) {
@@ -836,28 +936,37 @@ public class OidcEndpoints {
     var hint = authorizationService.parseIdTokenHint(params.get("id_token_hint"));
     var sessionCookie = cookieValue(request, sessionCookieName());
 
-    if (hint != null) {
-      var sessionId = hint.get("sid", String.class);
-      sessionService.endById(sessionId);
+    var hintSessionId = hint != null ? hint.get("sid", String.class) : null;
+    if (hintSessionId != null) {
+      sessionService.endById(hintSessionId);
       var headers = new HttpHeaders();
-      if (sessionCookie != null && OidcCrypto.sha256Hex(sessionCookie).equals(sessionId)) {
+      if (sessionCookie != null && OidcCrypto.sha256Hex(sessionCookie).equals(hintSessionId)) {
         headers.add(HttpHeaders.SET_COOKIE, cookie(sessionCookieName(), "", 0, "Lax"));
       }
       return afterLogout(hint.getAudience(), params.get("post_logout_redirect_uri"), params.get("state"), headers);
     }
-    if (sessionService.resolve(sessionCookie) == null) {
-      return afterLogout(params.get("client_id"), params.get("post_logout_redirect_uri"), params.get("state"),
-          new HttpHeaders());
+    // no hint, or a hint without sid (an ID token refreshed after its SSO session ended): the
+    // session of this browser, if any, is the one to end
+    var clientId = hint != null ? hint.getAudience() : params.get("client_id");
+    var browserSession = sessionService.resolve(sessionCookie);
+    if (browserSession == null) {
+      return afterLogout(clientId, params.get("post_logout_redirect_uri"), params.get("state"), new HttpHeaders());
+    }
+    if (hint != null && hint.getSubject() != null && hint.getSubject().equals(browserSession.getSub())) {
+      // a client of the user of this session asks it: no confirmation needed
+      sessionService.endById(browserSession.getId());
+      var headers = new HttpHeaders();
+      headers.add(HttpHeaders.SET_COOKIE, cookie(sessionCookieName(), "", 0, "Lax"));
+      return afterLogout(clientId, params.get("post_logout_redirect_uri"), params.get("state"), headers);
     }
 
     var model = new HashMap<String, String>();
     model.put("confirm", "true");
     model.put("action", authorizationService.url(OidcAuthorizationService.PATH_LOGOUT));
-    model.put("clientId", params.get("client_id"));
+    model.put("clientId", clientId);
     model.put("postLogoutRedirectUri", params.get("post_logout_redirect_uri"));
     model.put("state", params.get("state"));
-    return page("logout", model, HttpStatus.OK, request, clientRegistry.find(params.get("client_id")),
-        new HttpHeaders());
+    return page("logout", model, HttpStatus.OK, request, clientRegistry.find(clientId), new HttpHeaders());
   }
 
   public ResponseEntity<String> logout(@RequestParam MultiValueMap<String, String> form, HttpServletRequest request) {
@@ -879,6 +988,299 @@ public class OidcEndpoints {
       return redirect(target, headers);
     }
     return page("logout", new HashMap<>(), HttpStatus.OK, null, null, headers);
+  }
+
+  // ------------------------------------------------------ forgot password
+
+  /**
+   * Form asking the email address the reset link is sent to.
+   *
+   * @param ctx       login context of the authorization request the user comes
+   *                  from, optional (ignored during a step-up)
+   * @param loginHint address to prefill, optional
+   */
+  public ResponseEntity<String> forgotPasswordPage(@RequestParam(name = "ctx", required = false) String ctx,
+      @RequestParam(name = "login_hint", required = false) String loginHint, HttpServletRequest request) {
+    return renderForgotPassword(signInContext(ctx), request, HttpStatus.OK, emailValue(loginHint), null);
+  }
+
+  /**
+   * Sends the reset link. The answer is the same whether the address is known
+   * or not, and also within the cooldown of the address: the page never tells
+   * whether an account exists.
+   */
+  public ResponseEntity<String> forgotPassword(@RequestParam MultiValueMap<String, String> form,
+      HttpServletRequest request) {
+    var context = signInContext(form.getFirst("ctx"));
+    var email = emailValue(form.getFirst("email"));
+    if (!isCsrfTokenValid(form, request)) {
+      return renderForgotPassword(context, request, HttpStatus.FORBIDDEN, email, PAGE_EXPIRED);
+    }
+    // every request counts: the page sends emails, it must not be used to spam a mailbox
+    var attemptKey = "forgot|" + clientAddress(request);
+    if (loginAttemptService.isLocked(attemptKey)) {
+      return renderForgotPassword(context, request, HttpStatus.TOO_MANY_REQUESTS, email, TOO_MANY_ATTEMPTS);
+    }
+    loginAttemptService.recordFailure(attemptKey);
+    if (email == null || !email.contains("@") || email.chars().anyMatch(Character::isWhitespace)) {
+      return renderForgotPassword(context, request, HttpStatus.BAD_REQUEST, email, "Enter your email address.");
+    }
+
+    var linkParams = new LinkedHashMap<String, String>();
+    if (context != null) {
+      linkParams.put("ctx", newReturnContext(context.params().get("client_id"), context.query()));
+    }
+    var service = resetPasswordService;
+    if (!resetRequestsInFlight.tryAcquire()) {
+      // a burst of requests (several addresses, several IPs): no unbounded number of threads and emails
+      log.warn("Reset password request dropped: {} requests in progress already", MAX_RESET_REQUESTS_IN_FLIGHT);
+    } else {
+      try {
+        resetRequestExecutor.execute(() -> {
+          try {
+            service.triggerResetPassword(email, linkParams);
+          } catch (BusinessException e) {
+            // a new request within the cooldown of the address: no new link, same answer
+            log.info("Reset password request ignored: {}", e.getErrorCode());
+          } catch (RuntimeException e) {
+            log.warn("Reset password request failed: {}", e.getMessage());
+          } finally {
+            resetRequestsInFlight.release();
+          }
+        });
+      } catch (RuntimeException e) {
+        resetRequestsInFlight.release();
+        log.warn("Reset password request not started: {}", e.getMessage());
+      }
+    }
+
+    var model = new HashMap<String, String>();
+    model.put("email", email);
+    model.put("validity", duration(mtacProperties.getJwt().getResetPasswordExpirationSec()));
+    model.put("backUrl", context != null ? loginUrl(context.token(), email) : consoleUrl());
+    var headers = new HttpHeaders();
+    headers.add(HttpHeaders.SET_COOKIE, cookie(CSRF_COOKIE, "", 0, "Strict"));
+    return page("forgot-password-sent", model, HttpStatus.OK, null, null, headers);
+  }
+
+  private ResponseEntity<String> renderForgotPassword(LoginContext context, HttpServletRequest request,
+      HttpStatus status, String email, String error) {
+    var model = new HashMap<String, String>();
+    model.put("action", authorizationService.url(PATH_FORGOT_PASSWORD));
+    model.put("ctx", context != null ? context.token() : null);
+    model.put("email", email);
+    model.put("error", error);
+    model.put("backUrl", context != null ? loginUrl(context.token(), email) : consoleUrl());
+    return page("forgot-password", model, status, request, null, new HttpHeaders());
+  }
+
+  // ------------------------------------------------------- reset password
+
+  /**
+   * Form choosing the new password, opened by the link of the email (also the
+   * "finish setting up your account" link of a new user, and the links sent
+   * before the hosted pages existed: same token).
+   *
+   * @param ctx return context of the sign-in the request started from, optional
+   */
+  public ResponseEntity<String> resetPasswordPage(@RequestParam(name = "resetToken", required = false) String resetToken,
+      @RequestParam(name = "ctx", required = false) String ctx, HttpServletRequest request) {
+    var returnContext = readReturnContext(ctx);
+    var user = resetPasswordService.resolveResetToken(resetToken);
+    if (user == null) {
+      return renderInvalidReset(resetToken, returnContext);
+    }
+    return renderResetPassword(user, resetToken, returnContext, request, HttpStatus.OK, null);
+  }
+
+  public ResponseEntity<String> resetPassword(@RequestParam MultiValueMap<String, String> form,
+      HttpServletRequest request) {
+    var resetToken = form.getFirst("resetToken");
+    var returnContext = readReturnContext(form.getFirst("ctx"));
+    var user = resetPasswordService.resolveResetToken(resetToken);
+    if (user == null) {
+      return renderInvalidReset(resetToken, returnContext);
+    }
+    if (!isCsrfTokenValid(form, request)) {
+      return renderResetPassword(user, resetToken, returnContext, request, HttpStatus.FORBIDDEN, PAGE_EXPIRED);
+    }
+    var password = form.getFirst("password");
+    var error = ResetPasswordService.passwordRuleError(password);
+    if (error == null && !password.equals(form.getFirst("confirmation"))) {
+      error = "The two passwords do not match.";
+    }
+    if (error != null) {
+      return renderResetPassword(user, resetToken, returnContext, request, HttpStatus.BAD_REQUEST, error);
+    }
+    try {
+      resetPasswordService.resetPassword(new ResetPasswordRequest(resetToken, password));
+    } catch (RuntimeException e) {
+      log.warn("Password reset of identity {} failed: {}", user.getId(),
+          e instanceof BusinessException business ? business.getErrorCode() : e.getClass().getSimpleName());
+      // the link may have been used meanwhile (another tab)
+      if (resetPasswordService.resolveResetToken(resetToken) == null) {
+        return renderInvalidReset(resetToken, returnContext);
+      }
+      return renderResetPassword(user, resetToken, returnContext, request, HttpStatus.INTERNAL_SERVER_ERROR,
+          "Your password could not be changed. Try again.");
+    }
+    log.info("Password of identity {} changed with a reset link", user.getId());
+
+    var model = new HashMap<String, String>();
+    model.put("email", user.getLabel());
+    model.put("signInUrl", signInUrl(returnContext, user.getLabel()));
+    var headers = new HttpHeaders();
+    headers.add(HttpHeaders.SET_COOKIE, cookie(CSRF_COOKIE, "", 0, "Strict"));
+    return page("reset-password-done", model, HttpStatus.OK, null, null, headers);
+  }
+
+  private ResponseEntity<String> renderResetPassword(User user, String resetToken, ReturnContext returnContext,
+      HttpServletRequest request, HttpStatus status, String error) {
+    var model = new HashMap<String, String>();
+    model.put("action", authorizationService.url(PATH_RESET_PASSWORD));
+    model.put("resetToken", resetToken);
+    model.put("ctx", returnContext != null ? returnContext.token() : null);
+    model.put("email", user.getLabel());
+    model.put("minLength", String.valueOf(ResetPasswordService.PASSWORD_MIN_LENGTH));
+    model.put("error", error);
+    return page("reset-password", model, status, request, null, new HttpHeaders());
+  }
+
+  /** The link is expired, used, replaced by a newer one or tampered: the user asks a new one. */
+  private ResponseEntity<String> renderInvalidReset(String resetToken, ReturnContext returnContext) {
+    var email = expiredResetEmail(resetToken);
+    var loginContext = returnContext != null && !isConsoleClient(returnContext.clientId())
+        ? newLoginContext(returnContext.clientId(), returnContext.query())
+        : null;
+    var model = new HashMap<String, String>();
+    model.put("forgotUrl", forgotPasswordUrl(loginContext, email));
+    model.put("signInUrl", signInUrl(returnContext, email));
+    return page("reset-password-invalid", model, HttpStatus.BAD_REQUEST, null, null, new HttpHeaders());
+  }
+
+  /** Address of a reset link whose signature is valid (to prefill a new request), else null. */
+  private String expiredResetEmail(String resetToken) {
+    if (resetToken == null || resetToken.isBlank()) {
+      return null;
+    }
+    try {
+      return emailValue(tokenService.verifyIgnoringExpiration(resetToken).get("email", String.class));
+    } catch (Exception e) {
+      return null;
+    }
+  }
+
+  /**
+   * Where the "Sign in" button of the reset pages goes: the login page of the
+   * authorization request the reset started from, else the Console. The
+   * Console client starts a new sign-in itself (its transaction cookie lives
+   * a few minutes only, an old request would fail on its callback).
+   */
+  private String signInUrl(ReturnContext returnContext, String email) {
+    if (returnContext != null && !isConsoleClient(returnContext.clientId())) {
+      return loginUrl(newLoginContext(returnContext.clientId(), returnContext.query()), email);
+    }
+    return consoleUrl();
+  }
+
+  private boolean isConsoleClient(String clientId) {
+    var browserSession = mtacProperties.getIam().getBrowserSession();
+    return browserSession != null && browserSession.isEnabled() && clientId.equals(browserSession.getClientId());
+  }
+
+  private String consoleUrl() {
+    var baseUrl = mtacProperties.getBaseUrl();
+    return baseUrl != null && !baseUrl.isBlank() ? baseUrl : null;
+  }
+
+  private String forgotPasswordUrl(String loginContext, String email) {
+    var url = new StringBuilder(authorizationService.url(PATH_FORGOT_PASSWORD));
+    var separator = '?';
+    if (loginContext != null) {
+      url.append(separator).append("ctx=").append(URLEncoder.encode(loginContext, StandardCharsets.UTF_8));
+      separator = '&';
+    }
+    var hint = emailValue(email);
+    if (hint != null) {
+      url.append(separator).append("login_hint=").append(URLEncoder.encode(hint, StandardCharsets.UTF_8));
+    }
+    return url.toString();
+  }
+
+  private String loginUrl(String loginContext, String email) {
+    var url = pageUrl(OidcAuthorizationService.PATH_LOGIN, loginContext);
+    var hint = emailValue(email);
+    return hint != null ? url + "&login_hint=" + URLEncoder.encode(hint, StandardCharsets.UTF_8) : url;
+  }
+
+  /** The login context of a sign-in the password pages may return to: none during a step-up. */
+  private LoginContext signInContext(String token) {
+    var context = readLoginContext(token);
+    return context != null && !context.isStepUp() ? context : null;
+  }
+
+  private String newLoginContext(String clientId, String query) {
+    var context = new HashMap<String, Object>();
+    context.put("aud", LOGIN_CONTEXT_AUDIENCE);
+    context.put("cid", clientId);
+    context.put("q", query);
+    return tokenService.newToken(context, LOGIN_CONTEXT_TTL_SEC);
+  }
+
+  /** Context carried by the reset link to resume the sign-in; it lives as long as the link, one hour at most. */
+  private String newReturnContext(String clientId, String query) {
+    var context = new HashMap<String, Object>();
+    context.put("aud", RESET_RETURN_AUDIENCE);
+    context.put("cid", clientId);
+    context.put("q", query);
+    var ttl = Math.min(RESET_RETURN_TTL_SEC, mtacProperties.getJwt().getResetPasswordExpirationSec());
+    return tokenService.newToken(context, ttl);
+  }
+
+  private record ReturnContext(String token, String clientId, String query) {
+  }
+
+  /** Return context of a reset link, or null if it is missing, expired, tampered or its client is gone. */
+  private ReturnContext readReturnContext(String token) {
+    if (token == null || token.isBlank()) {
+      return null;
+    }
+    try {
+      var claims = tokenService.verifyIgnoringExpiration(token);
+      var expiration = claims.getExpiration();
+      if (!RESET_RETURN_AUDIENCE.equals(claims.getAudience()) || expiration == null
+          || !expiration.after(new Date())) {
+        return null;
+      }
+      var clientId = claims.get("cid", String.class);
+      var query = claims.get("q", String.class);
+      if (clientId == null || query == null || clientRegistry.find(clientId) == null
+          || !clientId.equals(parseQuery(query).get("client_id"))) {
+        return null;
+      }
+      return new ReturnContext(token, clientId, query);
+    } catch (Exception e) {
+      return null;
+    }
+  }
+
+  /** A typed email address, trimmed; null when blank or too long. */
+  private static String emailValue(String value) {
+    if (value == null) {
+      return null;
+    }
+    var trimmed = value.trim();
+    return trimmed.isEmpty() || trimmed.length() > MAX_EMAIL_LENGTH ? null : trimmed;
+  }
+
+  /** "24 hours", "1 hour", "30 minutes". */
+  static String duration(int seconds) {
+    if (seconds >= 3600 && seconds % 3600 == 0) {
+      var hours = seconds / 3600;
+      return hours + (hours == 1 ? " hour" : " hours");
+    }
+    var minutes = Math.max(1, Math.round(seconds / 60f));
+    return minutes + (minutes == 1 ? " minute" : " minutes");
   }
 
   // -------------------------------------------------------- login context
@@ -949,6 +1351,10 @@ public class OidcEndpoints {
       model.put("stepUpClient", clientLabel(context));
     } else {
       model.put("clientName", context.client().getName());
+      if (resetPasswordService != null) {
+        // no forgot password link during a step-up: the user is signed in already
+        model.put("forgotUrl", forgotPasswordUrl(context.token(), username));
+      }
     }
     model.put("username", username);
     model.put("error", error);

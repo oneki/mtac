@@ -40,6 +40,7 @@ import net.oneki.mtac.model.core.openid.oidc.OidcRefreshToken;
 import net.oneki.mtac.model.core.openid.oidc.OidcSession;
 import net.oneki.mtac.model.core.openid.oidc.OidcTokenResponse;
 import net.oneki.mtac.model.core.openid.oidc.TokenAudience;
+import net.oneki.mtac.model.core.util.exception.BusinessException;
 import net.oneki.mtac.resource.iam.oidc.OidcClientRepository;
 
 /**
@@ -59,6 +60,18 @@ import net.oneki.mtac.resource.iam.oidc.OidcClientRepository;
  * never the Console): its access token then carries that audience, the granted
  * {@code scope} and its {@code client_id} (RFC 9068), and the user's rights
  * are capped by those scopes (see {@link DelegatedScopePolicy}).
+ *
+ * <p>
+ * Authorization codes are bound to the SSO session. Refresh tokens are not:
+ * each one carries the identity, sub, auth_time and amr of its family, so a
+ * connector keeps working after the browser session ended (logout, expiry).
+ * Such a family slides: each new refresh token expires
+ * {@code refreshTokenTtlSec} after it was issued, so a connector used at least
+ * once in that window stays connected, up to {@code refreshTokenMaxAgeSec}
+ * (or the client's {@code sessionMaxDays}, the shorter) after the first token.
+ * It also ends when it is revoked: consent revoked, client deleted,
+ * credentials changed. Tokens issued
+ * while the session is alive carry its {@code sid}; the others carry none.
  */
 @Service
 @Slf4j
@@ -398,7 +411,9 @@ public class OidcAuthorizationService {
     if (session == null) {
       throw OidcException.invalidGrant("The session has ended");
     }
-    return issueTokens(clientId, client, session, splitScopes(authorizationCode.getScope()),
+    var scopes = splitScopes(authorizationCode.getScope());
+    var grant = Grant.of(session);
+    return issueTokens(clientId, client, grant, openIdService.oidcClaims(grant.sub(), scopes), scopes,
         authorizationCode.getNonce(), codeHash, resource, Instant.now());
   }
 
@@ -439,8 +454,14 @@ public class OidcAuthorizationService {
   /**
    * Same as {@link #refresh(String, String, String, String)}. The new tokens
    * keep the resource of the family; a resource sent again must be that one.
-   * A family older than the client's {@code sessionMaxDays} is revoked
-   * (invalid_grant).
+   * A family older than the client's {@code sessionMaxDays} or than
+   * {@code refreshTokenMaxAgeSec} is revoked (invalid_grant).
+   *
+   * <p>
+   * The SSO session is not required: the identity comes from the family. When
+   * the session is still alive, the tokens carry its {@code sid} and the
+   * session is touched; when it ended, they carry no {@code sid} and nothing
+   * else is touched. A user who no longer exists gets invalid_grant.
    *
    * @param resources values of the resource parameter (RFC 8707), null or empty
    *                  when absent
@@ -479,18 +500,112 @@ public class OidcAuthorizationService {
     if (!scopes.contains(SCOPE_OPENID)) {
       throw OidcException.invalidGrant("The client is no longer allowed to use the openid scope");
     }
+    if (isFamilyExpired(stored, familyMaxAgeSec(config()), Instant.now())) {
+      log.info("The refresh token family of client {} reached its maximum lifetime of {} s: it is revoked",
+          clientId, familyMaxAgeSec(config()));
+      oidcRepository.revokeRefreshTokenFamily(stored.getFamilyId(), Instant.now());
+      throw OidcException.invalidGrant("The refresh token has expired");
+    }
+    // the SSO session is optional: null when it ended (session_id cleared) or is no longer alive
     var session = sessionService.getAlive(stored.getSessionId());
-    if (session == null) {
+    var grant = Grant.of(stored, session);
+    if (grant == null) {
+      // a token stored before the family kept its identity, whose session has ended
       throw OidcException.invalidGrant("The session has ended");
+    }
+    Map<String, Object> userClaims;
+    try {
+      userClaims = openIdService.oidcClaims(grant.sub(), scopes);
+    } catch (BusinessException e) {
+      throw OidcException.invalidGrant("The user no longer exists");
     }
     if (!oidcRepository.rotateRefreshToken(tokenHash, Instant.now())) {
       throw reusedRefreshToken(stored);
     }
-    sessionService.touch(session);
+    if (grant.session() != null) {
+      sessionService.touch(grant.session());
+    }
     // a family stored before family_started_at existed starts counting now
     var familyStartedAt = stored.getFamilyStartedAt() != null ? stored.getFamilyStartedAt() : Instant.now();
-    return issueTokens(clientId, client, session, scopes, null, stored.getFamilyId(),
+    return issueTokens(clientId, client, grant, userClaims, scopes, null, stored.getFamilyId(),
         stored.getResource(), familyStartedAt);
+  }
+
+  /**
+   * Who the tokens are issued for. At the code exchange it comes from the SSO
+   * session; at a refresh from the stored family, with the session only while
+   * it is alive.
+   *
+   * @param session live SSO session, null when it ended: the tokens then carry
+   *                no {@code sid}
+   */
+  record Grant(Integer identityId, String sub, Instant authTime, List<String> amr, OidcSession session) {
+    static Grant of(OidcSession session) {
+      return new Grant(session.getIdentityId(), session.getSub(), session.getAuthTime(), session.getAmr(), session);
+    }
+
+    /**
+     * The identity of the family. Its authentication time and methods are the
+     * ones of the sign-in the family started from (OIDC Core 12.2: auth_time
+     * is the time of the original authentication), not of a later step-up.
+     *
+     * @return null when the token has no identity (stored before the family
+     *         kept it) and its session ended
+     */
+    static Grant of(OidcRefreshToken stored, OidcSession session) {
+      if (stored.getSub() == null) {
+        return session != null ? of(session) : null;
+      }
+      if (session != null && !stored.getSub().equals(session.getSub())) {
+        session = null; // never borrow the sid of another identity
+      }
+      var identityId = stored.getIdentityId() != null ? stored.getIdentityId()
+          : session != null ? session.getIdentityId() : null;
+      var authTime = stored.getAuthTime() != null ? stored.getAuthTime()
+          : session != null ? session.getAuthTime() : null;
+      var amr = stored.getAmr() != null ? stored.getAmr() : session != null ? session.getAmr() : null;
+      return new Grant(identityId, stored.getSub(), authTime, amr, session);
+    }
+  }
+
+  /** Absolute lifetime of a family: refreshTokenMaxAgeSec, refreshTokenTtlSec when not set (no sliding). */
+  static int familyMaxAgeSec(MtacProperties.MtacOpenIdServer config) {
+    return config.getRefreshTokenMaxAgeSec() > 0 ? config.getRefreshTokenMaxAgeSec() : config.getRefreshTokenTtlSec();
+  }
+
+  /**
+   * Expiry of a new refresh token: {@code refreshTokenTtlSec} after
+   * {@code now} (sliding), never beyond the end of its family:
+   * {@code familyMaxAgeSec} after its first token, or the client's
+   * {@code sessionMaxDays} when shorter. The SSO session does not bound it.
+   */
+  static Instant refreshTokenExpiry(MtacOidcClient client, Instant familyStartedAt, Instant now,
+      int refreshTokenTtlSec, int familyMaxAgeSec) {
+    var end = now.plusSeconds(refreshTokenTtlSec);
+    var familyEnd = familyEnd(client, familyStartedAt, familyMaxAgeSec);
+    return familyEnd.isBefore(end) ? familyEnd : end;
+  }
+
+  /**
+   * End of a refresh token family: {@code familyMaxAgeSec} after its first
+   * token, or the client's {@code sessionMaxDays} when shorter.
+   */
+  static Instant familyEnd(MtacOidcClient client, Instant familyStartedAt, int familyMaxAgeSec) {
+    var end = familyStartedAt.plusSeconds(familyMaxAgeSec);
+    var maxDays = client.getSessionMaxDays();
+    if (maxDays != null && maxDays > 0) {
+      var maxEnd = familyStartedAt.plus(Duration.ofDays(maxDays));
+      if (maxEnd.isBefore(end)) {
+        end = maxEnd;
+      }
+    }
+    return end;
+  }
+
+  /** True when the family started more than familyMaxAgeSec ago (a token issued before the family bound). */
+  static boolean isFamilyExpired(OidcRefreshToken stored, int familyMaxAgeSec, Instant now) {
+    return stored.getFamilyStartedAt() != null
+        && !now.isBefore(stored.getFamilyStartedAt().plusSeconds(familyMaxAgeSec));
   }
 
   /** True when the client limits its sessions and the family started more than sessionMaxDays ago. */
@@ -509,19 +624,23 @@ public class OidcAuthorizationService {
   }
 
   /**
+   * @param grant           who the tokens are for; without a live session the
+   *                        tokens carry no sid
+   * @param userClaims      OpenID claims of the user for these scopes
    * @param resource        audience key of the access token, null for an
    *                        identity-only token (aud = userinfo)
    * @param familyStartedAt first token of the refresh token family
    */
-  private OidcTokenResponse issueTokens(String clientId, MtacOidcClient client, OidcSession session,
-      Set<String> scopes, String nonce, String familyId, String resource, Instant familyStartedAt) {
+  private OidcTokenResponse issueTokens(String clientId, MtacOidcClient client, Grant grant,
+      Map<String, Object> userClaims, Set<String> scopes, String nonce, String familyId, String resource,
+      Instant familyStartedAt) {
     var config = config();
     var scope = String.join(" ", scopes);
     var ttl = config.getAccessTokenTtlSec();
 
     var accessClaims = new HashMap<String, Object>();
     accessClaims.put("jti", UUID.randomUUID().toString());
-    accessClaims.put("sub", session.getSub());
+    accessClaims.put("sub", grant.sub());
     if (resource == null) {
       // identity only: usable at the userinfo endpoint, refused by every API
       accessClaims.put("aud", url(PATH_USERINFO));
@@ -532,19 +651,21 @@ public class OidcAuthorizationService {
         throw invalidTarget("The resource is no longer configured");
       }
       accessClaims.put("aud", audience);
-      accessClaims.put("auth_time", session.getAuthTime().getEpochSecond());
-      accessClaims.put("amr", session.getAmr());
+      putAuthentication(accessClaims, grant);
     }
     accessClaims.put("client_id", clientId);
     accessClaims.put("scope", scope);
-    accessClaims.put("sid", session.getId());
+    if (grant.session() != null) {
+      accessClaims.put("sid", grant.session().getId());
+    }
     var accessToken = tokenService.newAccessToken(accessClaims, ttl); // typ at+jwt (RFC 9068)
 
-    var idClaims = new HashMap<String, Object>(openIdService.oidcClaims(session.getSub(), scopes));
+    var idClaims = new HashMap<String, Object>(userClaims);
     idClaims.put("aud", clientId);
-    idClaims.put("auth_time", session.getAuthTime().getEpochSecond());
-    idClaims.put("amr", session.getAmr());
-    idClaims.put("sid", session.getId());
+    putAuthentication(idClaims, grant);
+    if (grant.session() != null) {
+      idClaims.put("sid", grant.session().getId());
+    }
     idClaims.put("at_hash", OidcCrypto.accessTokenHash(accessToken));
     if (nonce != null) {
       idClaims.put("nonce", nonce);
@@ -554,19 +675,22 @@ public class OidcAuthorizationService {
     String refreshToken = null;
     if (client.isRefreshToken()) {
       refreshToken = REFRESH_TOKEN_PREFIX + OidcCrypto.randomToken();
-      var expiresAt = Instant.now().plusSeconds(config.getRefreshTokenTtlSec());
-      if (expiresAt.isAfter(session.getExpiresAt())) {
-        expiresAt = session.getExpiresAt();
-      }
+      // sliding, bounded by the family, not by the SSO session: the grant outlives a logout
+      var expiresAt = refreshTokenExpiry(client, familyStartedAt, Instant.now(), config.getRefreshTokenTtlSec(),
+          familyMaxAgeSec(config));
       oidcRepository.insertRefreshToken(OidcRefreshToken.builder()
           .tokenHash(OidcCrypto.sha256Hex(refreshToken))
           .familyId(familyId)
           .clientId(clientId)
-          .sessionId(session.getId())
+          .sessionId(grant.session() != null ? grant.session().getId() : null)
           .scope(scope)
           .expiresAt(expiresAt)
           .resource(resource)
           .familyStartedAt(familyStartedAt)
+          .identityId(grant.identityId())
+          .sub(grant.sub())
+          .authTime(grant.authTime())
+          .amr(grant.amr())
           .build());
     }
     recordClientUse(clientId, client);
@@ -578,6 +702,15 @@ public class OidcAuthorizationService {
         .refreshToken(refreshToken)
         .scope(scope)
         .build();
+  }
+
+  private static void putAuthentication(Map<String, Object> claims, Grant grant) {
+    if (grant.authTime() != null) {
+      claims.put("auth_time", grant.authTime().getEpochSecond());
+    }
+    if (grant.amr() != null) {
+      claims.put("amr", grant.amr());
+    }
   }
 
   /**
@@ -624,7 +757,12 @@ public class OidcAuthorizationService {
 
   // ------------------------------------------------------------- userinfo
 
-  /** Userinfo endpoint: the claims allowed by the scopes of the access token. */
+  /**
+   * Userinfo endpoint: the claims allowed by the scopes of the access token. A
+   * token that carries a {@code sid} is refused once that SSO session ended; a
+   * token without {@code sid} (issued by a refresh after the session ended) is
+   * accepted until it expires.
+   */
   public Map<String, Object> userinfo(String accessToken) {
     io.jsonwebtoken.Claims claims;
     try {
@@ -636,10 +774,15 @@ public class OidcAuthorizationService {
     if (!url(PATH_USERINFO).equals(claims.getAudience()) || claims.getSubject() == null) {
       throw OidcException.invalidToken("Invalid access token");
     }
-    if (sessionService.getAlive(claims.get("sid", String.class)) == null) {
+    var sid = claims.get("sid", String.class);
+    if (sid != null && sessionService.getAlive(sid) == null) {
       throw OidcException.invalidToken("The session has ended");
     }
-    return openIdService.oidcClaims(claims.getSubject(), splitScopes(claims.get("scope", String.class)));
+    try {
+      return openIdService.oidcClaims(claims.getSubject(), splitScopes(claims.get("scope", String.class)));
+    } catch (BusinessException e) {
+      throw OidcException.invalidToken("The user no longer exists");
+    }
   }
 
   // --------------------------------------------------------------- logout
