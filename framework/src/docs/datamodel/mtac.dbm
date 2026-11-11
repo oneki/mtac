@@ -3791,6 +3791,67 @@ END;]]> </definition>
 		</idxelement>
 </index>
 
+<table name="assistant_usage_daily" layers="0" collapse-mode="1" max-obj-count="18" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<comment> <![CDATA[Daily usage statistics of the Console assistant, one row per day (Belgian time), user, company and model. Upserted in the transaction that stores each answer, never purged, so it outlives the conversations.]]> </comment>
+	<position x="1660" y="3320"/>
+	<column name="day" not-null="true">
+		<type name="date"/>
+	</column>
+	<column name="user_uid" not-null="true">
+		<type name="varchar" length="255"/>
+	</column>
+	<column name="company_uid" not-null="true" default-value="''">
+		<type name="varchar" length="255"/>
+	</column>
+	<column name="model" not-null="true">
+		<type name="varchar" length="128"/>
+	</column>
+	<column name="questions" not-null="true" default-value="0">
+		<type name="integer"/>
+	</column>
+	<column name="answered" not-null="true" default-value="0">
+		<type name="integer"/>
+	</column>
+	<column name="stopped" not-null="true" default-value="0">
+		<type name="integer"/>
+	</column>
+	<column name="errors" not-null="true" default-value="0">
+		<type name="integer"/>
+	</column>
+	<column name="model_calls" not-null="true" default-value="0">
+		<type name="integer"/>
+	</column>
+	<column name="retries" not-null="true" default-value="0">
+		<type name="integer"/>
+	</column>
+	<column name="tool_calls" not-null="true" default-value="0">
+		<type name="integer"/>
+	</column>
+	<column name="input_tokens" not-null="true" default-value="0">
+		<type name="bigint"/>
+	</column>
+	<column name="cached_input_tokens" not-null="true" default-value="0">
+		<type name="bigint"/>
+	</column>
+	<column name="output_tokens" not-null="true" default-value="0">
+		<type name="bigint"/>
+	</column>
+	<column name="without_usage" not-null="true" default-value="0">
+		<type name="integer"/>
+	</column>
+	<column name="duration_ms" not-null="true" default-value="0">
+		<type name="bigint"/>
+	</column>
+	<column name="updated_at" not-null="true" default-value="now()">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<constraint name="assistant_usage_daily_pk" type="pk-constr" table="public.assistant_usage_daily">
+		<columns names="day,user_uid,company_uid,model" ref-type="src-columns"/>
+	</constraint>
+</table>
+
 <constraint name="role_schema_role_fk" type="fk-constr" comparison-type="MATCH FULL"
 	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.role_schema">
 	<columns names="role_id" ref-type="src-columns"/>
