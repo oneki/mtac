@@ -3678,6 +3678,119 @@ END;]]> </definition>
 		</idxelement>
 </index>
 
+<table name="assistant_conversation" layers="0" collapse-mode="1" max-obj-count="9" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<comment> <![CDATA[Conversations of the Console assistant, one row per conversation. Written at the end of each question, deleted by the user or by the nightly purge.]]> </comment>
+	<position x="1660" y="2640"/>
+	<column name="id" not-null="true">
+		<type name="varchar" length="64"/>
+	</column>
+	<column name="user_uid" not-null="true">
+		<type name="varchar" length="255"/>
+	</column>
+	<column name="company_uid">
+		<type name="varchar" length="255"/>
+	</column>
+	<column name="title">
+		<type name="text" length="0"/>
+	</column>
+	<column name="created_at" not-null="true" default-value="now()">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="updated_at" not-null="true" default-value="now()">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<constraint name="assistant_conversation_pkey" type="pk-constr" table="public.assistant_conversation">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="assistant_conversation_updated_idx" table="public.assistant_conversation"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="updated_at"/>
+		</idxelement>
+</index>
+
+<index name="assistant_conversation_user_updated_idx" table="public.assistant_conversation"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="user_uid"/>
+		</idxelement>
+		<idxelement use-sorting="true" nulls-first="true" asc-order="false">
+			<column name="updated_at"/>
+		</idxelement>
+</index>
+
+<table name="assistant_message" layers="0" collapse-mode="1" max-obj-count="20" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<comment> <![CDATA[Messages of the Console assistant (the question of the user and the answer), with the steps, usage and error of the answer. Raw tool results and reasoning text are never stored.]]> </comment>
+	<position x="1660" y="2860"/>
+	<column name="id" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="conversation_id" not-null="true">
+		<type name="varchar" length="64"/>
+	</column>
+	<column name="user_uid" not-null="true">
+		<type name="varchar" length="255"/>
+	</column>
+	<column name="role" not-null="true">
+		<type name="varchar" length="16"/>
+	</column>
+	<column name="content" not-null="true" default-value="''">
+		<type name="text" length="0"/>
+	</column>
+	<column name="status">
+		<type name="varchar" length="16"/>
+	</column>
+	<column name="steps">
+		<type name="jsonb" length="0"/>
+	</column>
+	<column name="usage">
+		<type name="jsonb" length="0"/>
+	</column>
+	<column name="error">
+		<type name="jsonb" length="0"/>
+	</column>
+	<column name="context">
+		<type name="jsonb" length="0"/>
+	</column>
+	<column name="suggestion_id">
+		<type name="text" length="0"/>
+	</column>
+	<column name="created_at" not-null="true" default-value="now()">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="started_at">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="ended_at">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<constraint name="assistant_message_pkey" type="pk-constr" table="public.assistant_message">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+	<constraint name="assistant_message_role_ck" type="ck-constr" table="public.assistant_message">
+			<expression> <![CDATA[role IN ('user', 'assistant')]]> </expression>
+	</constraint>
+</table>
+
+<index name="assistant_message_conversation_created_idx" table="public.assistant_message"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="conversation_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="created_at"/>
+		</idxelement>
+</index>
+
 <constraint name="role_schema_role_fk" type="fk-constr" comparison-type="MATCH FULL"
 	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.role_schema">
 	<columns names="role_id" ref-type="src-columns"/>
@@ -3912,6 +4025,12 @@ END;]]> </definition>
 	<columns names="id" ref-type="dst-columns"/>
 </constraint>
 
+<constraint name="assistant_message_conversation_fk" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="NO ACTION" del-action="CASCADE" ref-table="public.assistant_conversation" table="public.assistant_message">
+	<columns names="conversation_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
 <relationship name="rel_role_schema_resource" type="relfk" layers="0"
 	 src-table="public.role_schema"
 	 dst-table="public.resource" reference-fk="role_schema_role_fk"
@@ -4136,5 +4255,10 @@ END;]]> </definition>
 	 src-table="public.console_refresh_token"
 	 dst-table="public.resource" reference-fk="console_refresh_token_impersonated_fk"
 	 src-required="false" dst-required="false"/>
+
+<relationship name="rel_assistant_message_assistant_conversation" type="relfk" layers="0"
+	 src-table="public.assistant_message"
+	 dst-table="public.assistant_conversation" reference-fk="assistant_message_conversation_fk"
+	 src-required="false" dst-required="true"/>
 
 </dbmodel>
