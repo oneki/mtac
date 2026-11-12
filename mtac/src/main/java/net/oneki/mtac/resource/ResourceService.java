@@ -47,6 +47,9 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
     protected SecurityContext securityContext;
     @Autowired
     protected RelationService relationService;
+    /** Relations of an upsert request resolved by another rule than the read with the rights of the user. */
+    @Autowired(required = false)
+    protected List<RequestRelationResolver> requestRelationResolvers;
 
     public abstract Class<E> getEntityClass();
 
@@ -847,6 +850,14 @@ public abstract class ResourceService<U extends UpsertRequest, E extends Resourc
             Resource relation) throws IllegalArgumentException, IllegalAccessException {
         if (relation != null) {
             Resource relationEntity = null;
+            if (relation.getId() != null && requestRelationResolvers != null) {
+                for (var resolver : requestRelationResolvers) {
+                    relationEntity = resolver.resolve(upsertRequest, relationField, relation);
+                    if (relationEntity != null) {
+                        return relationEntity;
+                    }
+                }
+            }
             if (relation.getId() != null) {
                 relationEntity = resourceRepository.getById(relation.getId(), relationField.getRelationClass());
             } else if (relation.getLabel() != null) {
