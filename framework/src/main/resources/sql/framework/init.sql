@@ -1460,6 +1460,17 @@ USING btree
 );
 -- ddl-end --
 
+-- object: resource_standard_link_uq | type: INDEX --
+-- DROP INDEX IF EXISTS public.resource_standard_link_uq CASCADE;
+CREATE UNIQUE INDEX resource_standard_link_uq ON public.resource
+USING btree
+(
+	link_id,
+	tenant_id
+)
+WHERE (link_type = 0 AND link_id IS NOT NULL);
+-- ddl-end --
+
 -- object: after_update_resource | type: TRIGGER --
 -- DROP TRIGGER IF EXISTS after_update_resource ON public.resource CASCADE;
 CREATE TRIGGER after_update_resource

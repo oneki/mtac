@@ -1492,6 +1492,18 @@ END;
 		</idxelement>
 </index>
 
+<index name="resource_standard_link_uq" table="public.resource"
+	 concurrent="false" unique="true" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="link_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="tenant_id"/>
+		</idxelement>
+		<predicate><![CDATA[link_type = 0 AND link_id IS NOT NULL]]></predicate>
+</index>
+
 <trigger name="after_update_resource" firing-type="AFTER" per-line="true" constraint="false"
 	 ins-event="false" del-event="false" upd-event="true" trunc-event="false"
 	 table="public.resource">

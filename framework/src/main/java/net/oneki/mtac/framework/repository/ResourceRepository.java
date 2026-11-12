@@ -96,6 +96,46 @@ public class ResourceRepository extends AbstractRepository {
         return null;
     }
 
+    /**
+     * Creates a {@link LinkType#Standard} link of a resource in a tenant, unless the tenant already holds one.
+     *
+     * <p>The partial unique index {@code resource_standard_link_uq} on {@code (link_id, tenant_id)} for the
+     * Standard links makes two concurrent calls safe: the second insert does nothing ({@code ON CONFLICT DO
+     * NOTHING}) instead of failing, so the caller's transaction is not aborted.
+     *
+     * @return the id of the created link, or of the link that already existed
+     */
+    public Integer createStandardLinkIfAbsent(Resource source, Integer targetTenantId, boolean pub,
+            String createdBy) {
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        var sql = SqlUtils.getSQL("resource/resource_insert_standard_link_if_absent.sql");
+        var parameters = new MapSqlParameterSource()
+                .addValue("label", source.getLabel())
+                .addValue("pub", pub)
+                .addValue("linkId", source.getId())
+                .addValue("tenantId", targetTenantId)
+                .addValue("schemaId", source.getSchemaId())
+                .addValue("resourceType",
+                        source.getResourceType() != null ? source.getResourceType() : ResourceType.INTERNAL_RESOURCE)
+                .addValue("createdBy", createdBy);
+        jdbcTemplate.update(sql, parameters, keyHolder);
+        if (keyHolder.getKeyList() != null && keyHolder.getKeyList().size() > 0) {
+            return (Integer) keyHolder.getKeyList().get(0).get("id");
+        }
+        return getStandardLinkId(source.getId(), targetTenantId);
+    }
+
+    /**
+     * @return the id of the {@link LinkType#Standard} link of a resource in a tenant, or null if there is none
+     */
+    public Integer getStandardLinkId(Integer sourceId, Integer tenantId) {
+        var sql = SqlUtils.getSQL("resource/resource_get_standard_link_id.sql");
+        var ids = jdbcTemplate.queryForList(sql,
+                new MapSqlParameterSource().addValue("linkId", sourceId).addValue("tenantId", tenantId),
+                Integer.class);
+        return ids.isEmpty() ? null : ids.get(0);
+    }
+
     // ------------------------------------------------- UPDATE
 
     public <T extends Resource> void update(T resource) {
