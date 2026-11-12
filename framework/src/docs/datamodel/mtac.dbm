@@ -3856,6 +3856,12 @@ END;]]> </definition>
 	<column name="duration_ms" not-null="true" default-value="0">
 		<type name="bigint"/>
 	</column>
+	<column name="provider_cost" not-null="true" default-value="0">
+		<type name="numeric" length="18" precision="8"/>
+	</column>
+	<column name="provider_cost_questions" not-null="true" default-value="0">
+		<type name="integer" length="0"/>
+	</column>
 	<column name="updated_at" not-null="true" default-value="now()">
 		<type name="timestamp with time zone" length="0" with-timezone="true"/>
 	</column>
