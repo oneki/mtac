@@ -26,6 +26,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.oneki.mtac.api.OidcRegistrationEndpoint;
 import net.oneki.mtac.core.service.openid.OpenIdService;
 import net.oneki.mtac.core.service.openid.PrivateKeyJwtVerifier;
+import net.oneki.mtac.core.service.openid.PrivateKeyJwtVerifier.ClientAssertion;
 import net.oneki.mtac.core.service.security.DelegatedScopePolicy;
 import net.oneki.mtac.framework.repository.OidcRepository;
 import net.oneki.mtac.framework.service.JwtTokenService;
@@ -378,7 +379,20 @@ public class OidcAuthorizationService {
    */
   public OidcTokenResponse exchangeCode(String clientId, String clientSecret, String origin, String code,
       String redirectUri, String codeVerifier, Collection<String> resources) {
-    var client = clientRegistry.authenticate(clientId, clientSecret, origin);
+    return exchangeCode(clientId, clientSecret, null, origin, code, redirectUri, codeVerifier, resources);
+  }
+
+  /**
+   * Same as {@link #exchangeCode(String, String, String, String, String, String, Collection)}
+   * for a client that may authenticate with a client assertion (private_key_jwt).
+   *
+   * @param clientId  may be null with an assertion: its issuer is then the client
+   * @param assertion the client assertion of the request, null when none
+   */
+  public OidcTokenResponse exchangeCode(String clientId, String clientSecret, ClientAssertion assertion,
+      String origin, String code, String redirectUri, String codeVerifier, Collection<String> resources) {
+    var client = clientRegistry.authenticate(clientId, clientSecret, assertion, origin);
+    clientId = authenticatedClientId(clientId, assertion);
     if (code == null || code.isBlank()) {
       throw OidcException.invalidRequest("Missing code");
     }
@@ -415,6 +429,15 @@ public class OidcAuthorizationService {
     var grant = Grant.of(session);
     return issueTokens(clientId, client, grant, openIdService.oidcClaims(grant.sub(), scopes), scopes,
         authorizationCode.getNonce(), codeHash, resource, Instant.now());
+  }
+
+  /**
+   * The client_id once the client is authenticated: a request authenticated by
+   * an assertion may omit it, the (now verified) issuer of the assertion is
+   * then the client.
+   */
+  private static String authenticatedClientId(String clientId, ClientAssertion assertion) {
+    return clientId == null && assertion != null ? assertion.unverifiedIssuer() : clientId;
   }
 
   /**
@@ -468,7 +491,20 @@ public class OidcAuthorizationService {
    */
   public OidcTokenResponse refresh(String clientId, String clientSecret, String origin, String refreshToken,
       Collection<String> resources) {
-    var client = clientRegistry.authenticate(clientId, clientSecret, origin);
+    return refresh(clientId, clientSecret, null, origin, refreshToken, resources);
+  }
+
+  /**
+   * Same as {@link #refresh(String, String, String, String, Collection)} for a
+   * client that may authenticate with a client assertion (private_key_jwt).
+   *
+   * @param clientId  may be null with an assertion: its issuer is then the client
+   * @param assertion the client assertion of the request, null when none
+   */
+  public OidcTokenResponse refresh(String clientId, String clientSecret, ClientAssertion assertion, String origin,
+      String refreshToken, Collection<String> resources) {
+    var client = clientRegistry.authenticate(clientId, clientSecret, assertion, origin);
+    clientId = authenticatedClientId(clientId, assertion);
     if (refreshToken == null || !refreshToken.startsWith(REFRESH_TOKEN_PREFIX)) {
       throw OidcException.invalidGrant("Invalid refresh token");
     }
@@ -744,7 +780,13 @@ public class OidcAuthorizationService {
 
   /** Revocation endpoint (RFC 7009). An unknown token is not an error. */
   public void revoke(String clientId, String clientSecret, String origin, String token) {
-    clientRegistry.authenticate(clientId, clientSecret, origin);
+    revoke(clientId, clientSecret, null, origin, token);
+  }
+
+  /** Same as {@link #revoke(String, String, String, String)} with an optional client assertion. */
+  public void revoke(String clientId, String clientSecret, ClientAssertion assertion, String origin, String token) {
+    clientRegistry.authenticate(clientId, clientSecret, assertion, origin);
+    clientId = authenticatedClientId(clientId, assertion);
     if (token == null || !token.startsWith(REFRESH_TOKEN_PREFIX)) {
       // access tokens are short-lived JWT: there is nothing to revoke
       return;

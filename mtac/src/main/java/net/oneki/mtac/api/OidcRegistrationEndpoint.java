@@ -61,7 +61,10 @@ import tools.jackson.databind.json.JsonMapper;
  * 127.0.0.1, [::1], any port at authorization time, RFC 8252) or an
  * {@code https} URI whose host is exactly one of
  * {@code dynamic.allowed-redirect-hosts} (case-insensitive, no wildcard,
- * default port only);</li>
+ * default port only), or a private-use URI of a native application (RFC 8252
+ * section 7.1) whose scheme is one of {@code dynamic.allowed-redirect-schemes}
+ * (Cursor: {@code cursor://anysphere.cursor-mcp/oauth/callback}), compared
+ * as an exact string at authorization time;</li>
  * <li>the policy of {@code dynamic.policy} is forced (consent remembered, API
  * access, resources, refresh token, MFA, session length); the requested scope
  * can only narrow the policy scopes, and {@code openid} is always kept;</li>
@@ -118,7 +121,7 @@ public class OidcRegistrationEndpoint {
   }
 
   /** Metadata of a registration request once validated. */
-  private record Registration(List<String> redirectUris, boolean allLoopback, boolean anyLoopback, String name,
+  private record Registration(List<String> redirectUris, boolean allNative, boolean anyLoopback, String name,
       List<String> scopes, boolean refreshGrant) {
   }
 
@@ -261,21 +264,34 @@ public class OidcRegistrationEndpoint {
     if (redirects.size() > MAX_REDIRECT_URIS) {
       throw new OidcException(INVALID_REDIRECT_URI, "No more than " + MAX_REDIRECT_URIS + " redirect URIs");
     }
+    var privateUseSchemes = OidcClientValidator.privateUseSchemes(config.getAllowedRedirectSchemes());
     var uris = new LinkedHashSet<String>();
     var loopbackCount = 0;
+    var privateUseCount = 0;
     for (var item : redirects.values()) {
       if (item == null || !item.isString()) {
         throw new OidcException(INVALID_REDIRECT_URI, "A redirect URI must be a string");
       }
       var value = item.stringValue();
       var loopback = OidcClientRegistry.parseLoopback(value);
-      uris.add(loopback != null ? canonicalLoopback(value, loopback) : checkHttps(value, allowedHosts));
       if (loopback != null) {
+        uris.add(canonicalLoopback(value, loopback));
         loopbackCount++;
+      } else if (OidcClientValidator.isPrivateUse(value, privateUseSchemes)) {
+        var reason = OidcClientValidator.checkPrivateUseRedirectUri(value);
+        if (reason != null) {
+          throw new OidcException(INVALID_REDIRECT_URI, "Invalid redirect URI: " + reason);
+        }
+        uris.add(value); // compared as an exact string
+        privateUseCount++;
+      } else {
+        uris.add(checkHttps(value, allowedHosts));
       }
     }
 
-    return new Registration(new ArrayList<>(uris), loopbackCount == redirects.size(), loopbackCount > 0,
+    // only loopback and private-use URIs: an application installed on the computer of the user
+    return new Registration(new ArrayList<>(uris), loopbackCount + privateUseCount == redirects.size(),
+        loopbackCount > 0,
         sanitizeName(optionalString(metadata, "client_name")),
         scopes(optionalString(metadata, "scope"), config.getPolicy()),
         // grant_types absent: refresh allowed as for metadata documents; present: only if it lists refresh_token
@@ -412,7 +428,7 @@ public class OidcRegistrationEndpoint {
   private static OidcClient buildClient(Registration registration, MtacOidcDynamicPolicy policy) {
     var client = new OidcClient();
     client.setName(registration.name());
-    client.setKind(registration.allLoopback() ? OidcClientKind.NATIVE : OidcClientKind.AI_CONNECTOR);
+    client.setKind(registration.allNative() ? OidcClientKind.NATIVE : OidcClientKind.AI_CONNECTOR);
     client.setConfidential(false);
     client.setRedirectUris(new ArrayList<>(registration.redirectUris()));
     client.setPostLogoutRedirectUris(new ArrayList<>());

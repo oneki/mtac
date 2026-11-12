@@ -17,6 +17,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import lombok.extern.slf4j.Slf4j;
+import net.oneki.mtac.core.service.openid.PrivateKeyJwtVerifier;
+import net.oneki.mtac.core.service.openid.PrivateKeyJwtVerifier.ClientAssertion;
+import net.oneki.mtac.core.service.openid.PrivateKeyJwtVerifier.ClientKeys;
 import net.oneki.mtac.framework.util.security.PasswordUtil;
 import net.oneki.mtac.model.core.config.MtacProperties;
 import net.oneki.mtac.model.core.config.MtacProperties.MtacOidcClient;
@@ -59,6 +62,7 @@ public class OidcClientRegistry {
   private final MtacProperties mtacProperties;
   private final OidcClientRepository clientRepository; // null: yml clients only
   private final ObjectProvider<OidcClientResolver> resolvers; // null: no resolver
+  private PrivateKeyJwtVerifier privateKeyJwtVerifier; // null: no client can authenticate with private_key_jwt
 
   private final Map<String, CachedClient> cache = new ConcurrentHashMap<>();
   private final AtomicLong generation = new AtomicLong();
@@ -75,6 +79,11 @@ public class OidcClientRegistry {
     this.mtacProperties = mtacProperties;
     this.clientRepository = clientRepository;
     this.resolvers = resolvers;
+  }
+
+  @Autowired(required = false)
+  public void setPrivateKeyJwtVerifier(PrivateKeyJwtVerifier privateKeyJwtVerifier) {
+    this.privateKeyJwtVerifier = privateKeyJwtVerifier;
   }
 
   public boolean isEnabled() {
@@ -238,15 +247,44 @@ public class OidcClientRegistry {
     return resolverStream().anyMatch(resolver -> resolver.isKnownOrigin(origin));
   }
 
+  /** Same as {@link #authenticate(String, String, ClientAssertion, String)} without client assertion. */
+  public MtacOidcClient authenticate(String clientId, String clientSecret, String origin) {
+    return authenticate(clientId, clientSecret, null, origin);
+  }
+
   /**
    * Authenticates the client on the token endpoint: a confidential client proves
    * its identity with one of its secrets (two may be valid during a rotation),
-   * a public client has none (PKCE protects the exchange).
+   * or, when it registered keys (private_key_jwt), with a client assertion
+   * signed by one of them and nothing else; a public client has none (PKCE
+   * protects the exchange).
+   *
+   * @param clientId  the client_id of the request; with an assertion it may be
+   *                  null, else it must be its issuer
+   * @param assertion the client assertion of the request, null when none
    */
-  public MtacOidcClient authenticate(String clientId, String clientSecret, String origin) {
+  public MtacOidcClient authenticate(String clientId, String clientSecret, ClientAssertion assertion,
+      String origin) {
+    if (assertion != null) {
+      if (clientSecret != null) {
+        throw OidcException.invalidClient("client_assertion is only accepted alone, without a client secret");
+      }
+      if (privateKeyJwtVerifier == null) {
+        throw OidcException.invalidClient("Client authentication failed");
+      }
+      var tokenEndpoint = mtacProperties.getJwt().getIssuer() + OidcAuthorizationService.PATH_TOKEN;
+      return privateKeyJwtVerifier.verify(assertion.type(), assertion.value(), clientId, List.of(tokenEndpoint),
+          this::find, client -> usesPrivateKeyJwt(client)
+              ? new ClientKeys(client.getName(), client.getJwks(), client.getJwksUri())
+              : null);
+    }
     var client = find(clientId);
     if (client == null) {
       throw OidcException.invalidClient("Unknown client");
+    }
+    if (usesPrivateKeyJwt(client)) {
+      log.info("OpenID client {} uses private_key_jwt but sent no client_assertion", clientId);
+      throw OidcException.invalidClient("Client authentication failed");
     }
     if (client.getType() == ClientType.CONFIDENTIAL) {
       if (clientSecret == null || clientSecret.isEmpty() || !matchesAnySecret(client, clientSecret)) {
@@ -256,6 +294,11 @@ public class OidcClientRegistry {
       throw OidcException.invalidClient("Origin not allowed for this client");
     }
     return client;
+  }
+
+  /** True when the client authenticates with private_key_jwt (it registered keys). */
+  public static boolean usesPrivateKeyJwt(MtacOidcClient client) {
+    return client.getJwks() != null || client.getJwksUri() != null;
   }
 
   private static boolean matchesAnySecret(MtacOidcClient client, String clientSecret) {

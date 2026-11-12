@@ -90,6 +90,9 @@ public class MtacProperties {
     private boolean dcrEnabled = false; // advertises registration_endpoint when true
     // HTTPS hosts a registered redirect URI may use; loopback URIs are always accepted
     private List<String> allowedRedirectHosts = new ArrayList<>();
+    // private-use URI schemes (RFC 8252 section 7.1) a redirect URI of a native application may use, such as cursor;
+    // also accepted for the clients a super admin creates. http, https and the schemes a browser runs are never allowed
+    private List<String> allowedRedirectSchemes = new ArrayList<>();
     private int registrationsPerIpPerHour = 20;
     private int unusedClientTtlDays = 30; // registered clients never used for that long are deleted
     private MtacOidcDynamicPolicy policy = new MtacOidcDynamicPolicy();
@@ -122,6 +125,10 @@ public class MtacProperties {
     private String name; // shown on the login page
     private String secretHash; // bcrypt hash, confidential clients only
     private List<String> secretHashes = new ArrayList<>(); // more accepted hashes (secret rotation of resource clients)
+    // private_key_jwt (CIMD clients only): the client signs a client_assertion with one of these keys instead of
+    // sending a secret; exactly one of jwks (inline JWK Set) and jwksUri is set, both null for every other client
+    private String jwks;
+    private String jwksUri;
     private List<String> redirectUris = new ArrayList<>(); // compared as exact strings, except loopback ones
     private List<String> postLogoutRedirectUris = new ArrayList<>();
     private List<String> allowedOrigins = new ArrayList<>(); // origins a public client may call the token endpoint from

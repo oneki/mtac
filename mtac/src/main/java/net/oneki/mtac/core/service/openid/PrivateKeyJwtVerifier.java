@@ -40,11 +40,13 @@ import net.oneki.mtac.model.resource.iam.identity.application.ApplicationAuthMet
  * Client authentication with {@code private_key_jwt} (RFC 7523 section 2.2,
  * OpenID Connect Core section 9): the client proves its identity with a JWT it
  * signed with a key it registered (inline {@code jwks} or {@code jwksUri}).
+ * Used by service accounts (client_credentials) and by the OpenID clients
+ * described by a metadata document that declares this method (ChatGPT).
  *
  * <p>
  * Checks, in order: assertion type; JWS with RS256, PS256 or ES256 only (never
- * none or HMAC); {@code iss == sub == client_id} of an application whose method
- * is {@code private_key_jwt}; signature against the application keys (a
+ * none or HMAC); {@code iss == sub == client_id} of a client whose method
+ * is {@code private_key_jwt}; signature against the client keys (a
  * {@code jwksUri} set is cached and fetched again once when the {@code kid} is
  * unknown); {@code aud} contains one of the expected audiences (token endpoint
  * URLs, issuer); {@code exp} present, not past and at most
@@ -65,7 +67,7 @@ public class PrivateKeyJwtVerifier {
   public static final Duration MAX_LIFETIME = Duration.ofMinutes(5);
   static final int MAX_ASSERTION_LENGTH = 16 * 1024;
   static final int MAX_JTI_LENGTH = 255;
-  static final int MAX_CLIENT_ID_LENGTH = 255;
+  public static final int MAX_CLIENT_ID_LENGTH = 255; // oauth_client_assertion_jti.client_id
 
   private final MtacProperties mtacProperties;
   private final ClientAssertionJtiRepository jtiRepository;
@@ -97,6 +99,43 @@ public class PrivateKeyJwtVerifier {
   }
 
   /**
+   * The {@code client_assertion_type} and {@code client_assertion} parameters
+   * of a request to the token or revocation endpoint.
+   */
+  public record ClientAssertion(String type, String value) {
+    /** The assertion of the request, null when it carries none. */
+    public static ClientAssertion of(String type, String value) {
+      return isAssertionRequest(type, value) ? new ClientAssertion(type, value) : null;
+    }
+
+    /**
+     * The {@code iss} of the assertion, NOT verified: only to find which
+     * client to authenticate when the request has no {@code client_id}
+     * ({@link PrivateKeyJwtVerifier#verify} then checks it). Null when the
+     * assertion is not a JWT.
+     */
+    public String unverifiedIssuer() {
+      if (value == null || value.length() > MAX_ASSERTION_LENGTH) {
+        return null;
+      }
+      try {
+        return SignedJWT.parse(value).getJWTClaimsSet().getIssuer();
+      } catch (ParseException e) {
+        return null;
+      }
+    }
+  }
+
+  /**
+   * The keys a client registered for its assertions: exactly one of
+   * {@code jwks} (inline JWK Set) and {@code jwksUri}.
+   *
+   * @param label name of the client in the logs
+   */
+  public record ClientKeys(String label, String jwks, String jwksUri) {
+  }
+
+  /**
    * Authenticates a client by its assertion.
    *
    * @param clientAssertionType the {@code client_assertion_type} form parameter
@@ -115,6 +154,23 @@ public class PrivateKeyJwtVerifier {
    */
   public <A extends Application> A verify(String clientAssertionType, String clientAssertion, String clientId,
       Collection<String> expectedAudiences, Function<String, A> applicationLoader) {
+    return verify(clientAssertionType, clientAssertion, clientId, expectedAudiences, applicationLoader,
+        application -> ApplicationAuthMethod.of(application) == ApplicationAuthMethod.PRIVATE_KEY_JWT
+            ? new ClientKeys(application.getLabel(), application.getJwks(), application.getJwksUri())
+            : null);
+  }
+
+  /**
+   * Same checks for any kind of client (an application, an OpenID client).
+   *
+   * @param clientLoader loads a client by client_id, null when unknown
+   * @param keysOf       the keys of a loaded client, null when it does not use
+   *                     private_key_jwt
+   * @return the authenticated client
+   * @throws OidcException invalid_client (401) for any failure
+   */
+  public <C> C verify(String clientAssertionType, String clientAssertion, String clientId,
+      Collection<String> expectedAudiences, Function<String, C> clientLoader, Function<C, ClientKeys> keysOf) {
     if (!CLIENT_ASSERTION_TYPE.equals(clientAssertionType)) {
       throw fail("unsupported client_assertion_type " + clientAssertionType);
     }
@@ -147,21 +203,22 @@ public class PrivateKeyJwtVerifier {
       throw fail("client_id parameter differs from the client_assertion issuer");
     }
 
-    A application;
+    C client;
     try {
-      application = applicationLoader.apply(issuer);
+      client = clientLoader.apply(issuer);
     } catch (RuntimeException e) {
       log.warn("private_key_jwt: unable to load client {}: {}", issuer, e.getMessage());
-      application = null;
+      client = null;
     }
-    if (application == null) {
+    if (client == null) {
       throw fail("unknown client " + issuer);
     }
-    if (ApplicationAuthMethod.of(application) != ApplicationAuthMethod.PRIVATE_KEY_JWT) {
+    var keys = keysOf.apply(client);
+    if (keys == null) {
       throw fail("client " + issuer + " does not use private_key_jwt");
     }
 
-    verifySignature(jwt, application);
+    verifySignature(jwt, keys);
     verifyAudience(claims, expectedAudiences);
     var expiration = verifyTimes(claims);
 
@@ -173,29 +230,29 @@ public class PrivateKeyJwtVerifier {
     if (!jtiRepository.tryStore(jti, issuer, keepUntil)) {
       throw fail("client_assertion jti already used (replay) for client " + issuer);
     }
-    return application;
+    return client;
   }
 
   // ------------------------------------------------------------ signature
 
-  private void verifySignature(SignedJWT jwt, Application application) {
+  private void verifySignature(SignedJWT jwt, ClientKeys keys) {
     var header = jwt.getHeader();
-    if (application.getJwks() != null && !application.getJwks().isBlank()) {
+    if (keys.jwks() != null && !keys.jwks().isBlank()) {
       JWKSet jwkSet;
       try {
-        jwkSet = ClientJwks.parse(application.getJwks());
+        jwkSet = ClientJwks.parse(keys.jwks());
       } catch (ClientJwks.InvalidJwksException e) {
-        throw fail("stored jwks of client " + application.getLabel() + " is invalid: " + e.getMessage());
+        throw fail("stored jwks of client " + keys.label() + " is invalid: " + e.getMessage());
       }
       if (!verifyWithAny(jwt, candidates(jwkSet, header))) {
-        throw fail("client_assertion signature does not match the keys of " + application.getLabel());
+        throw fail("client_assertion signature does not match the keys of " + keys.label());
       }
       return;
     }
 
-    var jwksUri = application.getJwksUri();
+    var jwksUri = keys.jwksUri();
     if (jwksUri == null || jwksUri.isBlank()) {
-      throw fail("client " + application.getLabel() + " has no key");
+      throw fail("client " + keys.label() + " has no key");
     }
     try {
       var candidates = candidates(jwksCache.get(jwksUri, false), header);
@@ -204,7 +261,7 @@ public class PrivateKeyJwtVerifier {
         candidates = candidates(jwksCache.get(jwksUri, true), header);
       }
       if (!verifyWithAny(jwt, candidates)) {
-        throw fail("client_assertion signature does not match the keys of " + application.getLabel());
+        throw fail("client_assertion signature does not match the keys of " + keys.label());
       }
     } catch (ClientJwksCache.JwksUnavailableException e) {
       throw fail(e.getMessage());

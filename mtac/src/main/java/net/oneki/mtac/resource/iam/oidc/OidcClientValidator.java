@@ -5,6 +5,7 @@ import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import org.springframework.stereotype.Component;
@@ -43,6 +44,9 @@ public class OidcClientValidator {
   public static final int MAX_URI_LENGTH = 2048;
   public static final int MAX_SECRETS = 2;
   public static final int MAX_SESSION_DAYS = 365;
+  /** Schemes no configuration can turn into a private-use redirect scheme: web, script, local file or browser ones. */
+  public static final Set<String> RESERVED_SCHEMES = Set.of("http", "https", "javascript", "vbscript", "data", "file",
+      "blob", "filesystem", "about", "view-source", "chrome", "intent", "ftp", "ws", "wss", "mailto", "tel", "sms");
 
   private final MtacProperties mtacProperties;
   private final TokenAudiences tokenAudiences;
@@ -60,6 +64,68 @@ public class OidcClientValidator {
     result.add(SCOPE_OFFLINE_ACCESS);
     result.addAll(API_SCOPES);
     return result;
+  }
+
+  /** The private-use redirect schemes of the configuration ({@code dynamic.allowed-redirect-schemes}). */
+  public Set<String> privateUseSchemes() {
+    return privateUseSchemes(mtacProperties.getOpenId().getServer().getDynamic().getAllowedRedirectSchemes());
+  }
+
+  /** Configured private-use schemes, lower case, without blanks, invalid names and {@link #RESERVED_SCHEMES}. */
+  public static Set<String> privateUseSchemes(List<String> configured) {
+    var result = new LinkedHashSet<String>();
+    if (configured != null) {
+      for (var scheme : configured) {
+        var value = scheme != null ? scheme.trim().toLowerCase(Locale.ROOT) : "";
+        if (value.matches("[a-z][a-z0-9+.-]*") && !RESERVED_SCHEMES.contains(value)) {
+          result.add(value);
+        }
+      }
+    }
+    return result;
+  }
+
+  /** True when the URI uses one of the private-use schemes (compared case-insensitively). */
+  public static boolean isPrivateUse(String value, Set<String> privateUseSchemes) {
+    if (value == null || privateUseSchemes == null || privateUseSchemes.isEmpty()) {
+      return false;
+    }
+    var colon = value.indexOf(':');
+    return colon > 0 && privateUseSchemes.contains(value.substring(0, colon).toLowerCase(Locale.ROOT));
+  }
+
+  /**
+   * Why a private-use redirect URI cannot be registered, or null when it can:
+   * hierarchical ({@code scheme:/path} or {@code scheme://host/path}), no
+   * fragment, user info, wildcard, white space or control character. The
+   * scheme itself is checked by {@link #isPrivateUse(String, Set)}.
+   */
+  public static String checkPrivateUseRedirectUri(String value) {
+    if (value == null || value.isEmpty() || value.length() > MAX_URI_LENGTH || value.indexOf('*') >= 0) {
+      return "not a valid absolute URI";
+    }
+    for (var i = 0; i < value.length(); i++) {
+      var c = value.charAt(i);
+      if (c <= 0x20 || c >= 0x7f) {
+        return "not a valid absolute URI";
+      }
+    }
+    URI uri;
+    try {
+      uri = new URI(value);
+    } catch (URISyntaxException e) {
+      return "not a valid absolute URI";
+    }
+    if (!uri.isAbsolute() || uri.isOpaque()) {
+      return "not a valid absolute URI";
+    }
+    if (uri.getRawFragment() != null || value.indexOf('#') >= 0) {
+      return "a fragment is not allowed";
+    }
+    if (uri.getRawUserInfo() != null || value.indexOf('@') >= 0) {
+      return "user information is not allowed";
+    }
+    return null;
   }
 
   /** A client_id must never equal an audience, nor shadow or be shadowed by a yml client. */
@@ -170,8 +236,10 @@ public class OidcClientValidator {
     if (uris.size() > MAX_URIS) {
       throw new BusinessException(code, "No more than " + MAX_URIS + " URIs are allowed");
     }
+    var privateUseSchemes = privateUseSchemes();
     for (var uri : uris) {
-      var reason = checkRedirectUri(uri, allowLoopbackHttp);
+      var reason = isPrivateUse(uri, privateUseSchemes) ? checkPrivateUseRedirectUri(uri)
+          : checkRedirectUri(uri, allowLoopbackHttp);
       if (reason != null) {
         throw new BusinessException(code, "Invalid URI " + uri + ": " + reason).param("uri", uri);
       }
@@ -206,7 +274,7 @@ public class OidcClientValidator {
       }
       return null;
     }
-    return "the scheme must be https";
+    return "the scheme must be https (or a private-use scheme of the configuration)";
   }
 
   private void validateOrigins(List<String> origins) {

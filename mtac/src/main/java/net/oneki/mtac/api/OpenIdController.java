@@ -26,6 +26,7 @@ import net.oneki.mtac.core.service.openid.ImpersonateService;
 import net.oneki.mtac.core.service.openid.MfaService;
 import net.oneki.mtac.core.service.openid.OpenIdService;
 import net.oneki.mtac.core.service.openid.PrivateKeyJwtVerifier;
+import net.oneki.mtac.core.service.openid.PrivateKeyJwtVerifier.ClientAssertion;
 import net.oneki.mtac.core.service.openid.ResetPasswordService;
 import net.oneki.mtac.core.service.openid.oidc.OidcAuthorizationService;
 import net.oneki.mtac.core.service.security.PermissionService;
@@ -217,6 +218,19 @@ public abstract class OpenIdController {
       @RequestParam(value = "client_assertion", required = false) String client_assertion,
       @RequestHeader(value = "Authorization", required = false) String authorizationHeader)
       throws Exception {
+    // refresh tokens issued to an OpenID client carry a prefix the other ones cannot have; the client may
+    // authenticate with a client assertion (private_key_jwt of a client described by a metadata document)
+    if ("refresh_token".equals(grant_type) && refresh_token != null
+        && refresh_token.startsWith(OidcAuthorizationService.REFRESH_TOKEN_PREFIX) && oidcEndpoints.isEnabled()
+        && PrivateKeyJwtVerifier.isAssertionRequest(client_assertion_type, client_assertion)) {
+      if (authorizationHeader != null) {
+        return tokenEndpointError(OidcException.invalidClient(
+            "client_assertion is only accepted alone, without a client secret"));
+      }
+      return oidcEndpoints.refresh(client_id, client_secret,
+          ClientAssertion.of(client_assertion_type, client_assertion), refresh_token);
+    }
+
     // private_key_jwt: the client proves its identity with a signed JWT, never together with a secret
     if (PrivateKeyJwtVerifier.isAssertionRequest(client_assertion_type, client_assertion)) {
       if (client_secret != null || authorizationHeader != null || !"client_credentials".equals(grant_type)) {

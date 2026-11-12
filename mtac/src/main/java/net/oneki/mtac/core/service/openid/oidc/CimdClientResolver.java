@@ -15,6 +15,8 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import lombok.extern.slf4j.Slf4j;
+import net.oneki.mtac.core.service.openid.ClientJwks;
+import net.oneki.mtac.core.service.openid.PrivateKeyJwtVerifier;
 import net.oneki.mtac.core.util.http.SafeHttpFetcher;
 import net.oneki.mtac.core.util.http.SafeHttpFetcher.SafeFetchException;
 import net.oneki.mtac.framework.service.TokenAudiences;
@@ -57,10 +59,15 @@ import tools.jackson.databind.json.JsonMapper;
  * {@code https} ones (no user info, no fragment), or loopback {@code http}
  * ones ({@code localhost}, {@code 127.0.0.1}, {@code [::1]}), which then match
  * any port (RFC 8252 section 7.3);</li>
- * <li>the client is public: {@code token_endpoint_auth_method} absent or
- * {@code none}, no {@code client_secret} nor {@code client_secret_expires_at}
- * member (the draft forbids them; {@code private_key_jwt} is not supported
- * yet);</li>
+ * <li>no {@code client_secret} nor {@code client_secret_expires_at} member
+ * (the draft forbids them), and {@code token_endpoint_auth_method} is absent
+ * or {@code none} (public client, PKCE only) or {@code private_key_jwt}
+ * (ChatGPT). A {@code private_key_jwt} client declares exactly one of
+ * {@code jwks} (public keys, same rules as a service account) and
+ * {@code jwks_uri} (https, on the host of the client_id), its client_id is at
+ * most {@value PrivateKeyJwtVerifier#MAX_CLIENT_ID_LENGTH} characters, and it
+ * must then authenticate on the token endpoint with a client assertion signed
+ * by one of these keys;</li>
  * <li>{@code grant_types}, when present, holds {@code authorization_code} and
  * nothing beyond {@code refresh_token}; {@code response_types}, when present,
  * is exactly {@code ["code"]}.</li>
@@ -89,6 +96,8 @@ public class CimdClientResolver implements OidcClientResolver {
   public static final int MAX_REDIRECT_URIS = 20;
   public static final int MAX_NAME_LENGTH = 100;
   private static final String ACCEPT = "application/json";
+  private static final String AUTH_NONE = "none";
+  private static final String AUTH_PRIVATE_KEY_JWT = "private_key_jwt";
   private static final Set<String> ALLOWED_GRANT_TYPES = Set.of("authorization_code", "refresh_token");
 
   private static final JsonMapper MAPPER = JsonMapper.builder(JsonFactory.builder()
@@ -328,18 +337,22 @@ public class CimdClientResolver implements OidcClientResolver {
       throw new InvalidDocumentException("a client secret is declared");
     }
     var authMethod = doc.get("token_endpoint_auth_method");
-    if (authMethod != null && !(authMethod.isString() && "none".equals(authMethod.stringValue()))) {
-      throw new InvalidDocumentException("token_endpoint_auth_method " + authMethod + " not supported (only none)");
+    if (authMethod != null && !(authMethod.isString() && (AUTH_NONE.equals(authMethod.stringValue())
+        || AUTH_PRIVATE_KEY_JWT.equals(authMethod.stringValue())))) {
+      throw new InvalidDocumentException("token_endpoint_auth_method " + authMethod
+          + " not supported (none or private_key_jwt)");
     }
+    var keys = authMethod != null && AUTH_PRIVATE_KEY_JWT.equals(authMethod.stringValue()) ? keys(url, doc) : null;
 
     var grantTypes = stringArray(doc, "grant_types", 10);
     if (grantTypes != null) {
       if (!grantTypes.contains("authorization_code")) {
         throw new InvalidDocumentException("grant_types without authorization_code");
       }
-      if (!ALLOWED_GRANT_TYPES.containsAll(grantTypes)) {
-        throw new InvalidDocumentException("grant_types " + grantTypes + " not supported");
-      }
+      // Other grant types are ignored, not refused: the document describes the client for every provider (Claude
+      // declares urn:ietf:params:oauth:grant-type:jwt-bearer), and the token endpoint only ever accepts
+      // authorization_code and refresh_token.
+      grantTypes = grantTypes.stream().filter(ALLOWED_GRANT_TYPES::contains).toList();
     }
     var responseTypes = stringArray(doc, "response_types", 10);
     if (responseTypes != null && !responseTypes.equals(List.of("code"))) {
@@ -366,10 +379,12 @@ public class CimdClientResolver implements OidcClientResolver {
 
     var policy = cimd.getPolicy();
     var client = new MtacOidcClient();
-    client.setType(ClientType.PUBLIC);
+    client.setType(keys != null ? ClientType.CONFIDENTIAL : ClientType.PUBLIC);
     client.setName(name(doc.get("client_name"), URI.create(url).getHost().toLowerCase(Locale.ROOT)));
     client.setSecretHash(null);
     client.setSecretHashes(new ArrayList<>());
+    client.setJwks(keys != null ? keys.jwks() : null);
+    client.setJwksUri(keys != null ? keys.jwksUri() : null);
     client.setRedirectUris(new ArrayList<>(redirectUris));
     client.setPostLogoutRedirectUris(new ArrayList<>());
     client.setAllowedOrigins(new ArrayList<>());
@@ -385,6 +400,48 @@ public class CimdClientResolver implements OidcClientResolver {
     client.setSource(OidcClientSource.CIMD);
     client.setUid(null);
     return client;
+  }
+
+  /** The keys of a private_key_jwt document: exactly one of jwks and jwks_uri. */
+  private static PrivateKeyJwtVerifier.ClientKeys keys(String url, JsonNode doc) throws InvalidDocumentException {
+    if (url.length() > PrivateKeyJwtVerifier.MAX_CLIENT_ID_LENGTH) {
+      throw new InvalidDocumentException("private_key_jwt with a client_id longer than "
+          + PrivateKeyJwtVerifier.MAX_CLIENT_ID_LENGTH + " characters");
+    }
+    var signingAlg = doc.get("token_endpoint_auth_signing_alg");
+    if (signingAlg != null && !(signingAlg.isString()
+        && PrivateKeyJwtVerifier.supportedAlgorithmNames().contains(signingAlg.stringValue()))) {
+      throw new InvalidDocumentException("token_endpoint_auth_signing_alg " + signingAlg + " not supported "
+          + PrivateKeyJwtVerifier.supportedAlgorithmNames());
+    }
+    var jwks = doc.get("jwks");
+    var jwksUri = doc.get("jwks_uri");
+    if ((jwks == null) == (jwksUri == null)) {
+      throw new InvalidDocumentException("private_key_jwt needs exactly one of jwks and jwks_uri");
+    }
+    try {
+      if (jwks != null) {
+        if (!jwks.isObject()) {
+          throw new InvalidDocumentException("jwks is not a JSON object");
+        }
+        var json = jwks.toString();
+        ClientJwks.parse(json);
+        return new PrivateKeyJwtVerifier.ClientKeys(url, json, null);
+      }
+      if (!jwksUri.isString()) {
+        throw new InvalidDocumentException("jwks_uri is not a string");
+      }
+      var value = ClientJwks.validateUri(jwksUri.stringValue());
+      // the keys of a client come from the client itself: never from another host the document points to
+      var clientHost = URI.create(url).getHost();
+      var keysHost = URI.create(value).getHost();
+      if (!clientHost.equalsIgnoreCase(keysHost) || URI.create(value).getPort() != -1) {
+        throw new InvalidDocumentException("jwks_uri " + value + " is not on the host of the client_id");
+      }
+      return new PrivateKeyJwtVerifier.ClientKeys(url, null, value);
+    } catch (ClientJwks.InvalidJwksException e) {
+      throw new InvalidDocumentException(e.getMessage());
+    }
   }
 
   /** Why an https redirect URI is refused, or null. */

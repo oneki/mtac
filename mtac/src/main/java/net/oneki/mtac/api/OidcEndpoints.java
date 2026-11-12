@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -38,6 +39,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import net.oneki.mtac.core.service.openid.MfaService;
 import net.oneki.mtac.core.service.openid.OpenIdService;
+import net.oneki.mtac.core.service.openid.PrivateKeyJwtVerifier.ClientAssertion;
 import net.oneki.mtac.core.service.openid.ResetPasswordService;
 import net.oneki.mtac.core.service.openid.oidc.LoginAttemptService;
 import net.oneki.mtac.core.service.openid.oidc.OidcAuthorizationService;
@@ -773,7 +775,9 @@ public class OidcEndpoints {
     model.put("clientHost", OidcConsentService.clientHost(clientId, client, authorizationRequest.getRedirectUri()));
     model.put("redirectHost", OidcConsentService.host(authorizationRequest.getRedirectUri()));
     model.put("username", userLabel(session));
-    model.put("loopback", OidcConsentService.isLoopbackOnly(client) ? "true" : null);
+    // the warning also when this request goes back to an application on this computer (Cursor lists https too)
+    model.put("loopback", OidcConsentService.isLoopbackOnly(client)
+        || OidcConsentService.isOnThisComputer(authorizationRequest.getRedirectUri()) ? "true" : null);
     model.put("resource", resourceLabel(authorizationRequest.getResource()));
     var items = new ArrayList<Map<String, String>>();
     for (var scope : OidcConsentRepository.splitScopes(scopes)) {
@@ -859,14 +863,17 @@ public class OidcEndpoints {
       @RequestHeader(value = "Authorization", required = false) String authorization, HttpServletRequest request) {
     var origin = request.getHeader("Origin");
     try {
-      for (var name : List.of("client_id", "client_secret", "code", "redirect_uri", "code_verifier")) {
+      for (var name : List.of("client_id", "client_secret", "client_assertion_type", "client_assertion", "code",
+          "redirect_uri", "code_verifier")) {
         if (hasSeveralValues(form, name)) {
           throw OidcException.invalidRequest("Duplicated parameter " + name);
         }
       }
-      var client = clientCredentials(form.getFirst("client_id"), form.getFirst("client_secret"), authorization);
-      return tokenResponse(authorizationService.exchangeCode(client[0], client[1], origin, form.getFirst("code"),
-          form.getFirst("redirect_uri"), form.getFirst("code_verifier"),
+      var assertion = clientAssertion(form);
+      var client = clientCredentials(form.getFirst("client_id"), form.getFirst("client_secret"), authorization,
+          assertion);
+      return tokenResponse(authorizationService.exchangeCode(client[0], client[1], assertion, origin,
+          form.getFirst("code"), form.getFirst("redirect_uri"), form.getFirst("code_verifier"),
           form.get(OidcAuthorizationService.PARAM_RESOURCE)), origin);
     } catch (OidcException e) {
       return jsonError(e, origin);
@@ -878,6 +885,12 @@ public class OidcEndpoints {
    * {@link OpenIdController} when the refresh token is one issued here.
    */
   public ResponseEntity<?> refresh(String clientId, String clientSecret, String refreshToken) {
+    return refresh(clientId, clientSecret, null, refreshToken);
+  }
+
+  /** Same as {@link #refresh(String, String, String)} with the client assertion of the request, null when none. */
+  public ResponseEntity<?> refresh(String clientId, String clientSecret, ClientAssertion assertion,
+      String refreshToken) {
     var attributes = RequestContextHolder.getRequestAttributes();
     var servletRequest = attributes instanceof ServletRequestAttributes servletAttributes
         ? servletAttributes.getRequest()
@@ -886,7 +899,7 @@ public class OidcEndpoints {
     var resources = servletRequest != null ? servletRequest.getParameterValues(OidcAuthorizationService.PARAM_RESOURCE)
         : null;
     try {
-      return tokenResponse(authorizationService.refresh(clientId, clientSecret, origin, refreshToken,
+      return tokenResponse(authorizationService.refresh(clientId, clientSecret, assertion, origin, refreshToken,
           resources != null ? List.of(resources) : null), origin);
     } catch (OidcException e) {
       return jsonError(e, origin);
@@ -897,8 +910,10 @@ public class OidcEndpoints {
       @RequestHeader(value = "Authorization", required = false) String authorization, HttpServletRequest request) {
     var origin = request.getHeader("Origin");
     try {
-      var client = clientCredentials(form.getFirst("client_id"), form.getFirst("client_secret"), authorization);
-      authorizationService.revoke(client[0], client[1], origin, form.getFirst("token"));
+      var assertion = clientAssertion(form);
+      var client = clientCredentials(form.getFirst("client_id"), form.getFirst("client_secret"), authorization,
+          assertion);
+      authorizationService.revoke(client[0], client[1], assertion, origin, form.getFirst("token"));
       return ResponseEntity.ok().headers(apiHeaders(origin)).build();
     } catch (OidcException e) {
       return jsonError(e, origin);
@@ -1451,7 +1466,11 @@ public class OidcEndpoints {
           }
           continue;
         }
-        if (uri.getScheme() != null && uri.getHost() != null) {
+        if (uri.getScheme() != null && !"http".equalsIgnoreCase(uri.getScheme())
+            && !"https".equalsIgnoreCase(uri.getScheme())) {
+          // private-use URI of a native application (cursor:): a scheme source, the only form browsers match
+          result.add(uri.getScheme().toLowerCase(Locale.ROOT) + ":");
+        } else if (uri.getScheme() != null && uri.getHost() != null) {
           result.add(uri.getScheme() + "://" + uri.getHost() + (uri.getPort() > 0 ? ":" + uri.getPort() : ""));
         }
       } catch (IllegalArgumentException e) {
@@ -1519,11 +1538,18 @@ public class OidcEndpoints {
 
   // -------------------------------------------------------------- helpers
 
+  /** The client assertion of a form (private_key_jwt), null when it carries none. */
+  private static ClientAssertion clientAssertion(MultiValueMap<String, String> form) {
+    return ClientAssertion.of(form.getFirst("client_assertion_type"), form.getFirst("client_assertion"));
+  }
+
   /**
    * Client id and secret, from the Basic authorization header (where both are
-   * form-urlencoded, RFC 6749 section 2.3.1) or from the body.
+   * form-urlencoded, RFC 6749 section 2.3.1) or from the body. With a client
+   * assertion, the client_id may be absent (the assertion names the client).
    */
-  private static String[] clientCredentials(String clientId, String clientSecret, String authorization) {
+  private static String[] clientCredentials(String clientId, String clientSecret, String authorization,
+      ClientAssertion assertion) {
     if (authorization != null && authorization.regionMatches(true, 0, "Basic ", 0, 6)) {
       try {
         var decoded = new String(Base64.getDecoder().decode(authorization.substring(6).trim()), StandardCharsets.UTF_8);
@@ -1538,6 +1564,9 @@ public class OidcEndpoints {
       throw OidcException.invalidClient("Invalid Basic authorization header");
     }
     if (clientId == null || clientId.isBlank()) {
+      if (assertion != null) {
+        return new String[] { null, clientSecret };
+      }
       throw OidcException.invalidClient("Missing client_id");
     }
     return new String[] { clientId, clientSecret };

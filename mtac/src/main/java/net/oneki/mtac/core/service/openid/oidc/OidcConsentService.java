@@ -269,13 +269,20 @@ public class OidcConsentService {
     return host(client.getRedirectUris().get(0));
   }
 
-  /** Host (with its port when there is one) of an URI, or null. */
+  /**
+   * Host (with its port when there is one) of an URI, or null. A private-use
+   * URI (RFC 8252 section 7.1) opens an application: its scheme, which names
+   * that application, is kept ({@code cursor://anysphere.cursor-mcp}).
+   */
   public static String host(String value) {
     if (value == null) {
       return null;
     }
     try {
       var uri = new URI(value);
+      if (isPrivateUse(uri)) {
+        return uri.getHost() != null ? uri.getScheme() + "://" + uri.getHost() : uri.getScheme() + ":";
+      }
       if (uri.getHost() == null) {
         return null;
       }
@@ -285,24 +292,42 @@ public class OidcConsentService {
     }
   }
 
-  /** True when every redirect URI of the client points to this computer: a native application. */
+  /**
+   * True when every redirect URI of the client points to this computer (a
+   * loopback or a private-use URI): a native application.
+   */
   public static boolean isLoopbackOnly(MtacOidcClient client) {
     var uris = client.getRedirectUris();
     if (uris == null || uris.isEmpty()) {
       return false;
     }
     for (var value : uris) {
-      String host;
-      try {
-        host = new URI(value).getHost(); // [::1] keeps its brackets
-      } catch (Exception e) {
-        return false;
-      }
-      if (host == null || !OidcClientRegistry.LOOPBACK_HOSTS.contains(host)) {
+      if (!isOnThisComputer(value)) {
         return false;
       }
     }
     return true;
+  }
+
+  /** True when the redirect URI points to this computer: a loopback or a private-use URI. */
+  public static boolean isOnThisComputer(String value) {
+    URI uri;
+    try {
+      uri = new URI(value);
+    } catch (Exception e) {
+      return false;
+    }
+    if (isPrivateUse(uri)) {
+      return true;
+    }
+    var host = uri.getHost(); // [::1] keeps its brackets
+    return "http".equalsIgnoreCase(uri.getScheme()) && host != null && OidcClientRegistry.LOOPBACK_HOSTS.contains(host);
+  }
+
+  /** An absolute URI whose scheme is neither http nor https (the validator only lets allowed ones in). */
+  private static boolean isPrivateUse(URI uri) {
+    var scheme = uri.getScheme();
+    return scheme != null && !"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme);
   }
 
   private MtacOidcClient findClient(String clientId) {
