@@ -237,6 +237,15 @@ USING btree
 );
 -- ddl-end --
 
+-- object: resource_ace_resource_idx | type: INDEX --
+-- DROP INDEX IF EXISTS public.resource_ace_resource_idx CASCADE;
+CREATE INDEX resource_ace_resource_idx ON public.resource_ace
+USING btree
+(
+	resource_id
+);
+-- ddl-end --
+
 -- object: public.ace | type: TABLE --
 -- DROP TABLE IF EXISTS public.ace CASCADE;
 CREATE TABLE public.ace (

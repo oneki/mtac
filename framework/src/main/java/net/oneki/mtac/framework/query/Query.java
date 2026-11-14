@@ -81,6 +81,8 @@ public class Query {
           } catch (UnsupportedEncodingException e) {
             throw new RuntimeException(e);
           }
+          // without this break, sortBy fell through and overwrote a sortOrder=desc read before it
+          break;
         case "sortOrder":
           sortOrder = (value.equals("desc")) ? "desc" : "asc";
           break;
