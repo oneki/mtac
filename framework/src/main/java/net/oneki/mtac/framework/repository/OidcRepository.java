@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import net.oneki.mtac.model.core.openid.oidc.OidcAuthorizationCode;
 import net.oneki.mtac.model.core.openid.oidc.OidcRefreshToken;
@@ -22,6 +23,16 @@ import net.oneki.mtac.model.core.openid.oidc.OidcSession;
  * issued for, and ending their session only clears their {@code session_id}
  * (ON DELETE SET NULL); they are deleted with their identity (ON DELETE
  * CASCADE).
+ *
+ * <p>
+ * A refresh rotates the presented token and stores its successor in one
+ * transaction ({@link #rotateRefreshToken(String, OidcRefreshToken, Instant)}):
+ * the row lock of the presented token is held until the successor is
+ * committed. The revocations of a family or an identity update their rows
+ * until no row is left ({@link #MAX_REVOCATION_PASSES} passes at most): a
+ * revocation blocked by that lock reads the rows again once it is released,
+ * and so catches the successor (under READ COMMITTED an UPDATE does not see
+ * rows committed after it started).
  */
 @Repository
 public class OidcRepository extends AbstractRepository {
@@ -221,14 +232,59 @@ public class OidcRepository extends AbstractRepository {
     return jdbcTemplate.update(SQL_ROTATE_REFRESH_TOKEN, params) == 1;
   }
 
+  /**
+   * Rotates the presented refresh token and stores its successor, in one
+   * transaction: when the presented token was revoked meanwhile (a sign-out or
+   * a credential change during the refresh) or already exchanged, nothing is
+   * stored. The row lock taken by the rotation is held until the successor is
+   * committed, so a revocation of the family that waits for it sees the
+   * successor in its next pass.
+   *
+   * @return false when the presented token is no longer live (nothing stored)
+   */
+  @Transactional
+  public boolean rotateRefreshToken(String tokenHash, OidcRefreshToken next, Instant now) {
+    if (!rotateRefreshToken(tokenHash, now)) {
+      return false;
+    }
+    insertRefreshToken(next);
+    return true;
+  }
+
   private static final String SQL_REVOKE_REFRESH_TOKEN_FAMILY = "UPDATE oidc_refresh_token SET revoked_at = :now "
       + "WHERE family_id = :family_id AND revoked_at IS NULL";
 
+  /**
+   * A family whose refresh tokens expired more recently than that may still
+   * have live access tokens (longer than any access token lifetime).
+   */
+  public static final java.time.Duration LIVE_FAMILY_MARGIN = java.time.Duration.ofDays(1);
+
+  /** Passes of a revocation UPDATE at most (see the class comment). */
+  static final int MAX_REVOCATION_PASSES = 3;
+
+  /**
+   * Revokes every token of a family, including a successor a concurrent
+   * refresh stored while this revocation waited for its lock.
+   */
   public void revokeRefreshTokenFamily(String familyId, Instant now) {
     var params = new HashMap<String, Object>();
     params.put("family_id", familyId);
     params.put("now", Timestamp.from(now));
-    jdbcTemplate.update(SQL_REVOKE_REFRESH_TOKEN_FAMILY, params);
+    updateUntilNoRowLeft(SQL_REVOKE_REFRESH_TOKEN_FAMILY, params);
+  }
+
+  /** Runs a revocation UPDATE again while it still revokes rows: the total number of rows revoked. */
+  private int updateUntilNoRowLeft(String sql, java.util.Map<String, Object> params) {
+    var total = 0;
+    for (var pass = 0; pass < MAX_REVOCATION_PASSES; pass++) {
+      var updated = jdbcTemplate.update(sql, params);
+      total += updated;
+      if (updated == 0) {
+        break;
+      }
+    }
+    return total;
   }
 
   // a token stored before identity_id existed is still found through its session
@@ -247,12 +303,14 @@ public class OidcRepository extends AbstractRepository {
     var params = new HashMap<String, Object>();
     params.put("identity_id", identityId);
     params.put("now", Timestamp.from(now));
-    return jdbcTemplate.update(SQL_REVOKE_REFRESH_TOKENS_OF_IDENTITY, params);
+    return updateUntilNoRowLeft(SQL_REVOKE_REFRESH_TOKENS_OF_IDENTITY, params);
   }
 
   // a token stored before identity_id existed is still found through its session
+  // a family whose tokens all expired long ago has no live access token left to revoke (the revocation list stays
+  // small); an access token may outlive the last refresh token of its family by its own lifetime, hence the margin
   private static final String SQL_LIST_LIVE_FAMILIES_OF_IDENTITY = "SELECT DISTINCT family_id FROM oidc_refresh_token "
-      + "WHERE revoked_at IS NULL AND (identity_id = :identity_id "
+      + "WHERE revoked_at IS NULL AND expires_at > :expired_before AND (identity_id = :identity_id "
       + "OR session_id IN (SELECT id FROM oidc_session WHERE identity_id = :identity_id))";
 
   /**
@@ -263,6 +321,7 @@ public class OidcRepository extends AbstractRepository {
   public List<String> listLiveFamilyIdsOfIdentity(Integer identityId) {
     var params = new HashMap<String, Object>();
     params.put("identity_id", identityId);
+    params.put("expired_before", Timestamp.from(Instant.now().minus(LIVE_FAMILY_MARGIN)));
     return jdbcTemplate.queryForList(SQL_LIST_LIVE_FAMILIES_OF_IDENTITY, params, String.class);
   }
 

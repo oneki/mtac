@@ -57,6 +57,11 @@ import net.oneki.mtac.resource.iam.oidc.OidcClientRepository;
  * directly in yml.
  *
  * <p>
+ * A yml client with {@code enabled: false} does not exist for this registry
+ * (Spring merges the client maps of the profiles: a profile removes a client of
+ * the shared file this way); its client_id stays reserved for yml.
+ *
+ * <p>
  * The provider is enabled by {@code mtac.openid.server.enabled}, or as soon as
  * one yml client is declared.
  */
@@ -118,7 +123,10 @@ public class OidcClientRegistry {
 
   /**
    * A first-party audience is a yml-only attribute: a client of another source
-   * (a resolver, a resource) never keeps one, nor passes for a yml client.
+   * (a resolver, a resource) never keeps one, nor passes for a yml client. The
+   * other yml-only attributes are dropped as well: its own access token
+   * lifetime ({@code accessTokenTtlSec}, which the revocation list only counts
+   * for yml clients) and {@code ignoreSsoSession}.
    */
   static MtacOidcClient withoutFirstPartyAudiences(MtacOidcClient client) {
     if (client == null) {
@@ -129,6 +137,13 @@ public class OidcClientRegistry {
           client.getName(), client.getSource());
       client.setFirstPartyAudiences(new ArrayList<>());
     }
+    if (client.getAccessTokenTtlSec() != null) {
+      // a longer lifetime would outlive the revocation list entries (TokenRevocationService.entryLifetime)
+      log.warn("OpenID client {} ({}) declares an access token lifetime, which only yml clients may: ignored",
+          client.getName(), client.getSource());
+      client.setAccessTokenTtlSec(null);
+    }
+    client.setIgnoreSsoSession(false);
     if (client.getSource() == null || client.getSource() == OidcClientSource.YML) {
       // the MtacOidcClient default is YML: a client that is not in the yml map must not pass for one
       client.setSource(OidcClientSource.CONSOLE);
@@ -157,9 +172,9 @@ public class OidcClientRegistry {
     return withoutFirstPartyAudiences(findResourceClient(clientId));
   }
 
-  /** True when the client_id is declared in yml: no resource may then use it. */
+  /** True when the client_id is declared in yml (even disabled): no resource may then use it. */
   public boolean isYmlClient(String clientId) {
-    return clientId != null && ymlClients().containsKey(clientId);
+    return clientId != null && mtacProperties.getOpenId().getServer().getClients().containsKey(clientId);
   }
 
   /** Forgets the cached resource client. Called after any create, update or delete. */
@@ -443,8 +458,19 @@ public class OidcClientRegistry {
     return result;
   }
 
+  /** The yml clients that are not disabled ({@code enabled: false} in a profile). */
   private Map<String, MtacOidcClient> ymlClients() {
-    return mtacProperties.getOpenId().getServer().getClients();
+    var clients = mtacProperties.getOpenId().getServer().getClients();
+    if (clients.values().stream().allMatch(MtacOidcClient::isEnabled)) {
+      return clients;
+    }
+    var enabled = new java.util.LinkedHashMap<String, MtacOidcClient>();
+    clients.forEach((clientId, client) -> {
+      if (client.isEnabled()) {
+        enabled.put(clientId, client);
+      }
+    });
+    return enabled;
   }
 
   private OidcClientResolver resolverFor(String clientId) {

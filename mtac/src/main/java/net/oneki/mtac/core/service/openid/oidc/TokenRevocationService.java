@@ -17,6 +17,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import lombok.extern.slf4j.Slf4j;
+import net.oneki.mtac.core.service.openid.ImpersonateService;
 import net.oneki.mtac.framework.repository.TokenRevocationRepository;
 import net.oneki.mtac.model.core.config.MtacProperties;
 import net.oneki.mtac.model.core.openid.oidc.TokenRevocation;
@@ -38,7 +39,10 @@ import net.oneki.mtac.model.core.openid.oidc.TokenRevocation.Kind;
  * {@code revoked_at} ({@link #refresh()}, in-process scheduler: the set
  * belongs to the instance). The query goes back {@link #OVERLAP} before the
  * newest row already read, so that a row committed late (inside a longer
- * transaction) or by an instance whose clock lags is not missed;</li>
+ * transaction) or by an instance whose clock lags is not missed; the read
+ * point never goes beyond the clock of this instance, so a row stamped in the
+ * future by an instance whose clock runs ahead does not make the next reads
+ * skip the rows of the other instances;</li>
  * <li>a row expires ({@code expires_at}) when every token it targets has
  * expired: the longest access token lifetime plus the accepted clock skew
  * after the revocation. The same refresh drops the expired entries from memory
@@ -50,6 +54,12 @@ import net.oneki.mtac.model.core.openid.oidc.TokenRevocation.Kind;
  * {@code iat}, within {@link #USER_ISSUED_AT_MARGIN}): the user may sign in
  * again once allowed to. Sessions and families are never reused, so every
  * token that carries a revoked one is refused.
+ *
+ * <p>
+ * The periodic read relies on Spring scheduling: the application must enable
+ * it ({@code @EnableScheduling}), otherwise the revocations written by other
+ * instances are never read (and the expired ones never purged). The table is
+ * required: {@link TokenRevocationTableCheck} refuses to start without it.
  */
 @Service
 @Slf4j
@@ -192,7 +202,8 @@ public class TokenRevocationService {
   public synchronized void refresh() {
     var now = clock.instant();
     try {
-      var since = newestRead != null ? newestRead.minus(OVERLAP) : Instant.EPOCH;
+      // min(newest row read, now): a row stamped ahead of this clock must not move the read point past now
+      var since = newestRead != null ? earliest(newestRead, now).minus(OVERLAP) : Instant.EPOCH;
       var newest = newestRead;
       for (var revocation : repository.listSince(since, now)) {
         add(revocation);
@@ -219,6 +230,20 @@ public class TokenRevocationService {
     }
   }
 
+  private static Instant earliest(Instant a, Instant b) {
+    return a.isBefore(b) ? a : b;
+  }
+
+  /**
+   * Where the next refresh reads from, before the {@link #OVERLAP}: the newest
+   * row read, never beyond the clock of this instance; null before the first
+   * refresh (tests).
+   */
+  public Instant readPoint() {
+    var newest = newestRead;
+    return newest != null ? earliest(newest, clock.instant()) : null;
+  }
+
   /** Number of revocations in force on this instance (health, tests). */
   public int size() {
     var now = clock.instant();
@@ -239,12 +264,15 @@ public class TokenRevocationService {
   /**
    * How long a revocation must live: until the last token it may target has
    * expired, i.e. the longest access token lifetime (server, yml clients,
-   * Console tokens) plus the accepted clock skew.
+   * Console tokens, impersonation tokens) plus the accepted clock skew. Only
+   * yml clients may have their own lifetime: the registry drops it from every
+   * other client.
    */
   Duration entryLifetime() {
     var server = mtacProperties.getOpenId().getServer();
     var jwt = mtacProperties.getJwt();
     long longest = Math.max(server.getAccessTokenTtlSec(), jwt.getExpirationSec());
+    longest = Math.max(longest, ImpersonateService.IMPERSONATION_SEC);
     for (var client : server.getClients().values()) {
       if (client.getAccessTokenTtlSec() != null) {
         longest = Math.max(longest, client.getAccessTokenTtlSec());

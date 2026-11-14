@@ -67,6 +67,34 @@ public class OidcSessionService {
     return cookieValue;
   }
 
+  /** Margin of a session without cookie beyond the lifetime of its authorization code. */
+  static final int EPHEMERAL_MARGIN_SEC = 60;
+
+  /**
+   * Opens a session without cookie for a client that ignores the SSO session
+   * ({@link OidcAuthorizationService#ignoresSsoSession}): nothing in the
+   * browser refers to it, it only carries the authorization code of this
+   * sign-in. It lives as long as that code (plus
+   * {@value #EPHEMERAL_MARGIN_SEC} s), then expires: it keeps the consumed
+   * code until then, so that a replayed code still revokes its family. The
+   * tokens issued from it carry no {@code sid}.
+   */
+  public OidcSession createEphemeral(User user, List<String> amr) {
+    var now = Instant.now();
+    var codeTtl = mtacProperties.getOpenId().getServer().getAuthorizationCodeTtlSec();
+    var session = OidcSession.builder()
+        .id(OidcCrypto.sha256Hex(OidcCrypto.randomToken())) // the value is thrown away: no cookie can match it
+        .identityId(user.getId())
+        .sub(user.getUid())
+        .authTime(now)
+        .amr(amr)
+        .lastSeenAt(now)
+        .expiresAt(now.plusSeconds(Math.min(codeTtl + EPHEMERAL_MARGIN_SEC, config().getMaxAgeSec())))
+        .build();
+    oidcRepository.insertSession(session);
+    return session;
+  }
+
   /** Session of the browser, or null if it has none or the session ended. */
   public OidcSession resolve(String cookieValue) {
     if (cookieValue == null || cookieValue.isBlank()) {

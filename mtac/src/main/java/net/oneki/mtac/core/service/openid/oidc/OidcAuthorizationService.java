@@ -75,6 +75,18 @@ import net.oneki.mtac.resource.iam.oidc.OidcClientRepository;
  * {@code invalid_target}.
  *
  * <p>
+ * A client that ignores the SSO session ({@link #ignoresSsoSession}: the yml
+ * attribute {@code ignore-sso-session}, or a trusted yml client whose redirect
+ * URIs all use a private-use scheme, such as the mobile applications) never
+ * reuses one: every authorization shows the hosted sign-in (and the second
+ * factor when the user has one), {@code prompt=none} gets
+ * {@code login_required}. Its sign-in opens a session without cookie that only
+ * carries the code and expires a minute after it (its tokens carry no
+ * {@code sid}), so no other authorization (another application
+ * registering the same scheme, the Console in the same browser) can reuse it
+ * (RFC 8252 section 8.6).
+ *
+ * <p>
  * Authorization codes are bound to the SSO session. Refresh tokens are not:
  * each one carries the identity, sub, auth_time and amr of its family, so a
  * connector keeps working after the browser session ended (logout, expiry).
@@ -83,7 +95,9 @@ import net.oneki.mtac.resource.iam.oidc.OidcClientRepository;
  * once in that window stays connected, up to {@code refreshTokenMaxAgeSec}
  * (or the client's {@code sessionMaxDays}, the shorter) after the first token;
  * a {@link RefreshTokenPolicyProvider} of the application may replace these two
- * server values per user and client.
+ * server values per user and client. When it fails at a refresh, the refresh
+ * gets a temporary {@code server_error} (HTTP 503) and nothing is rotated nor
+ * revoked: the client retries with the same refresh token.
  * It also ends when it is revoked: consent revoked, client deleted,
  * credentials changed. Tokens issued
  * while the session is alive carry its {@code sid}; the others carry none.
@@ -445,16 +459,53 @@ public class OidcAuthorizationService {
     return null;
   }
 
+  /**
+   * True when the client never reuses an SSO session and its sign-in leaves
+   * none behind (see the class comment): a trusted yml client that sets
+   * {@code ignore-sso-session}, or whose redirect URIs all use a private-use
+   * scheme (neither http nor https: a native application, whose scheme another
+   * application on the device could register, RFC 8252 section 8.6). Never a
+   * client of another source, nor one that asks a consent (the consent page
+   * needs the session cookie; {@link ReservedClientIdCheck} refuses the flag on
+   * such a client).
+   */
+  public static boolean ignoresSsoSession(MtacOidcClient client) {
+    if (client == null || client.getSource() != OidcClientSource.YML || !OidcConsentService.isTrusted(client)) {
+      return false;
+    }
+    return client.isIgnoreSsoSession() || hasOnlyPrivateUseRedirectUris(client);
+  }
+
+  /** True when the client has redirect URIs and none of them is http or https. */
+  static boolean hasOnlyPrivateUseRedirectUris(MtacOidcClient client) {
+    var uris = client.getRedirectUris();
+    if (uris == null || uris.isEmpty()) {
+      return false;
+    }
+    for (var uri : uris) {
+      var colon = uri != null ? uri.indexOf(':') : -1;
+      if (colon <= 0) {
+        return false;
+      }
+      var scheme = uri.substring(0, colon).toLowerCase(java.util.Locale.ROOT);
+      if (scheme.equals("http") || scheme.equals("https")) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   private static OidcException invalidTarget(String description) {
     return new OidcException(ERROR_INVALID_TARGET, description);
   }
 
   /**
    * True if the SSO session is enough to answer the request without asking the
-   * user to authenticate again.
+   * user to authenticate again. Never for a client that ignores the SSO
+   * session ({@link #ignoresSsoSession}).
    */
   public boolean isSessionSufficient(OidcAuthorizationRequest request, MtacOidcClient client, OidcSession session) {
-    if (session == null) {
+    if (session == null || ignoresSsoSession(client)) {
       return false;
     }
     if (request.getPrompt().contains(PROMPT_LOGIN)) {
@@ -559,11 +610,15 @@ public class OidcAuthorizationService {
       throw OidcException.invalidGrant("The session has ended");
     }
     var scopes = splitScopes(authorizationCode.getScope());
-    var grant = Grant.of(session);
+    var ignoresSso = ignoresSsoSession(client);
+    // a client that ignores the SSO session: its session only carried the code, the tokens carry no sid
+    var grant = ignoresSso ? Grant.of(session).withoutSession() : Grant.of(session);
     var familyStartedAt = Instant.now();
+    // its session is not deleted here: it keeps the consumed code (a replay still revokes the family) and
+    // expires on its own a minute after the code (OidcSessionService.createEphemeral)
     return issueTokens(clientId, client, grant, openIdService.oidcClaims(grant.sub(), scopes), scopes,
         authorizationCode.getNonce(), codeHash, resource, familyStartedAt,
-        familyLifetime(clientId, client, grant, familyStartedAt));
+        familyLifetime(clientId, client, grant, familyStartedAt, false), null);
   }
 
   /**
@@ -683,7 +738,7 @@ public class OidcAuthorizationService {
     // a family stored before family_started_at existed starts counting now
     var familyStartedAt = stored.getFamilyStartedAt() != null ? stored.getFamilyStartedAt() : Instant.now();
     // recomputed at each refresh: a change of the user's rights applies to the family at once
-    var lifetime = familyLifetime(clientId, client, grant, familyStartedAt);
+    var lifetime = familyLifetime(clientId, client, grant, familyStartedAt, true);
     if (lifetime.maxAgeSec() != null && isFamilyExpired(stored, lifetime.maxAgeSec(), Instant.now())) {
       log.info("The refresh token family of client {} reached its maximum lifetime of {} s: it is revoked",
           clientId, lifetime.maxAgeSec());
@@ -696,14 +751,26 @@ public class OidcAuthorizationService {
     } catch (BusinessException e) {
       throw OidcException.invalidGrant("The user no longer exists");
     }
-    if (!oidcRepository.rotateRefreshToken(tokenHash, Instant.now())) {
-      throw reusedRefreshToken(stored);
-    }
+    // the presented token is rotated in the same transaction as its successor is stored (issueTokens)
+    var tokens = issueTokens(clientId, client, grant, userClaims, scopes, null, stored.getFamilyId(),
+        stored.getResource(), familyStartedAt, lifetime, stored);
     if (grant.session() != null) {
       sessionService.touch(grant.session());
     }
-    return issueTokens(clientId, client, grant, userClaims, scopes, null, stored.getFamilyId(),
-        stored.getResource(), familyStartedAt, lifetime);
+    return tokens;
+  }
+
+  /**
+   * The presented refresh token could not be rotated: revoked meanwhile (a
+   * sign-out or a credential change during this refresh), or used by another
+   * request (reuse: the family is revoked).
+   */
+  private OidcException notRotated(OidcRefreshToken stored) {
+    var current = oidcRepository.getRefreshToken(stored.getTokenHash());
+    if (current != null && current.getRevokedAt() != null) {
+      return OidcException.invalidGrant("The refresh token has been revoked");
+    }
+    return reusedRefreshToken(stored);
   }
 
   /**
@@ -717,6 +784,11 @@ public class OidcAuthorizationService {
   record Grant(Integer identityId, String sub, Instant authTime, List<String> amr, OidcSession session) {
     static Grant of(OidcSession session) {
       return new Grant(session.getIdentityId(), session.getSub(), session.getAuthTime(), session.getAmr(), session);
+    }
+
+    /** The same identity and authentication, without the session (no sid, the session is not touched). */
+    Grant withoutSession() {
+      return new Grant(identityId, sub, authTime, amr, null);
     }
 
     /**
@@ -760,10 +832,25 @@ public class OidcAuthorizationService {
 
   /**
    * The lifetime of a family: the one of the {@link RefreshTokenPolicyProvider}
-   * when it answers, the server values otherwise (also when it fails: today's
-   * behaviour).
+   * when it answers, the server values otherwise.
+   *
+   * <p>
+   * When the provider fails:
+   * <ul>
+   * <li>at a code exchange (a new family), the server values apply: the family
+   * starts now, and the next refresh asks the provider again;</li>
+   * <li>at a refresh, a temporary {@code server_error} (HTTP 503) is thrown
+   * before anything is rotated or revoked: the server values could end a
+   * family the provider allows (an employee family older than the server
+   * maximum would be signed out for good), and skipping the maximum could
+   * extend one it forbids. The client keeps its refresh token and retries.</li>
+   * </ul>
+   *
+   * @param atRefresh true at a refresh (a failure throws), false at a code
+   *                  exchange (a failure gives the server values)
    */
-  FamilyLifetime familyLifetime(String clientId, MtacOidcClient client, Grant grant, Instant familyStartedAt) {
+  FamilyLifetime familyLifetime(String clientId, MtacOidcClient client, Grant grant, Instant familyStartedAt,
+      boolean atRefresh) {
     var config = config();
     var defaults = new FamilyLifetime(config.getRefreshTokenTtlSec(), (long) familyMaxAgeSec(config));
     if (refreshTokenPolicy == null || !client.isRefreshToken()) {
@@ -778,8 +865,13 @@ public class OidcAuthorizationService {
       var maxAge = policy.get().maxAge();
       return new FamilyLifetime(policy.get().slidingTtl().toSeconds(), maxAge != null ? maxAge.toSeconds() : null);
     } catch (RuntimeException e) {
-      log.warn("The refresh token policy failed for client {}: the server values apply ({})", clientId,
-          e.getMessage());
+      if (atRefresh) {
+        log.error("The refresh token policy failed for client {}: the refresh is refused for now, the family is "
+            + "kept", clientId, e);
+        throw new OidcException("server_error", "The session cannot be renewed right now. Try again later.", 503);
+      }
+      log.warn("The refresh token policy failed for client {}: the server values apply to the new family ({})",
+          clientId, e.getMessage());
       return defaults;
     }
   }
@@ -872,10 +964,16 @@ public class OidcAuthorizationService {
    *                        identity-only token (aud = userinfo)
    * @param familyStartedAt first token of the refresh token family
    * @param lifetime        lifetime of the refresh token family
+   * @param rotated         the refresh token presented to a refresh, rotated in
+   *                        the same transaction as its successor is stored;
+   *                        null at a code exchange
+   * @throws OidcException invalid_grant when the presented refresh token was
+   *                       revoked (sign-out, credential change) or used by
+   *                       another request meanwhile: no token is returned
    */
   private OidcTokenResponse issueTokens(String clientId, MtacOidcClient client, Grant grant,
       Map<String, Object> userClaims, Set<String> scopes, String nonce, String familyId, String resource,
-      Instant familyStartedAt, FamilyLifetime lifetime) {
+      Instant familyStartedAt, FamilyLifetime lifetime, OidcRefreshToken rotated) {
     var config = config();
     var scope = String.join(" ", scopes);
     var ttl = accessTokenTtlSec(client, config);
@@ -924,7 +1022,7 @@ public class OidcAuthorizationService {
       // sliding, bounded by the family, not by the SSO session: the grant outlives a logout
       var expiresAt = refreshTokenExpiry(client, familyStartedAt, Instant.now(), lifetime.slidingTtlSec(),
           lifetime.maxAgeSec());
-      oidcRepository.insertRefreshToken(OidcRefreshToken.builder()
+      var next = OidcRefreshToken.builder()
           .tokenHash(OidcCrypto.sha256Hex(refreshToken))
           .familyId(familyId)
           .clientId(clientId)
@@ -937,7 +1035,16 @@ public class OidcAuthorizationService {
           .sub(grant.sub())
           .authTime(grant.authTime())
           .amr(grant.amr())
-          .build());
+          .build();
+      if (rotated == null) {
+        oidcRepository.insertRefreshToken(next);
+      } else if (!oidcRepository.rotateRefreshToken(rotated.getTokenHash(), next, Instant.now())) {
+        // revoked by a sign-out during this refresh: the successor is not stored (a revocation of the family
+        // reads its rows again once the rotation committed, see OidcRepository.revokeRefreshTokenFamily)
+        throw notRotated(rotated);
+      }
+    } else if (rotated != null && !oidcRepository.rotateRefreshToken(rotated.getTokenHash(), Instant.now())) {
+      throw notRotated(rotated);
     }
     recordClientUse(clientId, client);
 
@@ -991,8 +1098,9 @@ public class OidcAuthorizationService {
   /**
    * Revocation endpoint (RFC 7009). An unknown token is not an error. A refresh
    * token revokes its whole family, and its access tokens through the
-   * revocation list (the first time only: a family already revoked writes
-   * nothing).
+   * revocation list, also when the family was already revoked (a family ended
+   * by its maximum age still has live access tokens when the user signs out;
+   * {@link TokenRevocationService} writes a family it already holds only once).
    */
   public void revoke(String clientId, String clientSecret, String origin, String token) {
     revoke(clientId, clientSecret, null, origin, token);
@@ -1008,11 +1116,8 @@ public class OidcAuthorizationService {
     }
     var stored = oidcRepository.getRefreshToken(OidcCrypto.sha256Hex(token));
     if (stored != null && stored.getClientId().equals(clientId)) {
-      var alreadyRevoked = stored.getRevokedAt() != null;
       oidcRepository.revokeRefreshTokenFamily(stored.getFamilyId(), Instant.now());
-      if (!alreadyRevoked) {
-        revokeFamilyAccessTokens(stored.getFamilyId(), "revoked-by-client");
-      }
+      revokeFamilyAccessTokens(stored.getFamilyId(), "revoked-by-client");
     }
   }
 

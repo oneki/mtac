@@ -84,6 +84,15 @@ import net.oneki.mtac.model.resource.iam.identity.user.User;
  * applications in the name of that user.
  *
  * <p>
+ * Clients that ignore the SSO session
+ * ({@link OidcAuthorizationService#ignoresSsoSession}, the mobile
+ * applications): the authorization endpoint always sends the user to the
+ * login page ({@code prompt=none}: {@code login_required}), and the login
+ * (after the second factor when the user has one) answers the request at once
+ * with a code, without setting the session cookie nor ending the session the
+ * browser already has.
+ *
+ * <p>
  * Step-up (see {@link OidcConsentService#isStepUpRequired}): when the consent
  * page is due and the authentication of the SSO session is too old, the user
  * proves himself again before the page, on the hosted pages of the login: the
@@ -586,9 +595,17 @@ public class OidcEndpoints {
     }
   }
 
-  /** Opens the SSO session and sends the browser back to the authorization endpoint. */
+  /**
+   * Opens the SSO session and sends the browser back to the authorization
+   * endpoint. For a client that ignores the SSO session
+   * ({@link OidcAuthorizationService#ignoresSsoSession}, the mobile
+   * applications), see {@link #completeLoginWithoutSso}.
+   */
   private ResponseEntity<String> completeLogin(LoginContext context, HttpServletRequest request, User user,
       List<String> amr) {
+    if (OidcAuthorizationService.ignoresSsoSession(context.client())) {
+      return completeLoginWithoutSso(context, user, amr);
+    }
     // a new session id at each login: the previous session of this browser, if any, ends
     sessionService.end(cookieValue(request, sessionCookieName()));
     var sessionCookie = sessionService.create(user, amr);
@@ -599,6 +616,45 @@ public class OidcEndpoints {
     headers.add(HttpHeaders.SET_COOKIE, cookie(MFA_COOKIE, "", 0, "Strict"));
     headers.add(HttpHeaders.SET_COOKIE, cookie(CSRF_COOKIE, "", 0, "Strict"));
     return redirect(authorizationService.url(OidcAuthorizationService.PATH_AUTHORIZE) + "?" + context.query(), headers);
+  }
+
+  /**
+   * Sign-in of a client that ignores the SSO session: no session cookie is set
+   * and the session of the browser, if any, is left as it is. The
+   * authorization request is validated again and answered at once with a code
+   * bound to a session without cookie ({@link OidcSessionService#createEphemeral}),
+   * which expires a minute after the code: neither another authorization of this client
+   * (an application registering the same private-use scheme) nor another
+   * client (the Console, the documentation in the same browser) can reuse this
+   * sign-in, and ending a browser SSO session never ends the application's.
+   */
+  private ResponseEntity<String> completeLoginWithoutSso(LoginContext context, User user, List<String> amr) {
+    var headers = new HttpHeaders();
+    headers.add(HttpHeaders.SET_COOKIE, cookie(MFA_COOKIE, "", 0, "Strict"));
+    headers.add(HttpHeaders.SET_COOKIE, cookie(CSRF_COOKIE, "", 0, "Strict"));
+    var params = context.params();
+    var redirectUri = params.get("redirect_uri");
+    var state = params.get("state");
+    MtacOidcClient client;
+    try {
+      client = authorizationService.validateClient(params.get("client_id"), redirectUri);
+    } catch (OidcException e) {
+      return errorPage(HttpStatus.BAD_REQUEST, e.getMessage());
+    }
+    OidcAuthorizationRequest authorizationRequest;
+    try {
+      authorizationRequest = authorizationService.validateAuthorizationRequest(client, params);
+    } catch (OidcException e) {
+      return redirectError(redirectUri, e.getError(), e.getMessage(), state, headers);
+    }
+    if (!OidcAuthorizationService.ignoresSsoSession(client)) {
+      // the client changed since the sign-in started: the usual flow (a new authorization)
+      return errorPage(HttpStatus.BAD_REQUEST, EXPIRED_REQUEST);
+    }
+    var session = sessionService.createEphemeral(user, amr);
+    log.info("OIDC sign-in of identity {} to client {} without SSO session ({})", user.getId(),
+        authorizationRequest.getClientId(), String.join(" ", amr));
+    return codeRedirect(client, authorizationRequest, session, headers);
   }
 
   // -------------------------------------------------------------- step-up

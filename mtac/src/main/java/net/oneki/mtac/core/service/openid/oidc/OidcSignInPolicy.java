@@ -26,6 +26,15 @@ import net.oneki.mtac.model.core.config.MtacProperties.MtacOidcClient;
  * is shown on an error page of the provider.</li>
  * </ul>
  * A policy that throws refuses the sign-in (fail closed).
+ *
+ * <p>
+ * Every policy is asked for every client: an implementation must first check
+ * the client of the request ({@link Request#clientId()} or
+ * {@link Request#client()}) and answer empty for the clients it does not
+ * govern, before any other work. Since a failure refuses the sign-in, a policy
+ * that loads data (or throws) for clients it does not concern would block the
+ * sign-in to every client, the Console included, when that data is
+ * unavailable.
  */
 @FunctionalInterface
 public interface OidcSignInPolicy {

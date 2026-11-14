@@ -66,6 +66,13 @@ public class TokenRevocationRepository extends AbstractRepository {
     return jdbcTemplate.update(SQL_PURGE, params);
   }
 
+  private static final String SQL_TABLE_EXISTS = "SELECT to_regclass('token_revocation') IS NOT NULL";
+
+  /** True when the table {@code token_revocation} exists in the schema of the connection (startup check). */
+  public boolean tableExists() {
+    return Boolean.TRUE.equals(jdbcTemplate.queryForObject(SQL_TABLE_EXISTS, Map.of(), Boolean.class));
+  }
+
   private static Map<String, Object> params(TokenRevocation revocation) {
     var params = new HashMap<String, Object>();
     params.put("kind", revocation.kind().code());

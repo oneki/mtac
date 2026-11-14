@@ -34,7 +34,10 @@ import net.oneki.mtac.model.core.openid.oidc.TokenAudience;
  * audience mobile, which only a yml client declaring it in
  * {@code first-party-audiences} can obtain. Effective rights = the user's full
  * RBAC (no scope reduction), minus {@link #MOBILE_FORBIDDEN_ACTIONS}
- * (impersonate, webssh, addAdminUser), minus any {@code iam.*} schema and the
+ * (impersonate, addAdminUser, and the edge controller actions that can cut a
+ * site's connectivity: webssh, which also guards the hosting mode change and
+ * the Secure Link keys, rebootController, firmware), minus any {@code iam.*}
+ * schema and the
  * IAM actions of {@link #IAM_ACTIONS} outside an explicit
  * {@link #allowIam(String, Supplier)} elevation, and without the super admin
  * power outside {@link #withSuperAdminPowers(String, Supplier)}.</li>
@@ -104,8 +107,17 @@ public final class DelegatedScopePolicy {
   public static final Set<String> WRITE_ACTIONS = Set.of("create", "update", "upsert", "delete");
   public static final Set<String> FORBIDDEN_ACTIONS = Set.of("impersonate", "addIdentityToGroup",
       "removeIdentityFromGroup", "addUserToGroup", "addAdminUser", "reset_password", "webssh");
-  /** Actions a first-party mobile token never performs, even inside {@link #allowIam(String, Supplier)}. */
-  public static final Set<String> MOBILE_FORBIDDEN_ACTIONS = Set.of("impersonate", "webssh", "addAdminUser");
+  /**
+   * Actions a first-party mobile token never performs, even inside
+   * {@link #allowIam(String, Supplier)}: impersonation, admin creation, and the
+   * actions on edge devices that could cut a site's connectivity, which the
+   * app never needs (a remote site lost is a site trip): {@code webssh} (web
+   * SSH, and in the Fuzz api the root permission of the hosting mode change
+   * and of the Secure Link keys), {@code rebootController} (reboot of the
+   * Local Controller), {@code firmware} (firmware updates).
+   */
+  public static final Set<String> MOBILE_FORBIDDEN_ACTIONS = Set.of("impersonate", "webssh", "addAdminUser",
+      "rebootController", "firmware");
   /**
    * Identity and access management actions (group membership, password reset)
    * a first-party mobile token performs only inside
@@ -359,9 +371,11 @@ public final class DelegatedScopePolicy {
    * thread (restored after it, also when it throws), so
    * {@link PermissionService#isSuperAdmin()} answers from the user's roles.
    * Off by default: the caller decides where it applies (the app endpoints
-   * only, for a user signed in with MFA). Each use is logged with its reason.
-   * For any other token it only runs the action (a Console token already has
-   * the power, a third-party one never gets it).
+   * only). The power is only opened for a token whose sign-in used the second
+   * factor ({@link #isMfaAuthenticated()}): without it the action runs
+   * without the power (logged), whatever the caller checked. Each use is
+   * logged with its reason. For any other token it only runs the action (a
+   * Console token already has the power, a third-party one never gets it).
    *
    * @param reason why the power is opened, for the logs (required)
    */
@@ -370,6 +384,11 @@ public final class DelegatedScopePolicy {
     requireReason(reason);
     var policy = current();
     if (!policy.isFirstPartyMobile()) {
+      return action.get();
+    }
+    if (!policy.isMfaAuthenticated()) {
+      log.warn("Super admin powers not opened for a first-party mobile token without MFA: {} (client_id={}, sub={})",
+          reason, policy.clientId, policy.subject);
       return action.get();
     }
     log.info("Super admin powers opened for a first-party mobile token: {} (client_id={}, sub={})", reason,

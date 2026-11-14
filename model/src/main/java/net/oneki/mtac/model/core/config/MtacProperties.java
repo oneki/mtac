@@ -150,6 +150,15 @@ public class MtacProperties {
     // lifetime of the access (and id) tokens of this client (yml clients only); null = accessTokenTtlSec of the server.
     // A long one stays revocable within about 30 s through the revocation list (TokenRevocationService)
     private Integer accessTokenTtlSec;
+    // yml clients only: every authorization shows the hosted sign-in, an existing SSO session is never reused, and
+    // the sign-in leaves no SSO session behind (no cookie; the session only carries the code until it is exchanged).
+    // For first-party native applications whose private-use redirect scheme another application could register
+    // (RFC 8252 section 8.6). Also applies, without the flag, to a trusted yml client whose redirect URIs all use a
+    // private-use scheme (see OidcAuthorizationService.ignoresSsoSession). Requires consent-mode trusted
+    private boolean ignoreSsoSession = false;
+    // yml clients only: false removes a client declared in a shared file (application.yml) from one profile, since
+    // Spring merges the client maps of the profiles
+    private boolean enabled = true;
     private OidcClientSource source = OidcClientSource.YML;
     private String uid; // uid of the iam.oidc.client resource, null for yml and CIMD clients
   }

@@ -22,7 +22,10 @@ import net.oneki.mtac.model.core.openid.oidc.TokenAudience;
  * <p>
  * It also checks the {@code first-party-audiences} of the yml clients: only
  * the keys of {@link OidcAuthorizationService#FIRST_PARTY_AUDIENCES} (mobile),
- * and only when {@code mtac.jwt.audiences} configures them.
+ * and only when {@code mtac.jwt.audiences} configures them; that the audience
+ * URLs are unique (two keys sharing one URL would let a token of one audience
+ * pass the paths of the other); and that {@code ignore-sso-session} is only set
+ * on a trusted client (the consent page needs the SSO session cookie).
  */
 @Slf4j
 @Component
@@ -54,11 +57,38 @@ public class ReservedClientIdCheck {
             + " (configure every audience " + TokenAudience.REQUIRED_KEYS + ", or none)");
       }
     }
+    checkUniqueAudienceUrls(audiences);
     checkFirstPartyAudiences(audiences);
+    checkIgnoreSsoSession();
     for (var key : audiences.keySet()) {
       if (!TokenAudience.KEYS.contains(key)) {
         log.warn("mtac.jwt.audiences.{} is not a known audience key {}: no path requires it", key,
             TokenAudience.KEYS);
+      }
+    }
+  }
+
+  private static void checkUniqueAudienceUrls(Map<String, String> audiences) {
+    var keyByUrl = new java.util.HashMap<String, String>();
+    for (var entry : audiences.entrySet()) {
+      var url = entry.getValue();
+      if (url == null || url.isBlank()) {
+        continue;
+      }
+      var previous = keyByUrl.putIfAbsent(url.trim(), entry.getKey());
+      if (previous != null) {
+        throw new IllegalStateException("mtac.jwt.audiences: " + previous + " and " + entry.getKey()
+            + " share the URL " + url + "; each audience needs its own URL");
+      }
+    }
+  }
+
+  private void checkIgnoreSsoSession() {
+    for (var entry : mtacProperties.getOpenId().getServer().getClients().entrySet()) {
+      var client = entry.getValue();
+      if (client.isIgnoreSsoSession() && !OidcConsentService.isTrusted(client)) {
+        throw new IllegalStateException("mtac.openid.server.clients." + entry.getKey()
+            + ".ignore-sso-session needs consent-mode: trusted (the consent page relies on the SSO session)");
       }
     }
   }
