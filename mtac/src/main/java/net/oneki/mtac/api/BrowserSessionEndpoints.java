@@ -5,8 +5,10 @@ import java.net.URISyntaxException;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -22,6 +24,7 @@ import org.springframework.web.util.WebUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import net.oneki.mtac.core.service.openid.BrowserSessionService;
+import net.oneki.mtac.core.service.openid.BrowserSignInAdmission;
 import net.oneki.mtac.core.service.openid.OpenIdService;
 import net.oneki.mtac.core.service.openid.oidc.OidcAuthorizationService;
 import net.oneki.mtac.core.service.openid.oidc.OidcCrypto;
@@ -30,6 +33,7 @@ import net.oneki.mtac.core.util.security.CookieCsrfFilter;
 import net.oneki.mtac.framework.service.JwtTokenService;
 import net.oneki.mtac.model.core.config.MtacProperties;
 import net.oneki.mtac.model.core.openid.oidc.OidcException;
+import net.oneki.mtac.model.resource.iam.identity.user.User;
 
 /**
  * Sign-in of the Console through the OpenID provider, the API being the client
@@ -44,7 +48,9 @@ import net.oneki.mtac.model.core.openid.oidc.OidcException;
  * the code in-process, opens a Console session linked to the SSO session
  * ({@code sid}), sets the access token and session cookies, then 302 to the
  * Console ({@code post-login-path}). Any failure: 302 to
- * {@code post-login-error-path?error=<code>}, with a code of a fixed list;</li>
+ * {@code post-login-error-path?error=<code>}, with a code of a fixed list. A
+ * user refused by the {@link BrowserSignInAdmission} of the application gets
+ * no session: 302 to the Console path it names;</li>
  * <li>{@code GET <api>/auth/logout[?post_logout_redirect_uri=]}: closes the
  * Console session, ends its SSO session, clears the cookies, then 302 to the
  * given URI when it is on a Console origin, else to the Console root;</li>
@@ -83,6 +89,7 @@ public class BrowserSessionEndpoints {
   private final OidcAuthorizationService authorizationService;
   private final JwtTokenService tokenService;
   private final BrowserSessionCookies cookies;
+  private BrowserSignInAdmission admission; // null: every user who signs in gets a Console session
 
   public BrowserSessionEndpoints(MtacProperties mtacProperties, BrowserSessionService browserSessions,
       OidcAuthorizationService authorizationService, JwtTokenService tokenService) {
@@ -95,6 +102,12 @@ public class BrowserSessionEndpoints {
 
   public boolean isEnabled() {
     return config().isEnabled();
+  }
+
+  /** Who may get a Console session, decided by the application (optional bean). */
+  @Autowired(required = false)
+  public void setSignInAdmission(BrowserSignInAdmission admission) {
+    this.admission = admission;
   }
 
   /** Makes the endpoints find the users through the application's user service. */
@@ -218,12 +231,38 @@ public class BrowserSessionEndpoints {
     if (previousSession != null && !previousSession.isBlank()) {
       browserSessions.closePrevious(previousSession);
     }
+    var refusal = refusal(user);
+    if (refusal.isPresent()) {
+      // no Console session: the SSO session of this sign-in ends too (its access token, issued by the exchange
+      // and never sent to the browser, goes to the revocation list), and the browser keeps no session cookie
+      log.info("Console sign-in refused for user {}: {}", user.getUid(), refusal.get().reason());
+      browserSessions.endSsoSession(idToken.get("sid", String.class));
+      headers.add(HttpHeaders.SET_COOKIE, cookies.clearAccessToken());
+      headers.add(HttpHeaders.SET_COOKIE, cookies.clearSession());
+      cookies.clearImpersonation().forEach(cookie -> headers.add(HttpHeaders.SET_COOKIE, cookie));
+      return redirect(origin + refusal.get().consolePath(), headers);
+    }
     var signedIn = browserSessions.open(user, idToken.get("sid", String.class));
     headers.add(HttpHeaders.SET_COOKIE, cookies.accessToken(signedIn.accessToken(), signedIn.accessTokenTtlSec()));
     headers.add(HttpHeaders.SET_COOKIE, cookies.session(signedIn.sessionToken(), signedIn.sessionMaxAgeSec()));
     // a new sign-in never inherits the impersonation indicator of a previous session of this browser
     cookies.clearImpersonation().forEach(cookie -> headers.add(HttpHeaders.SET_COOKIE, cookie));
     return redirect(origin + config().getPostLoginPath(), headers);
+  }
+
+  /** The refusal of the application's admission hook; empty without hook, or when the hook fails. */
+  private Optional<BrowserSignInAdmission.Refusal> refusal(User user) {
+    if (admission == null) {
+      return Optional.empty();
+    }
+    try {
+      var refusal = admission.check(user);
+      return refusal != null ? refusal : Optional.empty();
+    } catch (RuntimeException e) {
+      log.error("Console sign-in: the admission check failed for user {}, the Console session is opened",
+          user.getUid(), e);
+      return Optional.empty();
+    }
   }
 
   private Transaction readTransaction(String token) {

@@ -274,6 +274,17 @@ public class BrowserSessionService {
   }
 
   /**
+   * Ends the SSO session of a sign-in that gets no Console session (refused by
+   * the application): the provider asks for credentials at the next sign-in,
+   * and the access tokens issued in that session go to the revocation list.
+   */
+  public void endSsoSession(String ssoSessionId) {
+    if (ssoSessionId != null && !ssoSessionId.isBlank()) {
+      oidcSessions.endById(ssoSessionId);
+    }
+  }
+
+  /**
    * A new sign-in of a browser that still had a Console session cookie: closes
    * that previous Console session only (its SSO session goes on, the new
    * sign-in may come from it), so that the replaced cookie value cannot be used
