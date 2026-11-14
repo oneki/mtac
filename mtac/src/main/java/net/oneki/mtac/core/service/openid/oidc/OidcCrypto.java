@@ -40,6 +40,15 @@ public final class OidcCrypto {
     return BASE64_URL.encodeToString(half);
   }
 
+  /**
+   * {@code fam} claim of the access tokens of a refresh token family: derived
+   * from the family id (the hash of the authorization code it started from) so
+   * that no storage key travels in a token. 128 bits, hex encoded.
+   */
+  public static String familyClaim(String familyId) {
+    return familyId == null ? null : sha256Hex("fam:" + familyId).substring(0, 32);
+  }
+
   public static boolean constantTimeEquals(String a, String b) {
     if (a == null || b == null) {
       return false;

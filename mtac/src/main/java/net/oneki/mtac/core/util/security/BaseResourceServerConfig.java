@@ -30,6 +30,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import net.oneki.mtac.core.service.openid.BrowserSessionService;
 import net.oneki.mtac.core.service.openid.OpenIdService;
+import net.oneki.mtac.core.service.openid.oidc.TokenRevocationService;
 import net.oneki.mtac.framework.cache.TokenRegistry;
 import net.oneki.mtac.framework.repository.TokenRepository;
 import net.oneki.mtac.model.core.config.MtacProperties;
@@ -70,6 +71,8 @@ public abstract class BaseResourceServerConfig {
     protected MtacProperties mtacProperties;
     @Autowired(required = false)
     protected BrowserSessionService browserSessionService;
+    @Autowired(required = false)
+    protected TokenRevocationService tokenRevocationService;
 
     @Bean
     public BearerTokenResolver bearerTokenResolver(MtacProperties mtacProperties) {
@@ -295,8 +298,10 @@ public abstract class BaseResourceServerConfig {
      *                         {@link TokenAudience})
      */
     protected AuthenticationManager getAuthenticationManager(String requiredAudience) {
-        return new JwtAuthenticationManager(getJwtAuthoritiesExtractor(), jwtDecoder, tokenRegistry, tokenRepository,
-                getOpenIdService(), requiredAudience, mtacProperties);
+        var manager = new JwtAuthenticationManager(getJwtAuthoritiesExtractor(), jwtDecoder, tokenRegistry,
+                tokenRepository, getOpenIdService(), requiredAudience, mtacProperties);
+        manager.setTokenRevocations(tokenRevocationService);
+        return manager;
     }
 
     protected List<RequestMatcher> getPublicMatchers() {

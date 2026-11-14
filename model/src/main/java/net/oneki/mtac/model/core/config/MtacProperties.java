@@ -141,6 +141,9 @@ public class MtacProperties {
     private OidcAccessMode accessMode = OidcAccessMode.IDENTITY;
     private List<String> resources = new ArrayList<>(); // audience keys of mtac.jwt.audiences, API access mode only
     private Integer sessionMaxDays; // maximum age of a refresh token family; null = refreshTokenMaxAgeSec only
+    // lifetime of the access (and id) tokens of this client (yml clients only); null = accessTokenTtlSec of the server.
+    // A long one stays revocable within about 30 s through the revocation list (TokenRevocationService)
+    private Integer accessTokenTtlSec;
     private OidcClientSource source = OidcClientSource.YML;
     private String uid; // uid of the iam.oidc.client resource, null for yml and CIMD clients
   }

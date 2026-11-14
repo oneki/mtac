@@ -3690,6 +3690,42 @@ END;]]> </definition>
 		</idxelement>
 </index>
 
+<table name="token_revocation" layers="0" collapse-mode="1" max-obj-count="6" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<comment> <![CDATA[Revocation list of the access tokens: the tokens whose sub (user), sid (SSO session) or fam (refresh token family) is revoked are refused until expires_at (revoked_at plus the longest access token lifetime and the clock skew). Every instance reads the new rows every 30 s through the index on revoked_at. No foreign key: the value is a claim, not a row.]]> </comment>
+	<position x="2180" y="2440"/>
+	<column name="id" not-null="true">
+		<type name="bigserial" length="0"/>
+	</column>
+	<column name="kind" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="value" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="revoked_at" not-null="true">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="expires_at" not-null="true">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<constraint name="token_revocation_pk" type="pk-constr" table="public.token_revocation">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+	<constraint name="token_revocation_kind_ck" type="ck-constr" table="public.token_revocation">
+			<expression> <![CDATA[kind IN ('user', 'session', 'family')]]> </expression>
+	</constraint>
+</table>
+
+<index name="token_revocation_revoked_at_idx" table="public.token_revocation"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="revoked_at"/>
+		</idxelement>
+</index>
+
 <table name="assistant_conversation" layers="0" collapse-mode="1" max-obj-count="9" z-value="0">
 	<schema name="public"/>
 	<role name="postgres"/>

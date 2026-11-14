@@ -17,6 +17,7 @@ import org.springframework.security.oauth2.server.resource.InvalidBearerTokenExc
 import jakarta.servlet.http.HttpServletRequest;
 
 import net.oneki.mtac.core.service.openid.OpenIdService;
+import net.oneki.mtac.core.service.openid.oidc.TokenRevocationService;
 import net.oneki.mtac.core.util.security.JwtIssuerAuthenticationManagerResolver.JwtClaimIssuerConverter;
 import net.oneki.mtac.framework.cache.TokenRegistry;
 import net.oneki.mtac.framework.config.IssuerConfig.IssuersProperties;
@@ -119,11 +120,20 @@ public abstract class MultiTenantResourceServerConfig extends BaseResourceServer
             if (this.trustedIssuers.containsKey(issuer) && trustedIssuer != null) {
                 // one decoder per issuer (it caches the JWKS), one manager per issuer and audience
                 var jwtDecoder = this.jwtDecoders.computeIfAbsent(issuer, k -> jwtDecoder(trustedIssuer));
-                return this.authenticationManagers.computeIfAbsent(issuer + " " + audience,
-                        k -> new JwtAuthenticationManager(jwtAuthoritiesExtractor, jwtDecoder,
-                                tokenRegistry, tokenRepository, openIdService, audience, mtacProperties));
+                return this.authenticationManagers.computeIfAbsent(issuer + " " + audience, k -> {
+                    var manager = new JwtAuthenticationManager(jwtAuthoritiesExtractor, jwtDecoder,
+                            tokenRegistry, tokenRepository, openIdService, audience, mtacProperties);
+                    manager.setTokenRevocations(tokenRevocations());
+                    return manager;
+                });
             }
             return null;
+        }
+
+        /** Revocation list of the access tokens, null when the application has none. */
+        private TokenRevocationService tokenRevocations() {
+            return appContext != null ? appContext.getBeanProvider(TokenRevocationService.class).getIfAvailable()
+                    : null;
         }
 
         private JwtDecoder jwtDecoder(IssuerProperties trustedIssuer) {

@@ -2971,6 +2971,30 @@ USING btree
 );
 -- ddl-end --
 
+-- object: public.token_revocation | type: TABLE --
+-- DROP TABLE IF EXISTS public.token_revocation CASCADE;
+CREATE TABLE public.token_revocation (
+	id bigserial NOT NULL,
+	kind text NOT NULL,
+	value text NOT NULL,
+	revoked_at timestamp with time zone NOT NULL,
+	expires_at timestamp with time zone NOT NULL,
+	CONSTRAINT token_revocation_pk PRIMARY KEY (id),
+	CONSTRAINT token_revocation_kind_ck CHECK (kind IN ('user', 'session', 'family'))
+);
+-- ddl-end --
+ALTER TABLE public.token_revocation OWNER TO postgres;
+-- ddl-end --
+
+-- object: token_revocation_revoked_at_idx | type: INDEX --
+-- DROP INDEX IF EXISTS public.token_revocation_revoked_at_idx CASCADE;
+CREATE INDEX token_revocation_revoked_at_idx ON public.token_revocation
+USING btree
+(
+	revoked_at
+);
+-- ddl-end --
+
 -- object: console_refresh_token_impersonated_fk | type: CONSTRAINT --
 -- ALTER TABLE public.console_refresh_token DROP CONSTRAINT IF EXISTS console_refresh_token_impersonated_fk CASCADE;
 ALTER TABLE public.console_refresh_token ADD CONSTRAINT console_refresh_token_impersonated_fk FOREIGN KEY (impersonated_identity_id)

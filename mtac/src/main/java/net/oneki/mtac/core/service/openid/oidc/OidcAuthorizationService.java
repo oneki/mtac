@@ -73,6 +73,14 @@ import net.oneki.mtac.resource.iam.oidc.OidcClientRepository;
  * It also ends when it is revoked: consent revoked, client deleted,
  * credentials changed. Tokens issued
  * while the session is alive carry its {@code sid}; the others carry none.
+ *
+ * <p>
+ * Access tokens live {@code accessTokenTtlSec}, or the client's own
+ * {@code accessTokenTtlSec} (yml clients). They carry the {@code fam} claim of
+ * their refresh token family ({@link OidcCrypto#familyClaim}): revoking a
+ * family (revocation endpoint, refresh token or code presented twice) also
+ * puts it in the revocation list ({@link TokenRevocationService}), so its
+ * access tokens are refused within about 30 seconds.
  */
 @Service
 @Slf4j
@@ -110,6 +118,7 @@ public class OidcAuthorizationService {
   private final MtacProperties mtacProperties;
   private OpenIdService openIdService;
   private OidcClientRepository clientRepository; // null: lastUsedAt is not tracked
+  private TokenRevocationService tokenRevocations; // null: revoked families keep their access tokens until they expire
   private Clock clock = Clock.systemUTC(); // lastUsedAt throttling
   // last lastUsedAt write per client resource uid
   private final Map<String, Instant> lastUsedAtWrites = new ConcurrentHashMap<>();
@@ -135,6 +144,11 @@ public class OidcAuthorizationService {
   @Autowired(required = false)
   public void setClientRepository(OidcClientRepository clientRepository) {
     this.clientRepository = clientRepository;
+  }
+
+  @Autowired(required = false)
+  public void setTokenRevocationService(TokenRevocationService tokenRevocations) {
+    this.tokenRevocations = tokenRevocations;
   }
 
   /** Clock of the lastUsedAt throttling (tests). */
@@ -463,6 +477,7 @@ public class OidcAuthorizationService {
   private OidcException replayedCode(String codeHash) {
     log.warn("An OpenID authorization code was presented twice: the tokens issued from it are revoked");
     oidcRepository.revokeRefreshTokenFamily(codeHash, Instant.now());
+    revokeFamilyAccessTokens(codeHash, "authorization-code-replay");
     return OidcException.invalidGrant("The authorization code has already been used");
   }
 
@@ -656,7 +671,32 @@ public class OidcAuthorizationService {
   private OidcException reusedRefreshToken(OidcRefreshToken stored) {
     log.warn("An OpenID refresh token of client {} was used twice: its family is revoked", stored.getClientId());
     oidcRepository.revokeRefreshTokenFamily(stored.getFamilyId(), Instant.now());
+    revokeFamilyAccessTokens(stored.getFamilyId(), "refresh-token-reuse");
     return OidcException.invalidGrant("The refresh token has already been used");
+  }
+
+  /**
+   * Puts a revoked refresh token family in the revocation list, so that its
+   * access tokens are refused too. The family itself is already revoked: a
+   * failure here is logged, it leaves the access tokens valid until they
+   * expire.
+   */
+  private void revokeFamilyAccessTokens(String familyId, String reason) {
+    if (tokenRevocations == null || familyId == null) {
+      return;
+    }
+    try {
+      tokenRevocations.revokeFamily(familyId, reason);
+    } catch (RuntimeException e) {
+      log.error("Unable to add a revoked OpenID refresh token family to the revocation list ({}): its access tokens "
+          + "stay valid until they expire", reason, e);
+    }
+  }
+
+  /** Lifetime of the access and id tokens of a client: its own when set, the server's otherwise. */
+  static int accessTokenTtlSec(MtacOidcClient client, MtacProperties.MtacOpenIdServer config) {
+    var own = client != null ? client.getAccessTokenTtlSec() : null;
+    return own != null && own > 0 ? own : config.getAccessTokenTtlSec();
   }
 
   /**
@@ -672,7 +712,7 @@ public class OidcAuthorizationService {
       Instant familyStartedAt) {
     var config = config();
     var scope = String.join(" ", scopes);
-    var ttl = config.getAccessTokenTtlSec();
+    var ttl = accessTokenTtlSec(client, config);
 
     var accessClaims = new HashMap<String, Object>();
     accessClaims.put("jti", UUID.randomUUID().toString());
@@ -693,6 +733,10 @@ public class OidcAuthorizationService {
     accessClaims.put("scope", scope);
     if (grant.session() != null) {
       accessClaims.put("sid", grant.session().getId());
+    }
+    if (familyId != null) {
+      // one device or connector: revoking the family refuses its access tokens (TokenRevocationService)
+      accessClaims.put("fam", OidcCrypto.familyClaim(familyId));
     }
     var accessToken = tokenService.newAccessToken(accessClaims, ttl); // typ at+jwt (RFC 9068)
 
@@ -778,7 +822,12 @@ public class OidcAuthorizationService {
     }
   }
 
-  /** Revocation endpoint (RFC 7009). An unknown token is not an error. */
+  /**
+   * Revocation endpoint (RFC 7009). An unknown token is not an error. A refresh
+   * token revokes its whole family, and its access tokens through the
+   * revocation list (the first time only: a family already revoked writes
+   * nothing).
+   */
   public void revoke(String clientId, String clientSecret, String origin, String token) {
     revoke(clientId, clientSecret, null, origin, token);
   }
@@ -788,12 +837,16 @@ public class OidcAuthorizationService {
     clientRegistry.authenticate(clientId, clientSecret, assertion, origin);
     clientId = authenticatedClientId(clientId, assertion);
     if (token == null || !token.startsWith(REFRESH_TOKEN_PREFIX)) {
-      // access tokens are short-lived JWT: there is nothing to revoke
+      // an access token is a JWT: revoking its refresh token refuses it through the revocation list
       return;
     }
     var stored = oidcRepository.getRefreshToken(OidcCrypto.sha256Hex(token));
     if (stored != null && stored.getClientId().equals(clientId)) {
+      var alreadyRevoked = stored.getRevokedAt() != null;
       oidcRepository.revokeRefreshTokenFamily(stored.getFamilyId(), Instant.now());
+      if (!alreadyRevoked) {
+        revokeFamilyAccessTokens(stored.getFamilyId(), "revoked-by-client");
+      }
     }
   }
 
@@ -803,7 +856,7 @@ public class OidcAuthorizationService {
    * Userinfo endpoint: the claims allowed by the scopes of the access token. A
    * token that carries a {@code sid} is refused once that SSO session ended; a
    * token without {@code sid} (issued by a refresh after the session ended) is
-   * accepted until it expires.
+   * accepted until it expires, unless it is in the revocation list.
    */
   public Map<String, Object> userinfo(String accessToken) {
     io.jsonwebtoken.Claims claims;
@@ -819,6 +872,12 @@ public class OidcAuthorizationService {
     var sid = claims.get("sid", String.class);
     if (sid != null && sessionService.getAlive(sid) == null) {
       throw OidcException.invalidToken("The session has ended");
+    }
+    if (tokenRevocations != null) {
+      var issuedAt = claims.getIssuedAt() != null ? claims.getIssuedAt().toInstant() : null;
+      if (tokenRevocations.revokedClaim(claims.getSubject(), sid, claims.get("fam", String.class), issuedAt) != null) {
+        throw OidcException.invalidToken("The token has been revoked");
+      }
     }
     try {
       return openIdService.oidcClaims(claims.getSubject(), splitScopes(claims.get("scope", String.class)));

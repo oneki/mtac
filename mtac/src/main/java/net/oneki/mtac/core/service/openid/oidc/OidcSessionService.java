@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import net.oneki.mtac.framework.repository.ConsoleRefreshTokenRepository;
 import net.oneki.mtac.framework.repository.OidcRepository;
 import net.oneki.mtac.model.core.config.MtacProperties;
@@ -25,6 +26,7 @@ import net.oneki.mtac.model.resource.iam.identity.user.User;
  * purge are caught by {@code ConsoleSessionService.purge()}.
  */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class OidcSessionService {
   public static final String AMR_PASSWORD = "pwd";
@@ -33,10 +35,16 @@ public class OidcSessionService {
   private final OidcRepository oidcRepository;
   private final MtacProperties mtacProperties;
   private ConsoleRefreshTokenRepository consoleSessions; // null: no Console session follows the SSO sessions
+  private TokenRevocationService tokenRevocations; // null: the access tokens of an ended session live until they expire
 
   @Autowired(required = false)
   public void setConsoleRefreshTokenRepository(ConsoleRefreshTokenRepository consoleSessions) {
     this.consoleSessions = consoleSessions;
+  }
+
+  @Autowired(required = false)
+  public void setTokenRevocationService(TokenRevocationService tokenRevocations) {
+    this.tokenRevocations = tokenRevocations;
   }
 
   /**
@@ -112,6 +120,12 @@ public class OidcSessionService {
    * the Console sessions opened from it. The OpenID refresh tokens of the
    * connectors survive it (their session_id becomes null): they are revoked
    * in Connected applications or by a password change.
+   *
+   * <p>
+   * The access tokens issued in the session (claim {@code sid}) are put in the
+   * revocation list ({@link TokenRevocationService}): they are refused within
+   * about 30 seconds. A connector then refreshes its tokens, which carry no
+   * {@code sid} once the session has ended.
    */
   public void end(String cookieValue) {
     if (cookieValue != null && !cookieValue.isBlank()) {
@@ -121,8 +135,22 @@ public class OidcSessionService {
 
   public void endById(String sessionId) {
     if (sessionId != null) {
+      // a session already gone (expired, ended elsewhere) has nothing left to revoke
+      var existed = tokenRevocations != null && oidcRepository.getSession(sessionId) != null;
       oidcRepository.deleteSession(sessionId);
       closeConsoleSessions(sessionId);
+      if (existed) {
+        revokeAccessTokens(sessionId);
+      }
+    }
+  }
+
+  private void revokeAccessTokens(String sessionId) {
+    try {
+      tokenRevocations.revokeSession(sessionId, "logout");
+    } catch (RuntimeException e) {
+      log.error("Unable to add an ended SSO session to the revocation list: its access tokens stay valid until "
+          + "they expire", e);
     }
   }
 

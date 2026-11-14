@@ -31,6 +31,7 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.oneki.mtac.core.service.openid.OpenIdService;
+import net.oneki.mtac.core.service.openid.oidc.TokenRevocationService;
 import net.oneki.mtac.core.service.security.DelegatedScopePolicy;
 import net.oneki.mtac.framework.cache.TokenRegistry;
 import net.oneki.mtac.framework.repository.TokenRepository;
@@ -58,6 +59,11 @@ import net.oneki.mtac.resource.iam.identity.user.UserService;
  * </ul>
  * Without configured audiences (or without {@link MtacProperties}), the former
  * MTAC behaviour applies: tokens without aud are accepted, any aud is refused.
+ *
+ * <p>
+ * A token whose user ({@code sub}), SSO session ({@code sid}) or refresh token
+ * family ({@code fam}) is in the revocation list is refused (invalid_token):
+ * see {@link TokenRevocationService}.
  */
 @Slf4j
 @Data
@@ -73,6 +79,7 @@ public class JwtAuthenticationManager implements AuthenticationManager {
 	// key of mtac.jwt.audiences required on the path this manager serves (see TokenAudience); null = any configured one
 	private String requiredAudience;
 	private MtacProperties mtacProperties; // null = no audience configured
+	private TokenRevocationService tokenRevocations; // null = no revocation list
 
 	public JwtAuthenticationManager(JwtAuthoritiesExtractor jwtAuthoritiesExtractor, JwtDecoder jwtDecoder,
 			TokenRegistry tokenRegistry, TokenRepository tokenRepository, OpenIdService openIdService,
@@ -113,6 +120,7 @@ public class JwtAuthenticationManager implements AuthenticationManager {
 				throw new JwtException("Missing claim 'sub' in JWT token");
 			}
 			checkAudience(jwt, sub);
+			checkRevocation(jwt, sub);
 			var claims = principalAttributes(jwt, openIdService.userinfo(sub, false));
 			Collection<GrantedAuthority> authorities = new ArrayList<>(); // TODO
 
@@ -231,6 +239,26 @@ public class JwtAuthenticationManager implements AuthenticationManager {
 		log.warn("Access token accepted while mtac.jwt.audience-enforcement is log, refused in strict mode: {} "
 				+ "(sub={}, client_id={}, aud={}, typ={}, path={})", reason, sub, jwt.getClaimAsString("client_id"),
 				audience, typ, currentPath());
+	}
+
+	/**
+	 * Refuses a token whose user, SSO session or refresh token family is in the
+	 * revocation list: a sign-out takes effect within about 30 seconds, even for
+	 * long-lived access tokens. No database read: the list is held in memory.
+	 *
+	 * @throws JwtException when the token is revoked
+	 */
+	protected void checkRevocation(Jwt jwt, String sub) {
+		if (tokenRevocations == null) {
+			return;
+		}
+		var revoked = tokenRevocations.revokedClaim(sub, jwt.getClaimAsString("sid"), jwt.getClaimAsString("fam"),
+				jwt.getIssuedAt());
+		if (revoked != null) {
+			log.info("Access token refused: its {} is revoked (sub={}, client_id={}, path={})", revoked.claim(), sub,
+					jwt.getClaimAsString("client_id"), currentPath());
+			throw new JwtException("The token has been revoked");
+		}
 	}
 
 	/** Path of the current HTTP request, for the logs; null outside a request. */
