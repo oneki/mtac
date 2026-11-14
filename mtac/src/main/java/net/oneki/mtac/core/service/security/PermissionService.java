@@ -120,6 +120,19 @@ public class PermissionService {
     }
 
     /**
+     * Whether the roles of the signed-in user make them a super admin, whatever
+     * the token: unlike {@link #isSuperAdmin()}, a first-party mobile token
+     * outside {@link DelegatedScopePolicy#withSuperAdminPowers} answers from the
+     * roles too (a third-party token answers false). It grants nothing: use it
+     * only to refuse something to a super admin (for example the generic routes
+     * to the mobile application).
+     */
+    public boolean hasSuperAdminRole() {
+        return DelegatedScopePolicy.probeSuperAdminRole(
+                () -> hasPermission(Constants.TENANT_ROOT_ID, "iam.role|create"));
+    }
+
+    /**
      * Check if the current user has the given permission on the given resource
      * Example of permission: "create", "reboot_cp"
      */

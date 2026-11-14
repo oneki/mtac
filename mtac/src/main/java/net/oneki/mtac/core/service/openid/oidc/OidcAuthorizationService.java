@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -88,6 +89,12 @@ import net.oneki.mtac.resource.iam.oidc.OidcClientRepository;
  * while the session is alive carry its {@code sid}; the others carry none.
  *
  * <p>
+ * An {@link OidcSignInPolicy} of the application may refuse a sign-in to a
+ * client (for example without the second factor it requires from some users):
+ * a refused SSO session is not sufficient ({@link #isSessionSufficient}), and
+ * the hosted pages show the refusal before any code is issued.
+ *
+ * <p>
  * Access tokens live {@code accessTokenTtlSec}, or the client's own
  * {@code accessTokenTtlSec} (yml clients). They carry the {@code fam} claim of
  * their refresh token family ({@link OidcCrypto#familyClaim}): revoking a
@@ -135,6 +142,7 @@ public class OidcAuthorizationService {
   private OidcClientRepository clientRepository; // null: lastUsedAt is not tracked
   private TokenRevocationService tokenRevocations; // null: revoked families keep their access tokens until they expire
   private RefreshTokenPolicyProvider refreshTokenPolicy; // null: the server values for every family
+  private List<OidcSignInPolicy> signInPolicies = List.of(); // empty: no sign-in refused by the application
   private Clock clock = Clock.systemUTC(); // lastUsedAt throttling
   // last lastUsedAt write per client resource uid
   private final Map<String, Instant> lastUsedAtWrites = new ConcurrentHashMap<>();
@@ -171,6 +179,51 @@ public class OidcAuthorizationService {
   @Autowired(required = false)
   public void setRefreshTokenPolicyProvider(RefreshTokenPolicyProvider refreshTokenPolicy) {
     this.refreshTokenPolicy = refreshTokenPolicy;
+  }
+
+  /** Sign-ins the application refuses (optional beans, each one may refuse). */
+  @Autowired(required = false)
+  public void setSignInPolicies(List<OidcSignInPolicy> signInPolicies) {
+    this.signInPolicies = signInPolicies != null ? List.copyOf(signInPolicies) : List.of();
+  }
+
+  /** Same as {@link #setSignInPolicies(List)} with one policy (tests). */
+  public void setSignInPolicy(OidcSignInPolicy signInPolicy) {
+    setSignInPolicies(signInPolicy != null ? List.of(signInPolicy) : List.of());
+  }
+
+  /**
+   * Asks the {@link OidcSignInPolicy} beans of the application whether this
+   * user may sign in to this client with these authentication methods.
+   *
+   * @return empty when the sign-in goes on (also without policy), or the
+   *         message of the first refusal; a policy that throws refuses the
+   *         sign-in
+   */
+  public Optional<String> signInRefusal(String clientId, MtacOidcClient client, String sub, Integer identityId,
+      List<String> amr) {
+    if (signInPolicies.isEmpty()) {
+      return Optional.empty();
+    }
+    var request = new OidcSignInPolicy.Request(clientId, client, sub, identityId, amr);
+    for (var policy : signInPolicies) {
+      try {
+        var refusal = policy.refusal(request);
+        if (refusal != null && refusal.isPresent()) {
+          var message = refusal.get();
+          return Optional.of(message == null || message.isBlank() ? OidcSignInPolicy.FAILURE_MESSAGE : message);
+        }
+      } catch (RuntimeException e) {
+        log.error("The sign-in policy failed for client {}: the sign-in is refused", clientId, e);
+        return Optional.of(OidcSignInPolicy.FAILURE_MESSAGE);
+      }
+    }
+    return Optional.empty();
+  }
+
+  /** Same as {@link #signInRefusal(String, MtacOidcClient, String, Integer, List)} for an SSO session. */
+  public Optional<String> signInRefusal(String clientId, MtacOidcClient client, OidcSession session) {
+    return signInRefusal(clientId, client, session.getSub(), session.getIdentityId(), session.getAmr());
   }
 
   /** Clock of the lastUsedAt throttling (tests). */
@@ -412,6 +465,11 @@ public class OidcAuthorizationService {
       return false;
     }
     if (client.isRequireMfa() && !session.getAmr().contains(OidcSessionService.AMR_OTP)) {
+      return false;
+    }
+    // a session the application refuses for this client (e.g. without the second factor it requires from
+    // this user): the user signs in again, and the hosted pages show the refusal if it remains
+    if (signInRefusal(request.getClientId(), client, session).isPresent()) {
       return false;
     }
     return true;

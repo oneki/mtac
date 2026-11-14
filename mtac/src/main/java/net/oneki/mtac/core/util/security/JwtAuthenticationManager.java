@@ -140,8 +140,9 @@ public class JwtAuthenticationManager implements AuthenticationManager {
 	/**
 	 * Attributes of the principal: the userinfo claims of the subject. A token
 	 * delegated to an OAuth client (it carries a {@code client_id} claim, RFC
-	 * 9068) also brings its {@code client_id} and granted {@code scope}, which
-	 * {@link DelegatedScopePolicy} uses to cap the rights of the user. Other
+	 * 9068) also brings its {@code client_id}, granted {@code scope} and the
+	 * {@code amr} of its sign-in, which {@link DelegatedScopePolicy} uses to cap
+	 * the rights of the user. Other
 	 * tokens (Console, service accounts) keep the userinfo claims only.
 	 *
 	 * <p>
@@ -187,6 +188,12 @@ public class JwtAuthenticationManager implements AuthenticationManager {
 		attributes.remove(DelegatedScopePolicy.ATTR_AUDIENCE);
 		if (audienceKey != null) {
 			attributes.put(DelegatedScopePolicy.ATTR_AUDIENCE, audienceKey);
+		}
+		// the authentication methods of the sign-in (MFA), from the signed amr claim only
+		attributes.remove(DelegatedScopePolicy.ATTR_AMR);
+		var amr = jwt.getClaimAsStringList(DelegatedScopePolicy.ATTR_AMR);
+		if (amr != null) {
+			attributes.put(DelegatedScopePolicy.ATTR_AMR, List.copyOf(amr));
 		}
 		return attributes;
 	}

@@ -83,6 +83,17 @@ public final class DelegatedScopePolicy {
    * token by {@code JwtAuthenticationManager}.
    */
   public static final String ATTR_AUDIENCE = "token_audience";
+  /**
+   * Principal attribute of the authentication methods of the sign-in the token
+   * comes from (signed {@code amr} claim, RFC 8176), copied by
+   * {@code JwtAuthenticationManager} for a delegated token.
+   */
+  public static final String ATTR_AMR = "amr";
+  /**
+   * The {@code amr} value of the second factor of the provider (TOTP code,
+   * {@code OidcSessionService.AMR_OTP}): a sign-in with MFA.
+   */
+  public static final String AMR_OTP = "otp";
 
   public static final String SCOPE_READ = "fuzz:read";
   public static final String SCOPE_CONFIG_WRITE = "fuzz:config:write";
@@ -115,7 +126,8 @@ public final class DelegatedScopePolicy {
     FIRST_PARTY_MOBILE
   }
 
-  private static final DelegatedScopePolicy NOT_DELEGATED = new DelegatedScopePolicy(Kind.NONE, null, Set.of(), null);
+  private static final DelegatedScopePolicy NOT_DELEGATED = new DelegatedScopePolicy(Kind.NONE, null, Set.of(), null,
+      Set.of());
 
   // reason of the IAM elevation of the current thread, null outside allowIam
   private static final ThreadLocal<String> IAM_ELEVATION = new ThreadLocal<>();
@@ -126,12 +138,14 @@ public final class DelegatedScopePolicy {
   private final String clientId;
   private final Set<String> scopes;
   private final String subject; // for the logs only
+  private final Set<String> amr;
 
-  private DelegatedScopePolicy(Kind kind, String clientId, Set<String> scopes, String subject) {
+  private DelegatedScopePolicy(Kind kind, String clientId, Set<String> scopes, String subject, Set<String> amr) {
     this.kind = kind;
     this.clientId = clientId;
     this.scopes = scopes;
     this.subject = subject;
+    this.amr = amr;
   }
 
   /** Policy of the authenticated principal of the current thread. */
@@ -161,7 +175,7 @@ public final class DelegatedScopePolicy {
     var kind = TokenAudience.MOBILE.equals(attributes.get(ATTR_AUDIENCE)) ? Kind.FIRST_PARTY_MOBILE : Kind.SCOPED;
     var subject = attributes.get("sub");
     return new DelegatedScopePolicy(kind, clientId.toString(), parseScopes(attributes.get(ATTR_SCOPE)),
-        subject != null ? subject.toString() : null);
+        subject != null ? subject.toString() : null, parseScopes(attributes.get(ATTR_AMR)));
   }
 
   public Kind getKind() {
@@ -194,6 +208,20 @@ public final class DelegatedScopePolicy {
 
   public boolean hasScope(String scope) {
     return scopes.contains(scope);
+  }
+
+  /** Authentication methods of the sign-in of a delegated token ({@code amr}), empty when not delegated. */
+  public Set<String> getAmr() {
+    return amr;
+  }
+
+  /**
+   * True when the delegated token comes from a sign-in with the second factor
+   * ({@code amr} contains {@value #AMR_OTP}). Always false for a token that is
+   * not delegated: its MFA is not carried this way.
+   */
+  public boolean isMfaAuthenticated() {
+    return isDelegated() && amr.contains(AMR_OTP);
   }
 
   /**
@@ -370,6 +398,19 @@ public final class DelegatedScopePolicy {
       return probe.get();
     }
     return runWith(IAM_ELEVATION, "super admin check", probe);
+  }
+
+  /**
+   * The super admin check of {@link PermissionService#hasSuperAdminRole()}: the
+   * roles of the user, whatever the power of the token. For a first-party
+   * mobile token the {@code iam.*} barrier is lifted for that one check (not
+   * logged: nothing is granted, the answer is only used to refuse).
+   */
+  static boolean probeSuperAdminRole(Supplier<Boolean> probe) {
+    if (!current().isFirstPartyMobile()) {
+      return probe.get();
+    }
+    return runWith(IAM_ELEVATION, "super admin role check", probe);
   }
 
   private static <T> T runWith(ThreadLocal<String> flag, String reason, Supplier<T> action) {

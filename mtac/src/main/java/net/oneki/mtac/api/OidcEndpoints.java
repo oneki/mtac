@@ -466,10 +466,15 @@ public class OidcEndpoints {
       return redirectError(context.params().get("redirect_uri"), "access_denied",
           "Multi-factor authentication is required for this application", context.params().get("state"));
     }
-    if (stepUpSession != null) {
-      return completeStepUp(context, stepUpSession, List.of(OidcSessionService.AMR_PASSWORD));
+    var amr = List.of(OidcSessionService.AMR_PASSWORD);
+    var refusal = signInRefusal(context, request, user, amr);
+    if (refusal != null) {
+      return refusal;
     }
-    return completeLogin(context, request, user, List.of(OidcSessionService.AMR_PASSWORD));
+    if (stepUpSession != null) {
+      return completeStepUp(context, stepUpSession, amr);
+    }
+    return completeLogin(context, request, user, amr);
   }
 
   // ------------------------------------------------------------------ mfa
@@ -528,6 +533,10 @@ public class OidcEndpoints {
     }
     loginAttemptService.recordSuccess(attemptKey);
     var amr = List.of(OidcSessionService.AMR_PASSWORD, OidcSessionService.AMR_OTP);
+    var refusal = signInRefusal(context, request, user, amr);
+    if (refusal != null) {
+      return refusal;
+    }
     if (stepUpSession != null) {
       if (sessionService.getAlive(stepUpSession.getId()) == null) {
         // the enrolment of the TOTP secret ended the sessions of the user (grant revocation). He
@@ -540,6 +549,28 @@ public class OidcEndpoints {
       return completeStepUp(context, stepUpSession, amr);
     }
     return completeLogin(context, request, user, amr);
+  }
+
+  /**
+   * The {@link net.oneki.mtac.core.service.openid.oidc.OidcSignInPolicy} of the
+   * application, before the SSO session is
+   * opened (or re-authenticated by a step-up): a refusal is shown on the
+   * sign-in page with its message, and no session nor code is issued.
+   *
+   * @return the refusal page, or null when the sign-in goes on
+   */
+  private ResponseEntity<String> signInRefusal(LoginContext context, HttpServletRequest request, User user,
+      List<String> amr) {
+    var clientId = context.params().get("client_id");
+    var refusal = authorizationService.signInRefusal(clientId, context.client(), user.getUid(), user.getId(), amr);
+    if (refusal.isEmpty()) {
+      return null;
+    }
+    log.warn("OIDC sign-in of identity {} to client {} refused by the application policy ({})", user.getId(),
+        clientId, String.join(" ", amr));
+    var headers = new HttpHeaders();
+    headers.add(HttpHeaders.SET_COOKIE, cookie(MFA_COOKIE, "", 0, "Strict"));
+    return renderLogin(context, request, HttpStatus.FORBIDDEN, user.getLabel(), refusal.get(), headers);
   }
 
   /** User who passed the password step, read from the MFA cookie; null if there is none. */
@@ -692,7 +723,7 @@ public class OidcEndpoints {
       }
       consentService.recordUse(session.getIdentityId(), authorizationRequest.getClientId());
     }
-    return codeRedirect(authorizationRequest, session, new HttpHeaders());
+    return codeRedirect(client, authorizationRequest, session, new HttpHeaders());
   }
 
   /** Answer of the consent page: allow records the consent and issues the code, deny returns access_denied. */
@@ -743,12 +774,20 @@ public class OidcEndpoints {
     }
     consentService.recordApproval(session.getIdentityId(), authorizationRequest.getClientId(),
         OidcConsentService.consentScopes(authorizationRequest));
-    return codeRedirect(authorizationRequest, session, headers);
+    return codeRedirect(client, authorizationRequest, session, headers);
   }
 
   /** Issues the authorization code and sends the browser back to the client. */
-  private ResponseEntity<String> codeRedirect(OidcAuthorizationRequest authorizationRequest, OidcSession session,
-      HttpHeaders headers) {
+  private ResponseEntity<String> codeRedirect(MtacOidcClient client, OidcAuthorizationRequest authorizationRequest,
+      OidcSession session, HttpHeaders headers) {
+    // last check of the application policy before a code exists (the sign-in pages and the session check
+    // already asked it; the consent page, or a change of the user's rights meanwhile, end here)
+    var refusal = authorizationService.signInRefusal(authorizationRequest.getClientId(), client, session);
+    if (refusal.isPresent()) {
+      log.warn("OIDC authorization code for client {} refused by the application policy (identity {})",
+          authorizationRequest.getClientId(), session.getIdentityId());
+      return errorPage(HttpStatus.FORBIDDEN, refusal.get());
+    }
     var response = new LinkedHashMap<String, String>();
     response.put("code", authorizationService.issueCode(authorizationRequest, session));
     response.put("state", authorizationRequest.getState());
@@ -1358,6 +1397,11 @@ public class OidcEndpoints {
 
   private ResponseEntity<String> renderLogin(LoginContext context, HttpServletRequest request, HttpStatus status,
       String username, String error) {
+    return renderLogin(context, request, status, username, error, new HttpHeaders());
+  }
+
+  private ResponseEntity<String> renderLogin(LoginContext context, HttpServletRequest request, HttpStatus status,
+      String username, String error, HttpHeaders headers) {
     var model = new HashMap<String, String>();
     model.put("action", authorizationService.url(OidcAuthorizationService.PATH_LOGIN));
     model.put("ctx", context.token());
@@ -1373,7 +1417,7 @@ public class OidcEndpoints {
     }
     model.put("username", username);
     model.put("error", error);
-    return page("login", model, status, request, context.client(), new HttpHeaders());
+    return page("login", model, status, request, context.client(), headers);
   }
 
   private ResponseEntity<String> renderMfa(LoginContext context, HttpServletRequest request, HttpStatus status,
