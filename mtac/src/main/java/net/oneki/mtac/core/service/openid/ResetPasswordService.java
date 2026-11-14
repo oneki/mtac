@@ -23,6 +23,7 @@ import net.oneki.mtac.model.core.openid.ResetPasswordRequest;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
 import net.oneki.mtac.model.resource.iam.identity.user.User;
 import net.oneki.mtac.resource.iam.identity.user.DefaultUserService;
+import net.oneki.mtac.resource.iam.identity.user.UserService;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +33,12 @@ public class ResetPasswordService {
   public static final int PASSWORD_MIN_LENGTH = 8;
   /** Longest password accepted, in UTF-8 bytes: BCrypt ignores (or refuses) anything beyond. */
   public static final int PASSWORD_MAX_BYTES = 72;
+  /** Claim of a set-password link telling what it was sent for: {@link #PURPOSE_INVITATION} or {@link #PURPOSE_RESET}. */
+  public static final String PURPOSE_CLAIM = "purpose";
+  /** Link of an invitation (first password of a new account), valid {@code mtac.jwt.invitation-expiration-sec}. */
+  public static final String PURPOSE_INVITATION = "invitation";
+  /** Link of a "forgot password" or of an administrator, valid {@code mtac.jwt.reset-password-expiration-sec}. */
+  public static final String PURPOSE_RESET = "reset";
 
   protected MtacProperties mtacProperties;
   protected DefaultUserService userService;
@@ -111,6 +118,11 @@ public class ResetPasswordService {
 
     if (user == null)
       return;
+    if (UserService.isDisabled(user)) {
+      // same answer as an unknown address: no link for a disabled user (it would be refused anyway)
+      log.info("Reset password request ignored for the disabled user {}", user.getId());
+      return;
+    }
 
     if (user.getResetPasswordTokenIssuedAt() != null && user.getResetPasswordTokenIssuedAt().isAfter(Instant.now().minusSeconds(mtacProperties.getResetPassword().getRequestCooldownSec()))) {
       // to avoid spam, user can only request reset password once every X seconds, X is defined in mtac properties
@@ -134,22 +146,37 @@ public class ResetPasswordService {
   /**
    * Set-password link of an invitation: valid {@code mtac.jwt.invitation-expiration-sec} (31 days by default),
    * single use like a reset link (the identifier stored on the user is the nonce: a newer link, an invitation
-   * sent again or a "forgot password", replaces it, so older links stop working). Records
-   * {@code invitationSentAt}. The caller sends the link (its own mail template).
+   * sent again or a "forgot password", replaces it, so older links stop working). The link carries the claim
+   * {@value #PURPOSE_CLAIM} = {@value #PURPOSE_INVITATION}: the hosted page says "set up your account", and the
+   * password chosen with it records {@code activatedAt}. Records {@code invitationSentAt}. The caller sends the
+   * link (its own mail template).
+   *
+   * @throws BusinessException USER_DISABLED for a disabled user (his links are refused, enable him first)
    */
   public String generateInvitationLink(User user) {
+    if (UserService.isDisabled(user)) {
+      throw new BusinessException("USER_DISABLED", "The user is disabled: enable the account before inviting it");
+    }
     user.setInvitationSentAt(Instant.now());
-    return generateResetLink(user, user.getLabel(), mtacProperties.getJwt().getInvitationExpirationSec(), false);
+    return generateLink(user, user.getLabel(), mtacProperties.getJwt().getInvitationExpirationSec(), false,
+        PURPOSE_INVITATION);
   }
 
+  /** Reset link (claim {@value #PURPOSE_CLAIM} = {@value #PURPOSE_RESET}), see {@link #generateInvitationLink}. */
   public String generateResetLink(User user, String email, Integer resetPasswordExpirationSec, boolean extend) {
+    return generateLink(user, email, resetPasswordExpirationSec, extend, PURPOSE_RESET);
+  }
+
+  protected String generateLink(User user, String email, Integer resetPasswordExpirationSec, boolean extend,
+      String purpose) {
     var resetLink = mtacProperties.getResetPassword().getLink();
     var resetToken = UUID.randomUUID().toString();
     if (extend && user.getResetPasswordTokenIssuedAt() != null && user.getResetPasswordToken() != null && user.getResetPasswordTokenIssuedAt().isAfter(Instant.now().minusSeconds(resetPasswordExpirationSec))) {
       resetToken = user.getResetPasswordToken();
     }
     // generete JWT token that contains the reset token
-    var jwtToken = tokenService.newToken(Map.of("resetToken", resetToken, "email", email), resetPasswordExpirationSec);
+    var jwtToken = tokenService.newToken(Map.of("resetToken", resetToken, "email", email, PURPOSE_CLAIM, purpose),
+        resetPasswordExpirationSec);
     // update user attribute to store the reset token
     user.setResetPasswordToken(resetToken);
     user.setResetPasswordTokenIssuedAt(Instant.now());
@@ -182,9 +209,10 @@ public class ResetPasswordService {
 
   /**
    * The user a reset link was issued to, or null when the link is invalid:
-   * bad signature, no or past expiration, unknown user, or an identifier that
-   * is not the one stored on the user (already used, or replaced by a newer
-   * link). Nothing about the token is logged.
+   * bad signature, no or past expiration, unknown user, an identifier that is
+   * not the one stored on the user (already used, or replaced by a newer
+   * link), or a disabled user (no password is set for an account that cannot
+   * sign in). Nothing about the token is logged.
    */
   public User resolveResetToken(String resetToken) {
     if (resetToken == null || resetToken.isBlank()) {
@@ -203,12 +231,31 @@ public class ResetPasswordService {
         return null;
       }
       var user = userService.getByUniqueLabelUnsecureOrReturnNull(email);
-      if (user == null || user.getResetPasswordToken() == null || !user.getResetPasswordToken().equals(uuid)) {
+      if (user == null || user.getResetPasswordToken() == null || !user.getResetPasswordToken().equals(uuid)
+          || UserService.isDisabled(user)) {
         return null;
       }
       return user;
     } catch (Exception e) {
       return null;
+    }
+  }
+
+  /**
+   * True when a set-password link (valid signature, expired or not) was sent
+   * with an invitation ({@value #PURPOSE_CLAIM} = {@value #PURPOSE_INVITATION});
+   * false for a reset link, a link issued before the claim existed, or an
+   * unreadable one.
+   */
+  public boolean isInvitationLink(String resetToken) {
+    if (resetToken == null || resetToken.isBlank()) {
+      return false;
+    }
+    try {
+      var claims = tokenService.verifyIgnoringExpiration(resetToken);
+      return PURPOSE_INVITATION.equals(claims.get(PURPOSE_CLAIM, String.class));
+    } catch (Exception e) {
+      return false;
     }
   }
 
@@ -236,7 +283,12 @@ public class ResetPasswordService {
   /**
    * Sets the new password chosen with the reset link, then revokes every
    * delegated access of the user and his Console session
-   * ({@link OidcGrantRevocation}), in the same transaction.
+   * ({@link OidcGrantRevocation}), in the same transaction. A disabled user's
+   * link is refused (INVALID_RESET_TOKEN). The first password of an invited
+   * user records {@code activatedAt}, only when it is not set yet: with the
+   * invitation link, or with a reset link while the invitation is pending (the
+   * invitation link expired and the user asked a new one with "forgot
+   * password").
    */
   @Transactional
   public void resetPassword(ResetPasswordRequest request) {
@@ -251,7 +303,8 @@ public class ResetPasswordService {
       if (user == null) {
         throw new BusinessException("USER_NOT_FOUND", "User not found for the provided email");
       }
-      if (user.getResetPasswordToken() == null || !user.getResetPasswordToken().equals(resetToken)) {
+      if (user.getResetPasswordToken() == null || !user.getResetPasswordToken().equals(resetToken)
+          || UserService.isDisabled(user)) {
         throw new BusinessException("INVALID_RESET_TOKEN", "Invalid reset token");
       }
       var ruleError = passwordRuleError(request.getNewPassword());
@@ -261,6 +314,10 @@ public class ResetPasswordService {
       user.setPassword(PasswordUtil.hash(request.getNewPassword()));
       user.setResetPasswordToken(null);
       user.setResetPasswordTokenIssuedAt(null);
+      if (user.getActivatedAt() == null
+          && (PURPOSE_INVITATION.equals(claims.get(PURPOSE_CLAIM, String.class)) || user.getInvitationSentAt() != null)) {
+        user.setActivatedAt(Instant.now());
+      }
       userService.updateUnsecure(user);
       // same transaction: a failed revocation rolls the new password back
       requireGrantRevocation().revokeAll(user, OidcGrantRevocation.REASON_PASSWORD_RESET, false);

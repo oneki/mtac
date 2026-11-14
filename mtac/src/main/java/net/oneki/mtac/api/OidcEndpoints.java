@@ -1189,7 +1189,9 @@ public class OidcEndpoints {
   /**
    * Form choosing the new password, opened by the link of the email (also the
    * "finish setting up your account" link of a new user, and the links sent
-   * before the hosted pages existed: same token).
+   * before the hosted pages existed: same token). An invitation link (claim
+   * {@code purpose = invitation}, valid 31 days) shows the "set up your
+   * account" wording; a link of a disabled user is refused like an expired one.
    *
    * @param ctx return context of the sign-in the request started from, optional
    */
@@ -1234,10 +1236,13 @@ public class OidcEndpoints {
       return renderResetPassword(user, resetToken, returnContext, request, HttpStatus.INTERNAL_SERVER_ERROR,
           "Your password could not be changed. Try again.");
     }
-    log.info("Password of identity {} changed with a reset link", user.getId());
+    var invitation = resetPasswordService.isInvitationLink(resetToken);
+    log.info("Password of identity {} {} with a {} link", user.getId(), invitation ? "set" : "changed",
+        invitation ? "invitation" : "reset");
 
     var model = new HashMap<String, String>();
     model.put("email", user.getLabel());
+    model.put("invitation", invitation ? "true" : null);
     model.put("signInUrl", signInUrl(returnContext, user.getLabel()));
     var headers = new HttpHeaders();
     headers.add(HttpHeaders.SET_COOKIE, cookie(CSRF_COOKIE, "", 0, "Strict"));
@@ -1251,6 +1256,8 @@ public class OidcEndpoints {
     model.put("resetToken", resetToken);
     model.put("ctx", returnContext != null ? returnContext.token() : null);
     model.put("email", user.getLabel());
+    // an invitation link sets the first password of the account: the page says so
+    model.put("invitation", resetPasswordService.isInvitationLink(resetToken) ? "true" : null);
     model.put("minLength", String.valueOf(ResetPasswordService.PASSWORD_MIN_LENGTH));
     model.put("error", error);
     return page("reset-password", model, status, request, null, new HttpHeaders());

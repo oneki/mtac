@@ -44,6 +44,7 @@ import net.oneki.mtac.model.core.openid.oidc.OidcSession;
 import net.oneki.mtac.model.core.openid.oidc.OidcTokenResponse;
 import net.oneki.mtac.model.core.openid.oidc.TokenAudience;
 import net.oneki.mtac.model.core.util.exception.BusinessException;
+import net.oneki.mtac.resource.iam.identity.user.UserService;
 import net.oneki.mtac.resource.iam.oidc.OidcClientRepository;
 
 /**
@@ -207,15 +208,32 @@ public class OidcAuthorizationService {
   }
 
   /**
+   * Shown when a disabled user would sign in (second factor, SSO session, code
+   * issued): the message of a wrong password, so that the hosted pages never
+   * tell that an account exists and is disabled.
+   */
+  public static final String DISABLED_USER_MESSAGE = "Incorrect email or password.";
+
+  /**
    * Asks the {@link OidcSignInPolicy} beans of the application whether this
-   * user may sign in to this client with these authentication methods.
+   * user may sign in to this client with these authentication methods. A
+   * disabled user is refused first, with {@link #DISABLED_USER_MESSAGE}.
    *
    * @return empty when the sign-in goes on (also without policy), or the
    *         message of the first refusal; a policy that throws refuses the
-   *         sign-in
+   *         sign-in, and so does a failure to read the user
    */
   public Optional<String> signInRefusal(String clientId, MtacOidcClient client, String sub, Integer identityId,
       List<String> amr) {
+    try {
+      if (isDisabledUser(sub)) {
+        log.info("OIDC sign-in of identity {} to client {} refused: the user is disabled", identityId, clientId);
+        return Optional.of(DISABLED_USER_MESSAGE);
+      }
+    } catch (RuntimeException e) {
+      log.error("Cannot read the user of a sign-in to client {}: the sign-in is refused", clientId, e);
+      return Optional.of(OidcSignInPolicy.FAILURE_MESSAGE);
+    }
     if (signInPolicies.isEmpty()) {
       return Optional.empty();
     }
@@ -233,6 +251,25 @@ public class OidcAuthorizationService {
       }
     }
     return Optional.empty();
+  }
+
+  /**
+   * True when {@code sub} is a disabled user. An identity that cannot be found
+   * is not disabled: the code exchange and the refresh refuse it on their own
+   * (claims of a user that no longer exists). Without user service (tests of
+   * the provider alone): false.
+   *
+   * @throws RuntimeException when the user cannot be read (storage failure)
+   */
+  boolean isDisabledUser(String sub) {
+    if (sub == null || openIdService == null || openIdService.getUserService() == null) {
+      return false;
+    }
+    try {
+      return UserService.isDisabled(openIdService.getUserService().getByUidUnsecure(sub));
+    } catch (BusinessException e) {
+      return false; // not found
+    }
   }
 
   /** Same as {@link #signInRefusal(String, MtacOidcClient, String, Integer, List)} for an SSO session. */
@@ -609,6 +646,11 @@ public class OidcAuthorizationService {
     if (session == null) {
       throw OidcException.invalidGrant("The session has ended");
     }
+    if (isDisabledUser(session.getSub())) {
+      // disabled between the sign-in and the exchange (disabling also ends the session: belt and braces)
+      log.info("OpenID code exchange of client {} refused: the user is disabled", clientId);
+      throw OidcException.invalidGrant("The user account is disabled");
+    }
     var scopes = splitScopes(authorizationCode.getScope());
     var ignoresSso = ignoresSsoSession(client);
     // a client that ignores the SSO session: its session only carried the code, the tokens carry no sid
@@ -746,6 +788,11 @@ public class OidcAuthorizationService {
     if (grant == null) {
       // a token stored before the family kept its identity, whose session has ended
       throw OidcException.invalidGrant("The session has ended");
+    }
+    if (isDisabledUser(grant.sub())) {
+      // disabling revokes the families: one still live is refused anyway, and not consumed
+      log.info("OpenID refresh of client {} refused: the user is disabled", clientId);
+      throw OidcException.invalidGrant("The user account is disabled");
     }
     // a family stored before family_started_at existed starts counting now
     var familyStartedAt = stored.getFamilyStartedAt() != null ? stored.getFamilyStartedAt() : Instant.now();

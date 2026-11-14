@@ -76,6 +76,8 @@ public class OidcGrantRevocation {
   public static final String REASON_MFA_RESET = "mfa-reset";
   /** A TOTP secret was enrolled (first enrolment or after an MFA reset). */
   public static final String REASON_MFA_ENROLLED = "mfa-enrolled";
+  /** The account of the user was disabled (offboarding): no sign-in, no refresh until it is enabled again. */
+  public static final String REASON_USER_DISABLED = "user-disabled";
 
   /**
    * What a revocation removed.

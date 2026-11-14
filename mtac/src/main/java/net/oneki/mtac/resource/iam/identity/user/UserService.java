@@ -17,6 +17,7 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.oneki.mtac.core.service.openid.oidc.OidcGrantRevocation;
+import net.oneki.mtac.core.service.openid.oidc.TokenRevocationService;
 import net.oneki.mtac.framework.cache.TokenRegistry;
 import net.oneki.mtac.framework.repository.ResourceRepository;
 import net.oneki.mtac.framework.repository.TokenRepository;
@@ -57,6 +58,7 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
   protected MtacProperties mtacProperties;
   protected DefaultTenantService tenantService;
   protected OidcGrantRevocation grantRevocation;
+  protected TokenRevocationService tokenRevocations; // null: the access tokens of a disabled user live until they expire
 
   @Value("${mtac.iam.tenants-in-idtoken.enabled:false}")
   private boolean storeTenantsInIdToken;
@@ -116,6 +118,11 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
   @Autowired
   public void setGrantRevocation(OidcGrantRevocation grantRevocation) {
     this.grantRevocation = grantRevocation;
+  }
+
+  @Autowired(required = false)
+  public void setTokenRevocationService(TokenRevocationService tokenRevocations) {
+    this.tokenRevocations = tokenRevocations;
   }
 
   @Value("${jwt.expiration-sec:86400}")
@@ -376,6 +383,113 @@ public abstract class UserService<U extends BaseUserUpsertRequest<? extends Grou
     resourceRepository.update(user);
     requireGrantRevocation().revokeAll(user, OidcGrantRevocation.REASON_MFA_RESET, false);
     audit(user, before, Action.Update, true, false);
+  }
+
+  // ------------------------------------------------------------ lifecycle
+
+  /**
+   * True when the identity is a disabled user ({@code disabled = true}): it gets
+   * no token by any path (hosted login, password login, code exchange, refresh,
+   * Console session renewal). Null, an application or any other resource: false.
+   */
+  public static boolean isDisabled(Object identity) {
+    return identity instanceof User user && Boolean.TRUE.equals(user.getDisabled());
+  }
+
+  /**
+   * Disables a user (offboarding), with the update permission on the user. See
+   * {@link #disableUnsecure(User)}.
+   *
+   * @return the disabled user
+   * @throws NotFoundException  when the user does not exist
+   * @throws ForbiddenException without the update permission on the user
+   */
+  @Transactional
+  public E disable(String uid) {
+    var user = getByUid(uid);
+    if (user == null) {
+      throw new NotFoundException("Cannot find the user " + uid);
+    }
+    if (!permissionService.hasPermission(user, "update")) {
+      throw new ForbiddenException("Disabling the user " + user.getLabel() + " is forbidden for user "
+          + securityContext.getUsername());
+    }
+    var before = getByUidUnsecure(uid);
+    disableUnsecure(user);
+    audit(user, before, Action.Update, true, false);
+    return user;
+  }
+
+  /**
+   * Disables a user without permission check (the caller checked its own
+   * rights): stores {@code disabled = true} and, in the same transaction, ends
+   * every access of the user ({@link OidcGrantRevocation#revokeAll}: OIDC refresh
+   * token families, SSO sessions, consents, Console sessions) and writes a
+   * {@code user} revocation in the revocation list, so that every access token
+   * already issued (Console, mobile application, connectors) is refused within
+   * about 30 seconds. If a revocation fails, the flag is rolled back with it.
+   * Disabling a user already disabled revokes again (idempotent).
+   *
+   * <p>
+   * This is the only way to set the flag: neither the MTAC nor the application
+   * upsert request has a {@code disabled} field, and the mapper of an update
+   * copies the fields of the request only, so an update never changes it.
+   */
+  @Transactional
+  public void disableUnsecure(E user) {
+    if (user == null || user.getId() == null) {
+      throw new IllegalArgumentException("A persisted user is required");
+    }
+    user.setDisabled(true);
+    resourceRepository.update(user);
+    requireGrantRevocation().revokeAll(user, OidcGrantRevocation.REASON_USER_DISABLED, false);
+    if (tokenRevocations != null) {
+      tokenRevocations.revokeUser(user.getUid(), OidcGrantRevocation.REASON_USER_DISABLED);
+    } else {
+      log.warn("No revocation list: the access tokens of the disabled user {} stay valid until they expire",
+          user.getLabel());
+    }
+    log.info("User {} (id {}) disabled", user.getLabel(), user.getId());
+  }
+
+  /**
+   * Enables a disabled user again, with the update permission on the user. See
+   * {@link #enableUnsecure(User)}.
+   *
+   * @return the enabled user
+   * @throws NotFoundException  when the user does not exist
+   * @throws ForbiddenException without the update permission on the user
+   */
+  @Transactional
+  public E enable(String uid) {
+    var user = getByUid(uid);
+    if (user == null) {
+      throw new NotFoundException("Cannot find the user " + uid);
+    }
+    if (!permissionService.hasPermission(user, "update")) {
+      throw new ForbiddenException("Enabling the user " + user.getLabel() + " is forbidden for user "
+          + securityContext.getUsername());
+    }
+    var before = getByUidUnsecure(uid);
+    enableUnsecure(user);
+    audit(user, before, Action.Update, true, false);
+    return user;
+  }
+
+  /**
+   * Enables a user without permission check: clears the flag. Nothing is
+   * restored: the sessions ended by the disabling stay ended, the user signs in
+   * again (the revocation list only refuses the tokens issued before the
+   * disabling).
+   */
+  @Transactional
+  public void enableUnsecure(E user) {
+    if (user == null || user.getId() == null) {
+      throw new IllegalArgumentException("A persisted user is required");
+    }
+    user.setDisabled(false);
+    resourceRepository.update(user);
+    log.info("User {} (id {}) enabled", user.getLabel(), user.getId());
   }
 
   /**

@@ -217,10 +217,15 @@ public class OpenIdService {
         .build();
   }
 
+  /**
+   * Password login of a user. A disabled user gets the answer of a wrong
+   * password (INVALID_CREDENTIALS), once the password is checked: the answer
+   * never tells whether the password was right.
+   */
   public TokenResponse loginUser(User user, String password, String audience, boolean refreshToken) {
     boolean status = false;
     try {
-      if (!PasswordUtil.matches(password, user.getPassword())) {
+      if (!PasswordUtil.matches(password, user.getPassword()) || UserService.isDisabled(user)) {
         throw new BusinessException("INVALID_CREDENTIALS", "Username or password incorrect");
       }
       var expirationSec = mtacProperties.getJwt().getExpirationSec();
@@ -268,6 +273,8 @@ public class OpenIdService {
   /**
    * Checks the credentials of a user without issuing any token. Used by the hosted
    * login page of the OpenID provider, which opens an SSO session instead.
+   * A disabled user is refused like a wrong password, once the password is
+   * checked (same answer, same time).
    *
    * @throws BusinessException INVALID_CREDENTIALS, whatever the reason
    */
@@ -288,7 +295,7 @@ public class OpenIdService {
         PasswordUtil.matches(password, dummyPasswordHash);
         throw new BusinessException("INVALID_CREDENTIALS", "Username or password incorrect");
       }
-      if (!PasswordUtil.matches(password, user.getPassword())) {
+      if (!PasswordUtil.matches(password, user.getPassword()) || UserService.isDisabled(user)) {
         throw new BusinessException("INVALID_CREDENTIALS", "Username or password incorrect");
       }
       status = true;
@@ -396,6 +403,9 @@ public class OpenIdService {
     if (!randomUUID.equals(user.getRefreshToken())) {
       throw new BadCredentialsException("Invalid refresh token");
     }
+    if (UserService.isDisabled(user)) {
+      throw new BadCredentialsException("The user account is disabled");
+    }
     if (TokenAudience.API.equals(audience)) {
       checkConsoleRefreshOnTokenEndpoint(user);
     }
@@ -421,6 +431,10 @@ public class OpenIdService {
       throw new BadCredentialsException("User not found for the provided refresh token");
     }
     var sessionUser = (User) user;
+    if (UserService.isDisabled(sessionUser)) {
+      // disabling closes the Console sessions: a session still found was opened meanwhile, it is not renewed
+      throw new BadCredentialsException("The user account is disabled");
+    }
     if (TokenAudience.API.equals(audience)) {
       checkConsoleRefreshOnTokenEndpoint(sessionUser);
     }

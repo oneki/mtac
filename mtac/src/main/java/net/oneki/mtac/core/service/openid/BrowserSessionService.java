@@ -19,6 +19,7 @@ import net.oneki.mtac.model.core.openid.oidc.TokenAudience;
 import net.oneki.mtac.model.core.util.exception.ForbiddenException;
 import net.oneki.mtac.model.resource.Resource;
 import net.oneki.mtac.model.resource.iam.identity.user.User;
+import net.oneki.mtac.resource.iam.identity.user.UserService;
 
 /**
  * Console session kept by the API in HttpOnly cookies (backend for frontend,
@@ -140,7 +141,8 @@ public class BrowserSessionService {
       return null;
     }
     var user = user(Resource.toUid(session.getIdentityId()));
-    if (user == null) {
+    if (user == null || UserService.isDisabled(user)) {
+      // a disabled user: disabling closed his Console sessions, one found anyway is not renewed
       return null;
     }
     // every check passed: only now does the session slide

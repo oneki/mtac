@@ -58,6 +58,10 @@ public class MfaService {
     }
     var sub = claims.getSubject();
     var user = getUserService().getByUidUnsecure(sub);
+    if (UserService.isDisabled(user)) {
+      // disabled between the password step and the second factor
+      throw new BadCredentialsException("Invalid verification code");
+    }
 
     if (verificationCode == null) {
       // The user is using a trusted device, so we check the noMfaToken and not the
