@@ -45,7 +45,7 @@ public abstract class MultiTenantResourceServerConfig extends BaseResourceServer
         // manager chosen by the issuer of the token and by the audience the request path requires
         AuthenticationManagerResolver<HttpServletRequest> resolver = request -> {
             var issuer = issuerConverter.convert(request);
-            var audience = AudienceAuthenticationManagerResolver.audienceOf(request);
+            var audience = AudienceAuthenticationManagerResolver.requirementOf(request); // e.g. console or mobile on /api/**
             var authenticationManager = trustedIssuerJwtAuthenticationManagerResolver.resolve(issuer, audience);
             if (authenticationManager == null) {
                 throw new InvalidBearerTokenException("Invalid issuer");
@@ -111,8 +111,8 @@ public abstract class MultiTenantResourceServerConfig extends BaseResourceServer
         }
 
         /**
-         * @param audience key of the audience the request path requires (see
-         *                 {@link TokenAudience})
+         * @param audience key of the audience the request path requires, or
+         *                 several (see {@link TokenAudience#anyOf(String...)})
          * @return null when the issuer is not trusted
          */
         public AuthenticationManager resolve(String issuer, String audience) {

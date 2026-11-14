@@ -36,6 +36,7 @@ import net.oneki.mtac.model.core.config.MtacProperties.MtacOidcClient;
 import net.oneki.mtac.model.core.openid.oidc.OidcAccessMode;
 import net.oneki.mtac.model.core.openid.oidc.OidcAuthorizationCode;
 import net.oneki.mtac.model.core.openid.oidc.OidcAuthorizationRequest;
+import net.oneki.mtac.model.core.openid.oidc.OidcClientSource;
 import net.oneki.mtac.model.core.openid.oidc.OidcException;
 import net.oneki.mtac.model.core.openid.oidc.OidcRefreshToken;
 import net.oneki.mtac.model.core.openid.oidc.OidcSession;
@@ -61,6 +62,16 @@ import net.oneki.mtac.resource.iam.oidc.OidcClientRepository;
  * never the Console): its access token then carries that audience, the granted
  * {@code scope} and its {@code client_id} (RFC 9068), and the user's rights
  * are capped by those scopes (see {@link DelegatedScopePolicy}).
+ *
+ * <p>
+ * A first-party yml client that lists an audience in
+ * {@code first-party-audiences} (today only {@code mobile}, the Fuzz mobile
+ * applications) obtains that audience without the API access mode, and by
+ * default: an authorization request without resource gets the first one. Its
+ * tokens keep the full RBAC of the user, with the limits of the
+ * {@link DelegatedScopePolicy.Kind#FIRST_PARTY_MOBILE} policy. No other client
+ * (iam.oidc.client, DCR, CIMD) can obtain a first-party audience:
+ * {@code invalid_target}.
  *
  * <p>
  * Authorization codes are bound to the SSO session. Refresh tokens are not:
@@ -97,6 +108,8 @@ public class OidcAuthorizationService {
   public static final String ERROR_INVALID_TARGET = "invalid_target";
   /** Audiences a client may ask through a resource indicator: never the Console. */
   public static final Set<String> DELEGABLE_AUDIENCES = Set.of(TokenAudience.API, TokenAudience.MCP);
+  /** Audiences only the yml clients that list them in {@code first-party-audiences} may obtain. */
+  public static final Set<String> FIRST_PARTY_AUDIENCES = Set.of(TokenAudience.MOBILE);
   /** lastUsedAt of a client resource is written at most once per period. */
   public static final Duration LAST_USED_AT_THROTTLE = Duration.ofHours(1);
 
@@ -278,6 +291,10 @@ public class OidcAuthorizationService {
     }
 
     var resource = resolveResource(client, resources);
+    if (resource == null) {
+      // a first-party client (the mobile applications) gets its audience without naming it
+      resource = defaultResource(client);
+    }
 
     return OidcAuthorizationRequest.builder()
         .clientId(params.get("client_id"))
@@ -297,11 +314,13 @@ public class OidcAuthorizationService {
    * Audience key asked through the resource parameter (RFC 8707).
    *
    * @param values values of the parameter, null or empty when absent
-   * @return the key (api or mcp), or null when no resource is asked
+   * @return the key (api, mcp, or the first-party mobile), or null when no
+   *         resource is asked
    * @throws OidcException invalid_target when several resources are asked, the
    *                       value is not the absolute URL of a configured audience,
    *                       the audience is the Console, the client is not in API
-   *                       access mode or the resource is not one of the client
+   *                       access mode or the resource is not one of the client,
+   *                       or a first-party audience the client does not carry
    */
   public String resolveResource(MtacOidcClient client, Collection<String> values) {
     if (values == null || values.isEmpty()) {
@@ -323,7 +342,7 @@ public class OidcAuthorizationService {
       throw invalidTarget("The resource must be an absolute URI without fragment");
     }
     var key = new TokenAudiences(mtacProperties).keyOf(value).orElse(null);
-    if (key == null || !DELEGABLE_AUDIENCES.contains(key)) {
+    if (key == null || !(DELEGABLE_AUDIENCES.contains(key) || FIRST_PARTY_AUDIENCES.contains(key))) {
       throw invalidTarget("Unknown resource");
     }
     if (!isResourceAllowed(client, key)) {
@@ -334,10 +353,43 @@ public class OidcAuthorizationService {
 
   /** True when the client, in its current configuration, may obtain tokens for this audience key. */
   public static boolean isResourceAllowed(MtacOidcClient client, String key) {
+    if (isFirstPartyAudience(client, key)) {
+      return true;
+    }
     return client != null && key != null
         && client.getAccessMode() == OidcAccessMode.API
         && DELEGABLE_AUDIENCES.contains(key)
         && client.getResources() != null && client.getResources().contains(key);
+  }
+
+  /**
+   * True when a yml client lists this first-party audience in
+   * {@code first-party-audiences}. A client of any other source never does
+   * (the registry drops the attribute, the validator refuses the audience).
+   */
+  public static boolean isFirstPartyAudience(MtacOidcClient client, String key) {
+    return client != null && key != null
+        && FIRST_PARTY_AUDIENCES.contains(key)
+        && client.getSource() == OidcClientSource.YML
+        && client.getFirstPartyAudiences() != null && client.getFirstPartyAudiences().contains(key);
+  }
+
+  /**
+   * Audience of an authorization request without resource: the first
+   * first-party audience of the client that is configured, null for every
+   * other client (identity-only tokens, as before).
+   */
+  String defaultResource(MtacOidcClient client) {
+    if (client == null || client.getFirstPartyAudiences() == null) {
+      return null;
+    }
+    var audiences = new TokenAudiences(mtacProperties);
+    for (var key : client.getFirstPartyAudiences()) {
+      if (isFirstPartyAudience(client, key) && audiences.url(key) != null) {
+        return key;
+      }
+    }
+    return null;
   }
 
   private static OidcException invalidTarget(String description) {

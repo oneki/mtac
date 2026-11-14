@@ -17,7 +17,9 @@ import net.oneki.mtac.model.core.openid.oidc.TokenAudience;
  * <ul>
  * <li>{@code /public-api/**} -> api;</li>
  * <li>{@code /mcp} and {@code /mcp/**} -> mcp;</li>
- * <li>anything else ({@code /api/**}, {@code /ws/**}, ...) -> console.</li>
+ * <li>{@code /api} and {@code /api/**} -> console or mobile (the first-party
+ * mobile applications, see {@link #requirementOf(String)});</li>
+ * <li>anything else ({@code /ws/**}, ...) -> console only.</li>
  * </ul>
  * The path is decoded and taken without the servlet context path. Public paths never reach
  * the resolver (they are ignored by the security filter chain), and neither
@@ -26,13 +28,18 @@ import net.oneki.mtac.model.core.openid.oidc.TokenAudience;
 public class AudienceAuthenticationManagerResolver implements AuthenticationManagerResolver<HttpServletRequest> {
   public static final String PUBLIC_API_PATH = "/public-api";
   public static final String MCP_PATH = "/mcp";
+  /** The Console REST API, also open to the first-party mobile applications. */
+  public static final String API_PATH = "/api";
+  /** Requirement of {@link #API_PATH}: the console or the mobile audience. */
+  public static final String CONSOLE_OR_MOBILE = TokenAudience.anyOf(TokenAudience.CONSOLE, TokenAudience.MOBILE);
 
   private final Function<String, AuthenticationManager> managerFactory;
   private final Map<String, AuthenticationManager> managers = new ConcurrentHashMap<>();
 
   /**
-   * @param managerFactory builds the manager of an audience key; called once per
-   *                       key, the result is cached
+   * @param managerFactory builds the manager of a requirement (an audience key,
+   *                       or several, see {@link TokenAudience#anyOf(String...)});
+   *                       called once per requirement, the result is cached
    */
   public AudienceAuthenticationManagerResolver(Function<String, AuthenticationManager> managerFactory) {
     this.managerFactory = managerFactory;
@@ -40,10 +47,26 @@ public class AudienceAuthenticationManagerResolver implements AuthenticationMana
 
   @Override
   public AuthenticationManager resolve(HttpServletRequest request) {
-    return managers.computeIfAbsent(audienceOf(request), managerFactory);
+    return managers.computeIfAbsent(requirementOf(request), managerFactory);
   }
 
-  /** Audience key required on the path of a request. */
+  /**
+   * The audiences a request path accepts: {@link #CONSOLE_OR_MOBILE} on
+   * {@code /api/**}, else the single key of {@link #audienceOf(String)}.
+   */
+  public static String requirementOf(HttpServletRequest request) {
+    return requirementOf(UrlPathHelper.defaultInstance.getPathWithinApplication(request));
+  }
+
+  /** Same as {@link #requirementOf(HttpServletRequest)} on a path (without the servlet context path). */
+  public static String requirementOf(String path) {
+    if (path != null && isUnder(path, API_PATH)) {
+      return CONSOLE_OR_MOBILE;
+    }
+    return audienceOf(path);
+  }
+
+  /** Main audience key required on the path of a request (console for /api/**, see {@link #requirementOf(String)}). */
   public static String audienceOf(HttpServletRequest request) {
     // decoded, without the context path and the ;parameters, as Spring MVC matches it
     return audienceOf(UrlPathHelper.defaultInstance.getPathWithinApplication(request));

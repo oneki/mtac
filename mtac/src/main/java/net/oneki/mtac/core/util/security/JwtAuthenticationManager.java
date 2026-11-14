@@ -51,11 +51,14 @@ import net.oneki.mtac.resource.iam.identity.user.UserService;
  * <li>an aud that is not one configured audience URL is always refused: MFA,
  * trusted device, OIDC login context, OIDC userinfo access token, ID token
  * (aud = client_id), several audiences;</li>
- * <li>the audience required for the path and the header {@code typ: at+jwt}:
- * accepted;</li>
+ * <li>an audience the path accepts (one key, or several such as console or
+ * mobile on {@code /api/**}, see {@link TokenAudience#anyOf(String...)}) and
+ * the header {@code typ: at+jwt}: accepted;</li>
  * <li>no aud, no {@code typ: at+jwt}, or the configured audience of another
  * path: accepted and logged with {@code audience-enforcement: log}, refused
- * (invalid_token) with {@code strict}.</li>
+ * (invalid_token) with {@code strict};</li>
+ * <li>the mobile audience without {@code client_id}: always refused (the
+ * provider issues it to first-party clients only, with their client_id).</li>
  * </ul>
  * Without configured audiences (or without {@link MtacProperties}), the former
  * MTAC behaviour applies: tokens without aud are accepted, any aud is refused.
@@ -76,7 +79,8 @@ public class JwtAuthenticationManager implements AuthenticationManager {
 	private final OpenIdService openIdService;
 	private String nameAttributeKey = "username";
 	private String authorizedClientRegistrationId = "default";
-	// key of mtac.jwt.audiences required on the path this manager serves (see TokenAudience); null = any configured one
+	// key of mtac.jwt.audiences required on the path this manager serves, or several (TokenAudience.anyOf);
+	// null = any configured one
 	private String requiredAudience;
 	private MtacProperties mtacProperties; // null = no audience configured
 	private TokenRevocationService tokenRevocations; // null = no revocation list
@@ -121,7 +125,7 @@ public class JwtAuthenticationManager implements AuthenticationManager {
 			}
 			checkAudience(jwt, sub);
 			checkRevocation(jwt, sub);
-			var claims = principalAttributes(jwt, openIdService.userinfo(sub, false));
+			var claims = principalAttributes(jwt, openIdService.userinfo(sub, false), audienceKey(jwt));
 			Collection<GrantedAuthority> authorities = new ArrayList<>(); // TODO
 
 			OAuth2User principal = new DefaultOAuth2User(authorities, claims, nameAttributeKey, accessToken, tokenRefreshed);
@@ -145,6 +149,18 @@ public class JwtAuthenticationManager implements AuthenticationManager {
 	 * never modified.
 	 */
 	public static Map<String, Object> principalAttributes(Jwt jwt, Map<String, Object> userinfo) {
+		return principalAttributes(jwt, userinfo, null);
+	}
+
+	/**
+	 * Same as {@link #principalAttributes(Jwt, Map)}; a delegated token also
+	 * brings the key of its audience ({@link DelegatedScopePolicy#ATTR_AUDIENCE}):
+	 * the mobile one makes it a first-party mobile token.
+	 *
+	 * @param audienceKey key of the configured audience of the token, null if none
+	 */
+	public static Map<String, Object> principalAttributes(Jwt jwt, Map<String, Object> userinfo,
+			String audienceKey) {
 		var clientId = jwt.getClaimAsString(DelegatedScopePolicy.ATTR_CLIENT_ID);
 		var impersonation = jwt.getClaims().get("imp") != null;
 		var consoleSession = jwt.getClaimAsString("csid");
@@ -167,7 +183,24 @@ public class JwtAuthenticationManager implements AuthenticationManager {
 		attributes.put(DelegatedScopePolicy.ATTR_CLIENT_ID, clientId);
 		var scope = jwt.getClaimAsString(DelegatedScopePolicy.ATTR_SCOPE);
 		attributes.put(DelegatedScopePolicy.ATTR_SCOPE, scope != null ? scope : "");
+		// from the signed aud claim only, never from the userinfo claims
+		attributes.remove(DelegatedScopePolicy.ATTR_AUDIENCE);
+		if (audienceKey != null) {
+			attributes.put(DelegatedScopePolicy.ATTR_AUDIENCE, audienceKey);
+		}
 		return attributes;
+	}
+
+	/** Key of the single configured audience of the token, null when there is none or no audience is configured. */
+	private String audienceKey(Jwt jwt) {
+		if (mtacProperties == null) {
+			return null;
+		}
+		var audience = jwt.getAudience();
+		if (audience == null || audience.size() != 1) {
+			return null;
+		}
+		return new TokenAudiences(mtacProperties).keyOf(audience.get(0)).orElse(null);
 	}
 
 	/**
@@ -213,9 +246,16 @@ public class JwtAuthenticationManager implements AuthenticationManager {
 				throw new JwtException("The token was not issued to access this API");
 			}
 		}
+		if (TokenAudience.MOBILE.equals(audienceKey) && jwt.getClaimAsString("client_id") == null) {
+			// the provider issues the mobile audience to first-party clients only, always with their client_id:
+			// without it the token would escape the limits of DelegatedScopePolicy
+			log.warn("Access token refused: mobile audience without client_id (sub={}, path={})", sub, currentPath());
+			throw new JwtException("The token was not issued to access this API");
+		}
 		var typ = jwt.getHeaders() != null ? jwt.getHeaders().get("typ") : null;
 		var typOk = TokenAudience.ACCESS_TOKEN_TYP.equals(typ);
-		var audienceOk = audienceKey != null && (requiredAudience == null || requiredAudience.equals(audienceKey));
+		var audienceOk = audienceKey != null
+				&& (requiredAudience == null || TokenAudience.accepts(requiredAudience, audienceKey));
 		if (audienceOk && typOk) {
 			return;
 		}

@@ -44,7 +44,17 @@ import net.oneki.mtac.resource.iam.oidc.OidcClientRepository;
  * change.</li>
  * </ol>
  * Every source is returned as the {@link MtacOidcClient} view, so the rest of the
- * provider does not know where a client comes from.
+ * provider does not know where a client comes from. Only a yml client may carry
+ * {@code first-party-audiences} (the mobile audience): it is dropped from a
+ * client of any other source.
+ *
+ * <p>
+ * Redirect URIs of yml clients are compared as exact strings and are not
+ * subject to {@code dynamic.allowed-redirect-schemes} (that list only governs
+ * what Dynamic Client Registration and super admins may register): a
+ * first-party native application declares its reverse-domain private-use URI
+ * (RFC 8252 section 7.1), e.g. {@code energy.fuzz.mobile:/oauth/callback},
+ * directly in yml.
  *
  * <p>
  * The provider is enabled by {@code mtac.openid.server.enabled}, or as soon as
@@ -101,9 +111,29 @@ public class OidcClientRegistry {
     }
     var resolver = resolverFor(clientId);
     if (resolver != null) {
-      return resolver.resolve(clientId);
+      return withoutFirstPartyAudiences(resolver.resolve(clientId));
     }
-    return findResourceClient(clientId);
+    return withoutFirstPartyAudiences(findResourceClient(clientId));
+  }
+
+  /**
+   * A first-party audience is a yml-only attribute: a client of another source
+   * (a resolver, a resource) never keeps one, nor passes for a yml client.
+   */
+  static MtacOidcClient withoutFirstPartyAudiences(MtacOidcClient client) {
+    if (client == null) {
+      return null;
+    }
+    if (client.getFirstPartyAudiences() != null && !client.getFirstPartyAudiences().isEmpty()) {
+      log.warn("OpenID client {} ({}) declares first-party audiences, which only yml clients may: ignored",
+          client.getName(), client.getSource());
+      client.setFirstPartyAudiences(new ArrayList<>());
+    }
+    if (client.getSource() == null || client.getSource() == OidcClientSource.YML) {
+      // the MtacOidcClient default is YML: a client that is not in the yml map must not pass for one
+      client.setSource(OidcClientSource.CONSOLE);
+    }
+    return client;
   }
 
   /**
@@ -122,9 +152,9 @@ public class OidcClientRegistry {
     }
     var resolver = resolverFor(clientId);
     if (resolver != null) {
-      return resolver.peek(clientId);
+      return withoutFirstPartyAudiences(resolver.peek(clientId));
     }
-    return findResourceClient(clientId);
+    return withoutFirstPartyAudiences(findResourceClient(clientId));
   }
 
   /** True when the client_id is declared in yml: no resource may then use it. */
@@ -319,6 +349,7 @@ public class OidcClientRegistry {
   public static MtacOidcClient toClient(OidcClient resource) {
     var client = new MtacOidcClient();
     client.setType(resource.isConfidential() ? ClientType.CONFIDENTIAL : ClientType.PUBLIC);
+    client.setKind(resource.getKind());
     client.setName(resource.getName() != null && !resource.getName().isBlank() ? resource.getName()
         : resource.getLabel());
     client.setSecretHash(null);

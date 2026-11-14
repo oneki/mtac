@@ -110,12 +110,13 @@ public class PermissionService {
     }
 
     public boolean isSuperAdmin() {
-        // a token delegated to an OAuth client never carries the super admin power
+        // a token delegated to an OAuth client never carries the super admin power, except a first-party mobile
+        // token inside DelegatedScopePolicy.withSuperAdminPowers
         if (!DelegatedScopePolicy.current().allowsSuperAdmin()) {
             return false;
         }
-        // Check if the logged user has the role super_admin
-        return hasPermission(Constants.TENANT_ROOT_ID, "iam.role|create");
+        // Check if the logged user has the role super_admin (an iam.* permission: see probeSuperAdmin)
+        return DelegatedScopePolicy.probeSuperAdmin(() -> hasPermission(Constants.TENANT_ROOT_ID, "iam.role|create"));
     }
 
     /**

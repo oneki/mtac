@@ -9,6 +9,7 @@ import java.util.Map;
 import lombok.Data;
 import net.oneki.mtac.model.core.Constants;
 import net.oneki.mtac.model.core.openid.oidc.OidcAccessMode;
+import net.oneki.mtac.model.core.openid.oidc.OidcClientKind;
 import net.oneki.mtac.model.core.openid.oidc.OidcClientSource;
 import net.oneki.mtac.model.core.openid.oidc.OidcConsentMode;
 
@@ -122,6 +123,7 @@ public class MtacProperties {
       PUBLIC, CONFIDENTIAL
     }
     private ClientType type = ClientType.CONFIDENTIAL;
+    private OidcClientKind kind; // kind of application, informative for yml clients (null = not stated)
     private String name; // shown on the login page
     private String secretHash; // bcrypt hash, confidential clients only
     private List<String> secretHashes = new ArrayList<>(); // more accepted hashes (secret rotation of resource clients)
@@ -140,6 +142,10 @@ public class MtacProperties {
     private OidcConsentMode consentMode = OidcConsentMode.TRUSTED; // yml clients are first-party
     private OidcAccessMode accessMode = OidcAccessMode.IDENTITY;
     private List<String> resources = new ArrayList<>(); // audience keys of mtac.jwt.audiences, API access mode only
+    // audience keys this first-party client obtains without the API access mode (yml clients only, today "mobile"):
+    // its tokens get the first one when the authorization request names no resource. Never set for a client of
+    // another source (iam.oidc.client, DCR, CIMD): the registry drops it and the validator refuses the audience
+    private List<String> firstPartyAudiences = new ArrayList<>();
     private Integer sessionMaxDays; // maximum age of a refresh token family; null = refreshTokenMaxAgeSec only
     // lifetime of the access (and id) tokens of this client (yml clients only); null = accessTokenTtlSec of the server.
     // A long one stays revocable within about 30 s through the revocation list (TokenRevocationService)

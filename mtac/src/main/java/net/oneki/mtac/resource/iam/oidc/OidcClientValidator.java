@@ -37,6 +37,11 @@ public class OidcClientValidator {
   public static final List<String> API_SCOPES = List.of("fuzz:read", "fuzz:config:write", "fuzz:control");
   /** Audience keys a client may ask a token for (never the Console). */
   public static final Set<String> ALLOWED_RESOURCES = Set.of(TokenAudience.API, TokenAudience.MCP);
+  /**
+   * Audience keys reserved to the first-party yml clients
+   * ({@code first-party-audiences}): never granted to an iam.oidc.client.
+   */
+  public static final Set<String> FIRST_PARTY_RESOURCES = Set.of(TokenAudience.MOBILE);
 
   public static final int MAX_NAME_LENGTH = 100;
   public static final int MAX_DESCRIPTION_LENGTH = 1000;
@@ -327,6 +332,12 @@ public class OidcClientValidator {
   private void validateResources(OidcClient client) {
     var resources = client.getResources();
     for (var resource : resources) {
+      if (FIRST_PARTY_RESOURCES.contains(resource)) {
+        // the mobile audience: only a first-party client declared in the configuration may obtain it
+        throw new BusinessException("OIDC_CLIENT_FIRST_PARTY_RESOURCE",
+            "The resource " + resource + " is reserved to the first-party clients of the configuration")
+            .param("resource", resource);
+      }
       if (!ALLOWED_RESOURCES.contains(resource)) {
         throw new BusinessException("OIDC_CLIENT_INVALID_RESOURCE", "Unknown resource " + resource)
             .param("resource", resource);
