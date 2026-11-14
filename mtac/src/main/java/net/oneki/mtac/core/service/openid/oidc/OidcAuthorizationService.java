@@ -618,7 +618,7 @@ public class OidcAuthorizationService {
     // expires on its own a minute after the code (OidcSessionService.createEphemeral)
     return issueTokens(clientId, client, grant, openIdService.oidcClaims(grant.sub(), scopes), scopes,
         authorizationCode.getNonce(), codeHash, resource, familyStartedAt,
-        familyLifetime(clientId, client, grant, familyStartedAt, false), null);
+        familyLifetime(clientId, client, grant, familyStartedAt, false), null, null);
   }
 
   /**
@@ -659,7 +659,9 @@ public class OidcAuthorizationService {
 
   /**
    * Token endpoint, grant_type=refresh_token. The refresh token is replaced at
-   * each use; presenting a replaced one again revokes the whole family.
+   * each use; presenting a replaced one again revokes the whole family, except
+   * inside the grace window of a reused refresh token (see
+   * {@link #graceSuccessor}).
    */
   public OidcTokenResponse refresh(String clientId, String clientSecret, String origin, String refreshToken) {
     return refresh(clientId, clientSecret, origin, refreshToken, null);
@@ -708,8 +710,18 @@ public class OidcAuthorizationService {
     if (stored.getRevokedAt() != null) {
       throw OidcException.invalidGrant("The refresh token has been revoked");
     }
+    // a rotated token presented again inside the grace window: the family goes on from its live successor
+    OidcRefreshToken presentedAgain = null;
     if (stored.getRotatedAt() != null) {
-      throw reusedRefreshToken(stored);
+      var successor = graceSuccessor(client, stored, Instant.now());
+      if (successor == null) {
+        throw reusedRefreshToken(stored);
+      }
+      log.info("An OpenID refresh token of client {} was presented again {} ms after its rotation, its successor "
+          + "unused: rotated again from the successor (grace window)", clientId,
+          Duration.between(stored.getRotatedAt(), Instant.now()).toMillis());
+      presentedAgain = stored;
+      stored = successor;
     }
     if (!Instant.now().isBefore(stored.getExpiresAt())) {
       throw OidcException.invalidGrant("The refresh token has expired");
@@ -751,13 +763,54 @@ public class OidcAuthorizationService {
     } catch (BusinessException e) {
       throw OidcException.invalidGrant("The user no longer exists");
     }
-    // the presented token is rotated in the same transaction as its successor is stored (issueTokens)
+    // the presented token (or, in the grace window, its live successor) is rotated in the same transaction as the
+    // new token is stored (issueTokens); in the grace window the new token replaces the presented one again, so
+    // the successor skipped here has no live successor of its own: presenting it later is a reuse
     var tokens = issueTokens(clientId, client, grant, userClaims, scopes, null, stored.getFamilyId(),
-        stored.getResource(), familyStartedAt, lifetime, stored);
+        stored.getResource(), familyStartedAt, lifetime, stored,
+        presentedAgain != null ? presentedAgain.getTokenHash() : stored.getTokenHash());
     if (grant.session() != null) {
       sessionService.touch(grant.session());
     }
     return tokens;
+  }
+
+  /**
+   * Grace window of a reused refresh token: a mobile client on a flaky network
+   * may lose the answer of a refresh and present the same refresh token again.
+   * Without a grace window that is a reuse, and the whole family is revoked.
+   *
+   * <p>
+   * The presented token is accepted again when all of these hold: the client
+   * uses refresh tokens, {@code refreshTokenReuseGraceSec} is above 0, the
+   * token was rotated less than that ago, and its successor (the token that
+   * replaced it) was never used nor revoked. The refresh then goes on from that
+   * successor: the successor is rotated and a new refresh token is issued, which
+   * replaces the presented token again. The raw successor is not returned (only
+   * hashes are stored): this is the rotate-again flavour of the reuse interval
+   * of Auth0, not the "same successor" answer of the Okta grace period. The
+   * family keeps exactly one live refresh token, and the successor skipped this
+   * way keeps no live successor: if it shows up later (it was not lost but
+   * copied), it is a reuse and the family is revoked.
+   *
+   * <p>
+   * Outside the window, or when the successor was already used (a later refresh
+   * happened) or revoked, the usual reuse detection applies: the family and its
+   * access tokens are revoked.
+   *
+   * @return the live successor to rotate, null when the reuse detection applies
+   */
+  OidcRefreshToken graceSuccessor(MtacOidcClient client, OidcRefreshToken presented, Instant now) {
+    var graceSec = config().getRefreshTokenReuseGraceSec();
+    if (graceSec <= 0 || !client.isRefreshToken() || presented.getRotatedAt() == null
+        || !now.isBefore(presented.getRotatedAt().plusSeconds(graceSec))) {
+      return null;
+    }
+    var successor = oidcRepository.getLiveSuccessor(presented.getFamilyId(), presented.getTokenHash());
+    if (successor == null || !presented.getClientId().equals(successor.getClientId())) {
+      return null;
+    }
+    return successor;
   }
 
   /**
@@ -964,16 +1017,19 @@ public class OidcAuthorizationService {
    *                        identity-only token (aud = userinfo)
    * @param familyStartedAt first token of the refresh token family
    * @param lifetime        lifetime of the refresh token family
-   * @param rotated         the refresh token presented to a refresh, rotated in
-   *                        the same transaction as its successor is stored;
-   *                        null at a code exchange
+   * @param rotated         the refresh token presented to a refresh (or its live
+   *                        successor in the grace window), rotated in the same
+   *                        transaction as its successor is stored; null at a
+   *                        code exchange
+   * @param replaces        hash of the refresh token the new one replaces (the
+   *                        presented one), null at a code exchange
    * @throws OidcException invalid_grant when the presented refresh token was
    *                       revoked (sign-out, credential change) or used by
    *                       another request meanwhile: no token is returned
    */
   private OidcTokenResponse issueTokens(String clientId, MtacOidcClient client, Grant grant,
       Map<String, Object> userClaims, Set<String> scopes, String nonce, String familyId, String resource,
-      Instant familyStartedAt, FamilyLifetime lifetime, OidcRefreshToken rotated) {
+      Instant familyStartedAt, FamilyLifetime lifetime, OidcRefreshToken rotated, String replaces) {
     var config = config();
     var scope = String.join(" ", scopes);
     var ttl = accessTokenTtlSec(client, config);
@@ -1035,6 +1091,7 @@ public class OidcAuthorizationService {
           .sub(grant.sub())
           .authTime(grant.authTime())
           .amr(grant.amr())
+          .previousHash(replaces)
           .build();
       if (rotated == null) {
         oidcRepository.insertRefreshToken(next);

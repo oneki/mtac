@@ -168,8 +168,8 @@ public class OidcRepository extends AbstractRepository {
 
   // --------------------------------------------------------- refresh tokens
 
-  private static final String SQL_INSERT_REFRESH_TOKEN = "INSERT INTO oidc_refresh_token (token_hash, family_id, client_id, session_id, scope, expires_at, resource, family_started_at, identity_id, sub, auth_time, amr) "
-      + "VALUES (:token_hash, :family_id, :client_id, :session_id, :scope, :expires_at, :resource, :family_started_at, :identity_id, :sub, :auth_time, :amr)";
+  private static final String SQL_INSERT_REFRESH_TOKEN = "INSERT INTO oidc_refresh_token (token_hash, family_id, client_id, session_id, scope, expires_at, resource, family_started_at, identity_id, sub, auth_time, amr, previous_hash) "
+      + "VALUES (:token_hash, :family_id, :client_id, :session_id, :scope, :expires_at, :resource, :family_started_at, :identity_id, :sub, :auth_time, :amr, :previous_hash)";
 
   /**
    * Stores a refresh token. {@code sessionId} may be null (the family outlived
@@ -191,6 +191,7 @@ public class OidcRepository extends AbstractRepository {
     params.put("auth_time", token.getAuthTime() != null ? Timestamp.from(token.getAuthTime()) : null);
     // space separated, like oidc_session.amr
     params.put("amr", token.getAmr() != null ? String.join(" ", token.getAmr()) : null);
+    params.put("previous_hash", token.getPreviousHash());
     jdbcTemplate.update(SQL_INSERT_REFRESH_TOKEN, params);
   }
 
@@ -199,7 +200,38 @@ public class OidcRepository extends AbstractRepository {
   public OidcRefreshToken getRefreshToken(String tokenHash) {
     var params = new HashMap<String, Object>();
     params.put("token_hash", tokenHash);
-    return first(jdbcTemplate.query(SQL_GET_REFRESH_TOKEN, params, (rs, rowNum) -> OidcRefreshToken.builder()
+    return first(jdbcTemplate.query(SQL_GET_REFRESH_TOKEN, params, OidcRepository::refreshToken));
+  }
+
+  // through the index on family_id: a family holds one row per refresh of its lifetime
+  private static final String SQL_GET_LIVE_SUCCESSOR = "SELECT * FROM oidc_refresh_token "
+      + "WHERE family_id = :family_id AND previous_hash = :previous_hash AND rotated_at IS NULL AND revoked_at IS NULL";
+
+  /**
+   * The live successor of a rotated refresh token: the token of the same family
+   * that replaced it and was neither exchanged nor revoked since (grace window
+   * of a reused refresh token).
+   *
+   * @return null when its successor was used or revoked, or when it has none
+   */
+  public OidcRefreshToken getLiveSuccessor(String familyId, String previousHash) {
+    var params = new HashMap<String, Object>();
+    params.put("family_id", familyId);
+    params.put("previous_hash", previousHash);
+    return first(jdbcTemplate.query(SQL_GET_LIVE_SUCCESSOR, params, OidcRepository::refreshToken));
+  }
+
+  private static final String SQL_PREVIOUS_HASH_COLUMN_EXISTS = "SELECT EXISTS (SELECT 1 FROM information_schema.columns "
+      + "WHERE table_schema = current_schema() AND table_name = 'oidc_refresh_token' AND column_name = 'previous_hash')";
+
+  /** True when {@code oidc_refresh_token.previous_hash} exists in the schema of the connection (startup check). */
+  public boolean refreshTokenPreviousHashColumnExists() {
+    return Boolean.TRUE.equals(
+        jdbcTemplate.queryForObject(SQL_PREVIOUS_HASH_COLUMN_EXISTS, new HashMap<String, Object>(), Boolean.class));
+  }
+
+  private static OidcRefreshToken refreshToken(ResultSet rs, int rowNum) throws SQLException {
+    return OidcRefreshToken.builder()
         .tokenHash(rs.getString("token_hash"))
         .familyId(rs.getString("family_id"))
         .clientId(rs.getString("client_id"))
@@ -214,7 +246,8 @@ public class OidcRepository extends AbstractRepository {
         .sub(rs.getString("sub"))
         .authTime(instant(rs, "auth_time"))
         .amr(amr(rs.getString("amr")))
-        .build()));
+        .previousHash(rs.getString("previous_hash"))
+        .build();
   }
 
   private static final String SQL_ROTATE_REFRESH_TOKEN = "UPDATE oidc_refresh_token SET rotated_at = :now "

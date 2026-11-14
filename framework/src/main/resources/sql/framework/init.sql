@@ -2845,6 +2845,7 @@ CREATE TABLE public.oidc_refresh_token (
 	sub text,
 	auth_time timestamp with time zone,
 	amr text,
+	previous_hash char(64),
 	CONSTRAINT oidc_refresh_token_pk PRIMARY KEY (token_hash)
 );
 -- ddl-end --

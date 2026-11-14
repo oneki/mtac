@@ -55,6 +55,10 @@ public class MtacProperties {
     private int refreshTokenTtlSec = 28800; // 8 hours
     // absolute: a family ends that long after its first token, however often it is used; 0 = refreshTokenTtlSec
     private int refreshTokenMaxAgeSec = 0;
+    // a refresh token presented again less than that after its rotation, whose successor was never used, is
+    // rotated again from that successor instead of revoking the family (an answer lost on a flaky network);
+    // 0 = no grace, every reuse revokes the family
+    private int refreshTokenReuseGraceSec = 30;
     private int loginMaxAttempts = 5; // failed attempts before the login is locked
     private int loginLockSec = 300;
     // a new consent needs an authentication this recent (seconds); older, the user proves himself again first

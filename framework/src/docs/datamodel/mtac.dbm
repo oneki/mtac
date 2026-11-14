@@ -3474,7 +3474,7 @@ END;]]> </definition>
 		</idxelement>
 </index>
 
-<table name="oidc_refresh_token" layers="0" collapse-mode="1" max-obj-count="15" z-value="0">
+<table name="oidc_refresh_token" layers="0" collapse-mode="1" max-obj-count="16" z-value="0">
 	<schema name="public"/>
 	<role name="postgres"/>
 	<position x="1660" y="2160"/>
@@ -3519,6 +3519,9 @@ END;]]> </definition>
 	</column>
 	<column name="amr">
 		<type name="text" length="0"/>
+	</column>
+	<column name="previous_hash">
+		<type name="char" length="64"/>
 	</column>
 	<constraint name="oidc_refresh_token_pk" type="pk-constr" table="public.oidc_refresh_token">
 		<columns names="token_hash" ref-type="src-columns"/>

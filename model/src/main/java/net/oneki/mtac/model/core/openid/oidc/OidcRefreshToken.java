@@ -27,4 +27,8 @@ public class OidcRefreshToken {
   private String sub;
   private Instant authTime;
   private java.util.List<String> amr;
+  // hash of the refresh token this one replaced at a refresh; null for the first token of a family (code
+  // exchange) and for the tokens stored before the column existed. Finds the successor of a rotated token
+  // (grace window of a reused refresh token, refreshTokenReuseGraceSec)
+  private String previousHash;
 }
