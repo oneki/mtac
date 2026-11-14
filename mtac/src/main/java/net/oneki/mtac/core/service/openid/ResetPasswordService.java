@@ -131,6 +131,17 @@ public class ResetPasswordService {
     resetLinkSender.accept(resetLink, user);
   }
 
+  /**
+   * Set-password link of an invitation: valid {@code mtac.jwt.invitation-expiration-sec} (31 days by default),
+   * single use like a reset link (the identifier stored on the user is the nonce: a newer link, an invitation
+   * sent again or a "forgot password", replaces it, so older links stop working). Records
+   * {@code invitationSentAt}. The caller sends the link (its own mail template).
+   */
+  public String generateInvitationLink(User user) {
+    user.setInvitationSentAt(Instant.now());
+    return generateResetLink(user, user.getLabel(), mtacProperties.getJwt().getInvitationExpirationSec(), false);
+  }
+
   public String generateResetLink(User user, String email, Integer resetPasswordExpirationSec, boolean extend) {
     var resetLink = mtacProperties.getResetPassword().getLink();
     var resetToken = UUID.randomUUID().toString();

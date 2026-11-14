@@ -228,6 +228,7 @@ public class MtacProperties {
     private String keystoreKeyAlias;
     private int mfaDelaySec = Constants.MFA_DEFAULT_DELAY;
     private int resetPasswordExpirationSec = 86400; // 1 day
+    private int invitationExpirationSec = 2678400; // 31 days: a set-password link sent with an invitation
     // audience written in the access tokens, by key (see TokenAudience): console, api, mcp
     private Map<String, String> audiences = new LinkedHashMap<>();
     private AudienceEnforcement audienceEnforcement = AudienceEnforcement.log;

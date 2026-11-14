@@ -37,5 +37,11 @@ public class User extends Identity implements OauthIdentity, hasResetPassword, h
                                        // 12345678:1753378999000
     protected String firstName;
     protected String lastName;
+    // Lifecycle (mobile app, pass 6). disabled: no sign-in, no refresh, sessions revoked when set.
+    protected Boolean disabled;
+    // Last invitation sent (set-password link valid jwt.invitation-expiration-sec); null for a user never invited.
+    protected Instant invitationSentAt;
+    // First password set through an invitation link; null while the invitation is pending.
+    protected Instant activatedAt;
 
 }
