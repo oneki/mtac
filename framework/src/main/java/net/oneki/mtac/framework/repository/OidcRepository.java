@@ -250,6 +250,31 @@ public class OidcRepository extends AbstractRepository {
     return jdbcTemplate.update(SQL_REVOKE_REFRESH_TOKENS_OF_IDENTITY, params);
   }
 
+  // a token stored before identity_id existed is still found through its session
+  private static final String SQL_LIST_LIVE_FAMILIES_OF_IDENTITY = "SELECT DISTINCT family_id FROM oidc_refresh_token "
+      + "WHERE revoked_at IS NULL AND (identity_id = :identity_id "
+      + "OR session_id IN (SELECT id FROM oidc_session WHERE identity_id = :identity_id))";
+
+  /**
+   * The refresh token families of an identity that are not revoked yet, of
+   * every client: read before {@link #revokeRefreshTokensOfIdentity} so that
+   * their access tokens can be revoked as well.
+   */
+  public List<String> listLiveFamilyIdsOfIdentity(Integer identityId) {
+    var params = new HashMap<String, Object>();
+    params.put("identity_id", identityId);
+    return jdbcTemplate.queryForList(SQL_LIST_LIVE_FAMILIES_OF_IDENTITY, params, String.class);
+  }
+
+  private static final String SQL_LIST_SESSIONS_OF_IDENTITY = "SELECT id FROM oidc_session WHERE identity_id = :identity_id";
+
+  /** Ids of the SSO sessions of an identity: read before {@link #deleteSessionsOfIdentity}. */
+  public List<String> listSessionIdsOfIdentity(Integer identityId) {
+    var params = new HashMap<String, Object>();
+    params.put("identity_id", identityId);
+    return jdbcTemplate.queryForList(SQL_LIST_SESSIONS_OF_IDENTITY, params, String.class);
+  }
+
   // ------------------------------------------------------ client revocation
 
   private static final String SQL_REVOKE_REFRESH_TOKENS_OF_CLIENT = "UPDATE oidc_refresh_token SET revoked_at = :now "

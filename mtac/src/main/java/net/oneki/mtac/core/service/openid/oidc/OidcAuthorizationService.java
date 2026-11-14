@@ -69,7 +69,9 @@ import net.oneki.mtac.resource.iam.oidc.OidcClientRepository;
  * Such a family slides: each new refresh token expires
  * {@code refreshTokenTtlSec} after it was issued, so a connector used at least
  * once in that window stays connected, up to {@code refreshTokenMaxAgeSec}
- * (or the client's {@code sessionMaxDays}, the shorter) after the first token.
+ * (or the client's {@code sessionMaxDays}, the shorter) after the first token;
+ * a {@link RefreshTokenPolicyProvider} of the application may replace these two
+ * server values per user and client.
  * It also ends when it is revoked: consent revoked, client deleted,
  * credentials changed. Tokens issued
  * while the session is alive carry its {@code sid}; the others carry none.
@@ -119,6 +121,7 @@ public class OidcAuthorizationService {
   private OpenIdService openIdService;
   private OidcClientRepository clientRepository; // null: lastUsedAt is not tracked
   private TokenRevocationService tokenRevocations; // null: revoked families keep their access tokens until they expire
+  private RefreshTokenPolicyProvider refreshTokenPolicy; // null: the server values for every family
   private Clock clock = Clock.systemUTC(); // lastUsedAt throttling
   // last lastUsedAt write per client resource uid
   private final Map<String, Instant> lastUsedAtWrites = new ConcurrentHashMap<>();
@@ -149,6 +152,12 @@ public class OidcAuthorizationService {
   @Autowired(required = false)
   public void setTokenRevocationService(TokenRevocationService tokenRevocations) {
     this.tokenRevocations = tokenRevocations;
+  }
+
+  /** Lifetime of the refresh token families decided by the application (optional bean). */
+  @Autowired(required = false)
+  public void setRefreshTokenPolicyProvider(RefreshTokenPolicyProvider refreshTokenPolicy) {
+    this.refreshTokenPolicy = refreshTokenPolicy;
   }
 
   /** Clock of the lastUsedAt throttling (tests). */
@@ -441,8 +450,10 @@ public class OidcAuthorizationService {
     }
     var scopes = splitScopes(authorizationCode.getScope());
     var grant = Grant.of(session);
+    var familyStartedAt = Instant.now();
     return issueTokens(clientId, client, grant, openIdService.oidcClaims(grant.sub(), scopes), scopes,
-        authorizationCode.getNonce(), codeHash, resource, Instant.now());
+        authorizationCode.getNonce(), codeHash, resource, familyStartedAt,
+        familyLifetime(clientId, client, grant, familyStartedAt));
   }
 
   /**
@@ -492,8 +503,9 @@ public class OidcAuthorizationService {
   /**
    * Same as {@link #refresh(String, String, String, String)}. The new tokens
    * keep the resource of the family; a resource sent again must be that one.
-   * A family older than the client's {@code sessionMaxDays} or than
-   * {@code refreshTokenMaxAgeSec} is revoked (invalid_grant).
+   * A family older than the client's {@code sessionMaxDays} or than its
+   * maximum age ({@code refreshTokenMaxAgeSec}, or the one of the
+   * {@link RefreshTokenPolicyProvider}) is revoked (invalid_grant).
    *
    * <p>
    * The SSO session is not required: the identity comes from the family. When
@@ -551,18 +563,22 @@ public class OidcAuthorizationService {
     if (!scopes.contains(SCOPE_OPENID)) {
       throw OidcException.invalidGrant("The client is no longer allowed to use the openid scope");
     }
-    if (isFamilyExpired(stored, familyMaxAgeSec(config()), Instant.now())) {
-      log.info("The refresh token family of client {} reached its maximum lifetime of {} s: it is revoked",
-          clientId, familyMaxAgeSec(config()));
-      oidcRepository.revokeRefreshTokenFamily(stored.getFamilyId(), Instant.now());
-      throw OidcException.invalidGrant("The refresh token has expired");
-    }
     // the SSO session is optional: null when it ended (session_id cleared) or is no longer alive
     var session = sessionService.getAlive(stored.getSessionId());
     var grant = Grant.of(stored, session);
     if (grant == null) {
       // a token stored before the family kept its identity, whose session has ended
       throw OidcException.invalidGrant("The session has ended");
+    }
+    // a family stored before family_started_at existed starts counting now
+    var familyStartedAt = stored.getFamilyStartedAt() != null ? stored.getFamilyStartedAt() : Instant.now();
+    // recomputed at each refresh: a change of the user's rights applies to the family at once
+    var lifetime = familyLifetime(clientId, client, grant, familyStartedAt);
+    if (lifetime.maxAgeSec() != null && isFamilyExpired(stored, lifetime.maxAgeSec(), Instant.now())) {
+      log.info("The refresh token family of client {} reached its maximum lifetime of {} s: it is revoked",
+          clientId, lifetime.maxAgeSec());
+      oidcRepository.revokeRefreshTokenFamily(stored.getFamilyId(), Instant.now());
+      throw OidcException.invalidGrant("The refresh token has expired");
     }
     Map<String, Object> userClaims;
     try {
@@ -576,10 +592,8 @@ public class OidcAuthorizationService {
     if (grant.session() != null) {
       sessionService.touch(grant.session());
     }
-    // a family stored before family_started_at existed starts counting now
-    var familyStartedAt = stored.getFamilyStartedAt() != null ? stored.getFamilyStartedAt() : Instant.now();
     return issueTokens(clientId, client, grant, userClaims, scopes, null, stored.getFamilyId(),
-        stored.getResource(), familyStartedAt);
+        stored.getResource(), familyStartedAt, lifetime);
   }
 
   /**
@@ -625,28 +639,69 @@ public class OidcAuthorizationService {
   }
 
   /**
-   * Expiry of a new refresh token: {@code refreshTokenTtlSec} after
-   * {@code now} (sliding), never beyond the end of its family:
-   * {@code familyMaxAgeSec} after its first token, or the client's
-   * {@code sessionMaxDays} when shorter. The SSO session does not bound it.
+   * Lifetime of a refresh token family.
+   *
+   * @param slidingTtlSec each refresh token expires that long after it was issued
+   * @param maxAgeSec     the family ends that long after its first token; null =
+   *                      no maximum (the client's sessionMaxDays still applies)
+   */
+  record FamilyLifetime(long slidingTtlSec, Long maxAgeSec) {
+  }
+
+  /**
+   * The lifetime of a family: the one of the {@link RefreshTokenPolicyProvider}
+   * when it answers, the server values otherwise (also when it fails: today's
+   * behaviour).
+   */
+  FamilyLifetime familyLifetime(String clientId, MtacOidcClient client, Grant grant, Instant familyStartedAt) {
+    var config = config();
+    var defaults = new FamilyLifetime(config.getRefreshTokenTtlSec(), (long) familyMaxAgeSec(config));
+    if (refreshTokenPolicy == null || !client.isRefreshToken()) {
+      return defaults;
+    }
+    try {
+      var policy = refreshTokenPolicy.policy(new RefreshTokenPolicyProvider.Request(clientId, client, grant.sub(),
+          grant.identityId(), familyStartedAt));
+      if (policy == null || policy.isEmpty()) {
+        return defaults;
+      }
+      var maxAge = policy.get().maxAge();
+      return new FamilyLifetime(policy.get().slidingTtl().toSeconds(), maxAge != null ? maxAge.toSeconds() : null);
+    } catch (RuntimeException e) {
+      log.warn("The refresh token policy failed for client {}: the server values apply ({})", clientId,
+          e.getMessage());
+      return defaults;
+    }
+  }
+
+  /**
+   * Expiry of a new refresh token: {@code slidingTtlSec} after {@code now},
+   * never beyond the end of its family: {@code familyMaxAgeSec} after its first
+   * token, or the client's {@code sessionMaxDays} when shorter. The SSO session
+   * does not bound it.
+   *
+   * @param familyMaxAgeSec null = no maximum besides sessionMaxDays
    */
   static Instant refreshTokenExpiry(MtacOidcClient client, Instant familyStartedAt, Instant now,
-      int refreshTokenTtlSec, int familyMaxAgeSec) {
-    var end = now.plusSeconds(refreshTokenTtlSec);
+      long slidingTtlSec, Long familyMaxAgeSec) {
+    var end = now.plusSeconds(slidingTtlSec);
     var familyEnd = familyEnd(client, familyStartedAt, familyMaxAgeSec);
-    return familyEnd.isBefore(end) ? familyEnd : end;
+    return familyEnd != null && familyEnd.isBefore(end) ? familyEnd : end;
   }
 
   /**
    * End of a refresh token family: {@code familyMaxAgeSec} after its first
    * token, or the client's {@code sessionMaxDays} when shorter.
+   *
+   * @param familyMaxAgeSec null = no maximum besides sessionMaxDays
+   * @return null when the family has no end
    */
-  static Instant familyEnd(MtacOidcClient client, Instant familyStartedAt, int familyMaxAgeSec) {
-    var end = familyStartedAt.plusSeconds(familyMaxAgeSec);
+  static Instant familyEnd(MtacOidcClient client, Instant familyStartedAt, Long familyMaxAgeSec) {
+    var end = familyMaxAgeSec != null ? familyStartedAt.plusSeconds(familyMaxAgeSec) : null;
     var maxDays = client.getSessionMaxDays();
     if (maxDays != null && maxDays > 0) {
       var maxEnd = familyStartedAt.plus(Duration.ofDays(maxDays));
-      if (maxEnd.isBefore(end)) {
+      if (end == null || maxEnd.isBefore(end)) {
         end = maxEnd;
       }
     }
@@ -654,7 +709,7 @@ public class OidcAuthorizationService {
   }
 
   /** True when the family started more than familyMaxAgeSec ago (a token issued before the family bound). */
-  static boolean isFamilyExpired(OidcRefreshToken stored, int familyMaxAgeSec, Instant now) {
+  static boolean isFamilyExpired(OidcRefreshToken stored, long familyMaxAgeSec, Instant now) {
     return stored.getFamilyStartedAt() != null
         && !now.isBefore(stored.getFamilyStartedAt().plusSeconds(familyMaxAgeSec));
   }
@@ -706,10 +761,11 @@ public class OidcAuthorizationService {
    * @param resource        audience key of the access token, null for an
    *                        identity-only token (aud = userinfo)
    * @param familyStartedAt first token of the refresh token family
+   * @param lifetime        lifetime of the refresh token family
    */
   private OidcTokenResponse issueTokens(String clientId, MtacOidcClient client, Grant grant,
       Map<String, Object> userClaims, Set<String> scopes, String nonce, String familyId, String resource,
-      Instant familyStartedAt) {
+      Instant familyStartedAt, FamilyLifetime lifetime) {
     var config = config();
     var scope = String.join(" ", scopes);
     var ttl = accessTokenTtlSec(client, config);
@@ -756,8 +812,8 @@ public class OidcAuthorizationService {
     if (client.isRefreshToken()) {
       refreshToken = REFRESH_TOKEN_PREFIX + OidcCrypto.randomToken();
       // sliding, bounded by the family, not by the SSO session: the grant outlives a logout
-      var expiresAt = refreshTokenExpiry(client, familyStartedAt, Instant.now(), config.getRefreshTokenTtlSec(),
-          familyMaxAgeSec(config));
+      var expiresAt = refreshTokenExpiry(client, familyStartedAt, Instant.now(), lifetime.slidingTtlSec(),
+          lifetime.maxAgeSec());
       oidcRepository.insertRefreshToken(OidcRefreshToken.builder()
           .tokenHash(OidcCrypto.sha256Hex(refreshToken))
           .familyId(familyId)

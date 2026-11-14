@@ -2,6 +2,7 @@ package net.oneki.mtac.core.service.openid.oidc;
 
 import net.oneki.mtac.core.service.openid.ConsoleSessionService;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,14 +40,19 @@ import net.oneki.mtac.resource.DefaultResourceService;
  * asks for the password once its access token expires);</li>
  * <li>drops the cached userinfo claims of the user ({@link TokenRegistry} and the
  * {@code token} table). These claims carry no credential: this only makes the
- * next request rebuild them from the user.</li>
+ * next request rebuild them from the user;</li>
+ * <li>puts the refresh token families and the SSO sessions it ended in the
+ * revocation list ({@link TokenRevocationService}): their OIDC access tokens
+ * (claims {@code fam}, {@code sid}), however long-lived, are refused within
+ * about 30 seconds. The Console access tokens carry neither: the one of the
+ * browser kept by {@code keepConsoleSession} stays valid.</li>
  * </ul>
  *
  * <p>
- * <b>Access tokens already issued stay valid until they expire</b>: they are
- * self-contained JWTs that are not looked up at each request (Console access
- * token: {@code mtac.jwt.expiration-sec}, 15 min; OIDC access token: 5 min).
- * The revocation stops every renewal, not the tokens in flight.
+ * The other Console access tokens already issued stay valid until they expire
+ * ({@code mtac.jwt.expiration-sec}, 15 min): the revocation stops their
+ * renewal. Without a revocation list, the OIDC access tokens in flight live
+ * until they expire too.
  *
  * <p>
  * Callers run it inside the transaction of the credential change: if the
@@ -108,8 +114,9 @@ public class OidcGrantRevocation {
   /**
    * Revokes every delegated access of a user: OIDC refresh tokens, SSO sessions
    * (with their codes), consents and, unless {@code keepConsoleSession}, the
-   * Console refresh token. Access tokens already issued stay valid until they
-   * expire (15 min Console, 5 min OIDC).
+   * Console refresh token. The OIDC access tokens of these families and
+   * sessions are refused within about 30 seconds (revocation list); the
+   * Console access tokens already issued stay valid until they expire (15 min).
    *
    * <p>
    * When the Console refresh token is invalidated, the new value is set on the
@@ -129,6 +136,11 @@ public class OidcGrantRevocation {
       throw new IllegalArgumentException("A persisted user is required");
     }
     var identityId = user.getId();
+    // read before revoking and deleting them: their access tokens go into the revocation list
+    List<String> familyIds = tokenRevocations != null ? oidcRepository.listLiveFamilyIdsOfIdentity(identityId)
+        : List.of();
+    List<String> sessionIds = tokenRevocations != null ? oidcRepository.listSessionIdsOfIdentity(identityId)
+        : List.of();
     // before the sessions: a token stored before identity_id existed is still found through its session
     var refreshTokens = oidcRepository.revokeRefreshTokensOfIdentity(identityId, Instant.now());
     var sessions = oidcRepository.deleteSessionsOfIdentity(identityId);
@@ -145,12 +157,17 @@ public class OidcGrantRevocation {
     }
     tokenRegistry.remove(user.getUid());
     tokenRepository.deleteToken(identityId);
+    if (tokenRevocations != null) {
+      // same transaction: a failure rolls the credential change back, like the rest
+      tokenRevocations.revokeFamilies(familyIds, reason);
+      tokenRevocations.revokeSessions(sessionIds, reason);
+    }
 
     var revocation = new Revocation(identityId, reason, sessions, consents,
         !keepConsoleSession || consoleSessionsClosed > 0);
     log.info(
-        "Delegated access revoked for user {} (id {}), reason {}: {} OIDC refresh token(s) revoked, {} SSO session(s) with their codes, {} consent(s), {} Console session(s) closed{}",
-        user.getLabel(), identityId, reason, refreshTokens, sessions, consents, consoleSessionsClosed,
+        "Delegated access revoked for user {} (id {}), reason {}: {} OIDC refresh token(s) revoked ({} live famil(ies)), {} SSO session(s) with their codes, {} consent(s), {} Console session(s) closed{}",
+        user.getLabel(), identityId, reason, refreshTokens, familyIds.size(), sessions, consents, consoleSessionsClosed,
         keepConsoleSession ? " (the current browser stays signed in)" : "");
     afterCommit(() -> {
       try {
@@ -196,6 +213,12 @@ public class OidcGrantRevocation {
   }
 
   protected ConsoleSessionService consoleSessions;
+  protected TokenRevocationService tokenRevocations; // null: the OIDC access tokens in flight live until they expire
+
+  @Autowired(required = false)
+  public void setTokenRevocationService(TokenRevocationService tokenRevocations) {
+    this.tokenRevocations = tokenRevocations;
+  }
 
   @Autowired
   public void setConsoleSessions(ConsoleSessionService consoleSessions) {
