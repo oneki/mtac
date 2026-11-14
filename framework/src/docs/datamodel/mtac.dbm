@@ -2690,7 +2690,7 @@ END;]]> </definition>
 		<type name="text" length="0"/>
 	</column>
 	<column name="power_consumption">
-		<type name="integer" length="0"/>
+		<type name="numeric" length="10" precision="3"/>
 	</column>
 	<column name="content">
 		<type name="jsonb" length="0"/>
