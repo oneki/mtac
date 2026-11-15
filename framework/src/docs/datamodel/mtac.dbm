@@ -3926,6 +3926,111 @@ END;]]> </definition>
 	</constraint>
 </table>
 
+<table name="charge_request" layers="0" collapse-mode="1" max-obj-count="16" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<comment> <![CDATA[Charge requests of the mobile app (#807): a user asks to charge now with their badge on a charge point; the request waits for the car (timeout D-14) and becomes STARTED when the transaction start arrives from the site. One pending request per user and per charge point (partial unique indexes). cancel_due_at: the pending start must still be cleared on the site (Modbus), retried by the charge-requests job. Rows older than 90 days are purged; cp_transaction keeps the sessions.]]> </comment>
+	<position x="2180" y="2640"/>
+	<column name="id" not-null="true">
+		<type name="uuid" length="0"/>
+	</column>
+	<column name="user_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="site_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="charge_point_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="id_tag" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="id_tag_resource_id">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="status" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="failure_reason">
+		<type name="text" length="0"/>
+	</column>
+	<column name="requested_at" not-null="true" default-value="now()">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="timeout_at" not-null="true">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="updated_at" not-null="true" default-value="now()">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="transaction_message_id">
+		<type name="uuid" length="0"/>
+	</column>
+	<column name="cancel_due_at">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<constraint name="charge_request_pk" type="pk-constr" table="public.charge_request">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+	<constraint name="charge_request_status_ck" type="ck-constr" table="public.charge_request">
+			<expression> <![CDATA[status IN ('REQUESTED', 'WAITING_FOR_CAR', 'STARTED', 'FAILED', 'CANCELLED')]]> </expression>
+	</constraint>
+	<constraint name="charge_request_failure_reason_ck" type="ck-constr" table="public.charge_request">
+			<expression> <![CDATA[(status = 'FAILED' AND failure_reason IN ('REJECTED', 'UNREACHABLE', 'TIMEOUT')) OR (status <> 'FAILED' AND failure_reason IS NULL)]]> </expression>
+	</constraint>
+</table>
+
+<index name="charge_request_pending_user_uq" table="public.charge_request"
+	 concurrent="false" unique="true" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="user_id"/>
+		</idxelement>
+		<predicate><![CDATA[status IN ('REQUESTED', 'WAITING_FOR_CAR')]]></predicate>
+</index>
+
+<index name="charge_request_pending_cp_uq" table="public.charge_request"
+	 concurrent="false" unique="true" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="charge_point_id"/>
+		</idxelement>
+		<predicate><![CDATA[status IN ('REQUESTED', 'WAITING_FOR_CAR')]]></predicate>
+</index>
+
+<index name="charge_request_pending_timeout_idx" table="public.charge_request"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="status"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="timeout_at"/>
+		</idxelement>
+		<predicate><![CDATA[status IN ('REQUESTED', 'WAITING_FOR_CAR')]]></predicate>
+</index>
+
+<index name="charge_request_user_updated_idx" table="public.charge_request"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="user_id"/>
+		</idxelement>
+		<idxelement use-sorting="true" nulls-first="true" asc-order="false">
+			<column name="updated_at"/>
+		</idxelement>
+</index>
+
+<index name="charge_request_cancel_due_idx" table="public.charge_request"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="cancel_due_at"/>
+		</idxelement>
+		<predicate><![CDATA[cancel_due_at IS NOT NULL]]></predicate>
+</index>
+
 <constraint name="role_schema_role_fk" type="fk-constr" comparison-type="MATCH FULL"
 	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.role_schema">
 	<columns names="role_id" ref-type="src-columns"/>
@@ -4166,6 +4271,30 @@ END;]]> </definition>
 	<columns names="id" ref-type="dst-columns"/>
 </constraint>
 
+<constraint name="charge_request_user_fk" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="NO ACTION" del-action="CASCADE" ref-table="public.resource" table="public.charge_request">
+	<columns names="user_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="charge_request_site_fk" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="NO ACTION" del-action="CASCADE" ref-table="public.resource" table="public.charge_request">
+	<columns names="site_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="charge_request_charge_point_fk" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="NO ACTION" del-action="CASCADE" ref-table="public.resource" table="public.charge_request">
+	<columns names="charge_point_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="charge_request_id_tag_fk" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="NO ACTION" del-action="SET NULL" ref-table="public.resource" table="public.charge_request">
+	<columns names="id_tag_resource_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
 <relationship name="rel_role_schema_resource" type="relfk" layers="0"
 	 src-table="public.role_schema"
 	 dst-table="public.resource" reference-fk="role_schema_role_fk"
@@ -4395,5 +4524,25 @@ END;]]> </definition>
 	 src-table="public.assistant_message"
 	 dst-table="public.assistant_conversation" reference-fk="assistant_message_conversation_fk"
 	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_charge_request_user_resource" type="relfk" layers="0"
+	 src-table="public.charge_request"
+	 dst-table="public.resource" reference-fk="charge_request_user_fk"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_charge_request_site_resource" type="relfk" layers="0"
+	 src-table="public.charge_request"
+	 dst-table="public.resource" reference-fk="charge_request_site_fk"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_charge_request_charge_point_resource" type="relfk" layers="0"
+	 src-table="public.charge_request"
+	 dst-table="public.resource" reference-fk="charge_request_charge_point_fk"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_charge_request_id_tag_resource" type="relfk" layers="0"
+	 src-table="public.charge_request"
+	 dst-table="public.resource" reference-fk="charge_request_id_tag_fk"
+	 src-required="false" dst-required="false"/>
 
 </dbmodel>
