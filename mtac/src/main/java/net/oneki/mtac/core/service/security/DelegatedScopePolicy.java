@@ -380,13 +380,28 @@ public final class DelegatedScopePolicy {
    * @param reason why the power is opened, for the logs (required)
    */
   public static <T> T withSuperAdminPowers(String reason, Supplier<T> action) {
+    return withSuperAdminPowers(reason, true, action);
+  }
+
+  /**
+   * Same as {@link #withSuperAdminPowers(String, Supplier)}, with the MFA
+   * condition chosen by the caller: {@code mfaRequired} false opens the power
+   * for a token signed in without the second factor too. Only for a
+   * development configuration (a local server where staff accounts have no
+   * second factor); production callers pass true.
+   *
+   * @param reason      why the power is opened, for the logs (required)
+   * @param mfaRequired the sign-in of the token must have used the second
+   *                    factor
+   */
+  public static <T> T withSuperAdminPowers(String reason, boolean mfaRequired, Supplier<T> action) {
     Objects.requireNonNull(action, "action");
     requireReason(reason);
     var policy = current();
     if (!policy.isFirstPartyMobile()) {
       return action.get();
     }
-    if (!policy.isMfaAuthenticated()) {
+    if (mfaRequired && !policy.isMfaAuthenticated()) {
       log.warn("Super admin powers not opened for a first-party mobile token without MFA: {} (client_id={}, sub={})",
           reason, policy.clientId, policy.subject);
       return action.get();
