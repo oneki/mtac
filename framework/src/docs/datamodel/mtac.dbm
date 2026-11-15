@@ -2751,6 +2751,21 @@ END;]]> </definition>
 	<columns names="power_consumption"/>
 </index>
 
+<index name="cp_transaction_tag_site_created_idx" table="public.cp_transaction"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<expression> <![CDATA[lower(id_tag)]]> </expression>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="site_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="created_at"/>
+		</idxelement>
+	<columns names="power_consumption"/>
+</index>
+
 <table name="audit_log" layers="0" collapse-mode="2" max-obj-count="12" z-value="0">
 	<schema name="public"/>
 	<role name="postgres"/>
