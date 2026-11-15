@@ -1512,6 +1512,15 @@ END;
 		<predicate><![CDATA[link_type = 0 AND link_id IS NOT NULL]]></predicate>
 </index>
 
+<index name="resource_branding_key_uq" table="public.resource"
+	 concurrent="false" unique="true" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<expression> <![CDATA[((content -> 'branding') ->> 'key')]]> </expression>
+		</idxelement>
+		<predicate><![CDATA[((content -> 'branding') ->> 'key') IS NOT NULL AND link_id IS NULL]]></predicate>
+</index>
+
 <trigger name="after_update_resource" firing-type="AFTER" per-line="true" constraint="false"
 	 ins-event="false" del-event="false" upd-event="true" trunc-event="false"
 	 table="public.resource">
