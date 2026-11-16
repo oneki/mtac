@@ -4046,6 +4046,142 @@ END;]]> </definition>
 		<predicate><![CDATA[cancel_due_at IS NOT NULL]]></predicate>
 </index>
 
+<table name="mobile_device" layers="0" collapse-mode="1" max-obj-count="15" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<comment> <![CDATA[Phones that receive the push notifications of the mobile app (#813), one row per installation of the app (installation_id created by the app at first launch). The row moves to another user when that user signs in on the phone; push_token is unique, so a token moves with its installation. apns_environment: APNs gateway of an iOS build (sandbox or production), never set on Android. app_identity: bundle id / package name, one of the identities of the environment of the server. A token APNs or FCM reports invalid deletes the row; rows unseen for 90 days (no registration, no accepted push) are deleted by the push-delivery-housekeeping job.]]> </comment>
+	<position x="2700" y="2440"/>
+	<column name="installation_id" not-null="true">
+		<type name="uuid" length="0"/>
+	</column>
+	<column name="user_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="platform" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="push_token" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="apns_environment">
+		<type name="text" length="0"/>
+	</column>
+	<column name="app_identity" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="app_version">
+		<type name="text" length="0"/>
+	</column>
+	<column name="locale">
+		<type name="text" length="0"/>
+	</column>
+	<column name="created_at" not-null="true" default-value="now()">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="updated_at" not-null="true" default-value="now()">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="last_seen_at" not-null="true" default-value="now()">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<constraint name="mobile_device_pk" type="pk-constr" table="public.mobile_device">
+		<columns names="installation_id" ref-type="src-columns"/>
+	</constraint>
+	<constraint name="mobile_device_push_token_uq" type="uq-constr" table="public.mobile_device">
+		<columns names="push_token" ref-type="src-columns"/>
+	</constraint>
+	<constraint name="mobile_device_platform_ck" type="ck-constr" table="public.mobile_device">
+			<expression> <![CDATA[platform IN ('ios', 'android')]]> </expression>
+	</constraint>
+	<constraint name="mobile_device_apns_environment_ck" type="ck-constr" table="public.mobile_device">
+			<expression> <![CDATA[(platform = 'ios' AND apns_environment IN ('sandbox', 'production')) OR (platform = 'android' AND apns_environment IS NULL)]]> </expression>
+	</constraint>
+</table>
+
+<index name="mobile_device_user_idx" table="public.mobile_device"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="user_id"/>
+		</idxelement>
+</index>
+
+<table name="push_delivery" layers="0" collapse-mode="1" max-obj-count="19" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<comment> <![CDATA[Push outbox of the mobile app (#813, #814, #815), one row per (event, user), modelled on alert_delivery. notification_key is unique (insert ON CONFLICT DO NOTHING); the devices of user_id are resolved at send time. Sent right after the commit of the producer, then retried by the push-delivery-worker job (attempts, next_attempt_at; lease_owner and lease_until held while SENDING, claimed with FOR UPDATE SKIP LOCKED). Status PENDING, SENDING, SENT (every device accepted it), PARTIAL (some did), FAILED, EXPIRED (past expires_at, dropped instead of sent late). Finished rows older than 7 days are deleted by the push-delivery-housekeeping job.]]> </comment>
+	<position x="2700" y="2700"/>
+	<column name="id" not-null="true">
+		<type name="bigserial" length="0"/>
+	</column>
+	<column name="notification_key" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="user_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="event_type" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="payload" not-null="true">
+		<type name="jsonb" length="0"/>
+	</column>
+	<column name="status" not-null="true" default-value="'PENDING'">
+		<type name="text" length="0"/>
+	</column>
+	<column name="attempts" not-null="true" default-value="0">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="next_attempt_at" not-null="true" default-value="now()">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="lease_owner">
+		<type name="text" length="0"/>
+	</column>
+	<column name="lease_until">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="expires_at" not-null="true">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="last_error">
+		<type name="text" length="0"/>
+	</column>
+	<column name="created_at" not-null="true" default-value="now()">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="updated_at" not-null="true" default-value="now()">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="sent_at">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<constraint name="push_delivery_pk" type="pk-constr" table="public.push_delivery">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+	<constraint name="push_delivery_notification_key_uq" type="uq-constr" table="public.push_delivery">
+		<columns names="notification_key" ref-type="src-columns"/>
+	</constraint>
+	<constraint name="push_delivery_status_ck" type="ck-constr" table="public.push_delivery">
+			<expression> <![CDATA[status IN ('PENDING', 'SENDING', 'SENT', 'PARTIAL', 'FAILED', 'EXPIRED')]]> </expression>
+	</constraint>
+	<constraint name="push_delivery_attempts_ck" type="ck-constr" table="public.push_delivery">
+			<expression> <![CDATA[attempts >= 0]]> </expression>
+	</constraint>
+</table>
+
+<index name="push_delivery_claim_idx" table="public.push_delivery"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="status"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="next_attempt_at"/>
+		</idxelement>
+		<predicate><![CDATA[status IN ('PENDING', 'SENDING')]]></predicate>
+</index>
+
 <constraint name="role_schema_role_fk" type="fk-constr" comparison-type="MATCH FULL"
 	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.role_schema">
 	<columns names="role_id" ref-type="src-columns"/>
@@ -4310,6 +4446,18 @@ END;]]> </definition>
 	<columns names="id" ref-type="dst-columns"/>
 </constraint>
 
+<constraint name="mobile_device_user_fk" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="NO ACTION" del-action="CASCADE" ref-table="public.resource" table="public.mobile_device">
+	<columns names="user_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="push_delivery_user_fk" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="NO ACTION" del-action="CASCADE" ref-table="public.resource" table="public.push_delivery">
+	<columns names="user_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
 <relationship name="rel_role_schema_resource" type="relfk" layers="0"
 	 src-table="public.role_schema"
 	 dst-table="public.resource" reference-fk="role_schema_role_fk"
@@ -4559,5 +4707,15 @@ END;]]> </definition>
 	 src-table="public.charge_request"
 	 dst-table="public.resource" reference-fk="charge_request_id_tag_fk"
 	 src-required="false" dst-required="false"/>
+
+<relationship name="rel_mobile_device_user_resource" type="relfk" layers="0"
+	 src-table="public.mobile_device"
+	 dst-table="public.resource" reference-fk="mobile_device_user_fk"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_push_delivery_user_resource" type="relfk" layers="0"
+	 src-table="public.push_delivery"
+	 dst-table="public.resource" reference-fk="push_delivery_user_fk"
+	 src-required="false" dst-required="true"/>
 
 </dbmodel>
