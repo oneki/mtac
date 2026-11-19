@@ -2,17 +2,21 @@ package net.oneki.mtac.core.service.openid.oidc;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.support.StaticMessageSource;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
-import lombok.RequiredArgsConstructor;
 import net.oneki.mtac.model.core.config.MtacProperties;
 
 /**
@@ -27,27 +31,57 @@ import net.oneki.mtac.model.core.config.MtacProperties;
  * absent. <code>{{*name}}...{{/name}}</code> repeats the block for each item of
  * the list {@code name}; inside it, every name refers to a field of the item
  * (sections included). There is no way to output a value unescaped.
+ *
+ * <p>
+ * <code>{{@key}}</code> is replaced by the HTML-escaped message {@code key} of the
+ * application's messages in the language of the page ({@link OidcPageMessages});
+ * <code>{{@key:name1,name2}}</code> passes the values {@code name1}, {@code name2}
+ * as its arguments {0}, {1}. A missing message shows its key. Values and messages
+ * are written in one pass: a value is never read as a tag.
  */
 @Service
-@RequiredArgsConstructor
 public class OidcPageRenderer {
   private static final Pattern SECTION = Pattern.compile("\\{\\{([#^])(\\w+)\\}\\}(.*?)\\{\\{/\\2\\}\\}", Pattern.DOTALL);
-  private static final Pattern VARIABLE = Pattern.compile("\\{\\{(\\w+)\\}\\}");
+  // a variable {{name}} or a message {{@key}} / {{@key:name1,name2}}
+  private static final Pattern VARIABLE = Pattern.compile("\\{\\{(?:(\\w+)|@([\\w.]+)(?::([\\w,]+))?)\\}\\}");
   private static final Pattern LIST = Pattern.compile("\\{\\{\\*(\\w+)\\}\\}(.*?)\\{\\{/\\1\\}\\}", Pattern.DOTALL);
   private static final Pattern TAG = Pattern.compile("\\{\\{([#^/]?)(\\w+)\\}\\}");
 
   private final MtacProperties mtacProperties;
+  private final OidcPageMessages pageMessages;
   private final ConcurrentHashMap<String, String> templates = new ConcurrentHashMap<>();
 
+  @Autowired
+  public OidcPageRenderer(MtacProperties mtacProperties, OidcPageMessages pageMessages) {
+    this.mtacProperties = mtacProperties;
+    this.pageMessages = pageMessages;
+  }
+
+  /** Without messages of the application: the pages in English, {@code {{@key}}} shows its key. */
+  public OidcPageRenderer(MtacProperties mtacProperties) {
+    this(mtacProperties, new OidcPageMessages(mtacProperties, new StaticMessageSource()));
+  }
+
+  /** The language and texts of the pages. */
+  public OidcPageMessages messages() {
+    return pageMessages;
+  }
+
   public String render(String name, Map<String, String> model) {
-    return render(name, model, Map.of());
+    return render(name, model, Map.of(), null);
+  }
+
+  public String render(String name, Map<String, String> model, Map<String, List<Map<String, String>>> lists) {
+    return render(name, model, lists, null);
   }
 
   /**
    * @param lists items of the list blocks of the template, each item being the
    *              values of its fields
    */
-  public String render(String name, Map<String, String> model, Map<String, List<Map<String, String>>> lists) {
+  public String render(String name, Map<String, String> model, Map<String, List<Map<String, String>>> lists,
+      Locale locale) {
+    var pageLocale = locale != null ? locale : pageMessages.defaultLocale();
     var template = templates.computeIfAbsent(name, this::load);
     var values = new HashMap<String, String>(model);
 
@@ -88,7 +122,16 @@ public class OidcPageRenderer {
     var variables = VARIABLE.matcher(withSections);
     var result = new StringBuilder();
     while (variables.find()) {
-      var value = values.get(variables.group(1));
+      String value;
+      if (variables.group(1) != null) {
+        value = values.get(variables.group(1));
+      } else {
+        var key = variables.group(2);
+        var args = variables.group(3) == null ? new Object[0]
+            : Arrays.stream(variables.group(3).split(",")).map(arg -> (Object) Objects.toString(values.get(arg), ""))
+                .toArray();
+        value = pageMessages.text(key, key, pageLocale, args);
+      }
       variables.appendReplacement(result, Matcher.quoteReplacement(escape(value)));
     }
     variables.appendTail(result);

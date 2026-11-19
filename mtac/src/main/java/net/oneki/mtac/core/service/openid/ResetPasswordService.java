@@ -268,16 +268,27 @@ public class ResetPasswordService {
    */
   public static String passwordRuleError(String password) {
     if (password == null || password.isBlank()) {
-      return "Enter a new password.";
+      return PASSWORD_EMPTY;
     }
     if (password.codePointCount(0, password.length()) < PASSWORD_MIN_LENGTH) {
-      return "The password must be at least " + PASSWORD_MIN_LENGTH + " characters long.";
+      return passwordTooShort();
     }
     if (password.getBytes(StandardCharsets.UTF_8).length > PASSWORD_MAX_BYTES) {
-      return "The password is too long: " + PASSWORD_MAX_BYTES
-          + " characters at most (fewer with accented letters or symbols).";
+      return passwordTooLong();
     }
     return null;
+  }
+
+  /** Messages of {@link #passwordRuleError}, also known by the hosted pages to translate them (OidcPageMessages). */
+  public static final String PASSWORD_EMPTY = "Enter a new password.";
+
+  public static String passwordTooShort() {
+    return "The password must be at least " + PASSWORD_MIN_LENGTH + " characters long.";
+  }
+
+  public static String passwordTooLong() {
+    return "The password is too long: " + PASSWORD_MAX_BYTES
+        + " characters at most (fewer with accented letters or symbols).";
   }
 
   /**

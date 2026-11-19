@@ -46,6 +46,7 @@ import net.oneki.mtac.core.service.openid.oidc.OidcAuthorizationService;
 import net.oneki.mtac.core.service.openid.oidc.OidcClientRegistry;
 import net.oneki.mtac.core.service.openid.oidc.OidcConsentService;
 import net.oneki.mtac.core.service.openid.oidc.OidcCrypto;
+import net.oneki.mtac.core.service.openid.oidc.OidcPageMessages;
 import net.oneki.mtac.core.service.openid.oidc.OidcPageRenderer;
 import net.oneki.mtac.core.service.openid.oidc.OidcSessionService;
 import net.oneki.mtac.core.service.openid.oidc.TotpQrCode;
@@ -130,9 +131,8 @@ public class OidcEndpoints {
   private static final String CSRF_COOKIE = "mtac_oidc_csrf";
   private static final String MFA_COOKIE = "mtac_oidc_mfa";
   private static final int MFA_COOKIE_TTL_SEC = 300;
-  private static final String EXPIRED_REQUEST = "This sign-in request has expired. Go back to the application and try again.";
-  private static final String STEP_UP_OTHER_USER = "Only the account that is signed in can confirm this request. "
-      + "Go back to the application and try again.";
+  private static final String EXPIRED_REQUEST = OidcPageMessages.EXPIRED_REQUEST;
+  private static final String STEP_UP_OTHER_USER = OidcPageMessages.STEP_UP_OTHER_USER;
   /** Claims of a step-up login context: the SSO session to re-authenticate and its subject. */
   private static final String STEP_UP_SESSION_CLAIM = "su_sid";
   private static final String STEP_UP_SUBJECT_CLAIM = "su_sub";
@@ -143,8 +143,10 @@ public class OidcEndpoints {
   /** Longest delay after which a reset still resumes the sign-in it started from. */
   private static final int RESET_RETURN_TTL_SEC = 3600;
   private static final int MAX_EMAIL_LENGTH = 254;
-  private static final String TOO_MANY_ATTEMPTS = "Too many attempts. Try again in a few minutes.";
-  private static final String PAGE_EXPIRED = "This page has expired. Try again.";
+  private static final String TOO_MANY_ATTEMPTS = OidcPageMessages.TOO_MANY_ATTEMPTS;
+  private static final String PAGE_EXPIRED = OidcPageMessages.PAGE_EXPIRED;
+  /** Model entry read by {@link #page}: the ui_locales of the authorization request of the page (not rendered). */
+  private static final String AUTHORIZE_LOCALES = "__authorizeLocales";
 
   private final OidcAuthorizationService authorizationService;
   private final OidcSessionService sessionService;
@@ -449,7 +451,7 @@ public class OidcEndpoints {
     var attemptKey = "login|" + username.toLowerCase() + "|" + clientAddress(request);
     if (loginAttemptService.isLocked(attemptKey)) {
       return renderLogin(context, request, HttpStatus.TOO_MANY_REQUESTS, username,
-          "Too many attempts. Try again in a few minutes.");
+          TOO_MANY_ATTEMPTS);
     }
 
     User user;
@@ -457,7 +459,7 @@ public class OidcEndpoints {
       user = openIdService.authenticateUser(username, form.getFirst("password"));
     } catch (BusinessException e) {
       loginAttemptService.recordFailure(attemptKey);
-      return renderLogin(context, request, HttpStatus.UNAUTHORIZED, username, "Incorrect email or password.");
+      return renderLogin(context, request, HttpStatus.UNAUTHORIZED, username, OidcPageMessages.INCORRECT_CREDENTIALS);
     }
     loginAttemptService.recordSuccess(attemptKey);
     if (stepUpSession != null && !stepUpSession.getSub().equals(user.getUid())) {
@@ -530,7 +532,7 @@ public class OidcEndpoints {
     var attemptKey = "mfa|" + user.getUid();
     if (loginAttemptService.isLocked(attemptKey)) {
       return renderMfa(context, request, HttpStatus.TOO_MANY_REQUESTS, user,
-          "Too many attempts. Try again in a few minutes.");
+          TOO_MANY_ATTEMPTS);
     }
     var code = form.getFirst("totp") != null ? form.getFirst("totp").replaceAll("\\s", "") : "";
     var enrolling = !isEnrolled(user);
@@ -538,7 +540,7 @@ public class OidcEndpoints {
       mfaService.verifyCode(user, code);
     } catch (BadCredentialsException e) {
       loginAttemptService.recordFailure(attemptKey);
-      return renderMfa(context, request, HttpStatus.UNAUTHORIZED, user, "Invalid verification code.");
+      return renderMfa(context, request, HttpStatus.UNAUTHORIZED, user, OidcPageMessages.INVALID_CODE);
     }
     loginAttemptService.recordSuccess(attemptKey);
     var amr = List.of(OidcSessionService.AMR_PASSWORD, OidcSessionService.AMR_OTP);
@@ -881,6 +883,7 @@ public class OidcEndpoints {
       item.put("label", consentService.scopeLabel(scope));
       items.add(item);
     }
+    model.put(AUTHORIZE_LOCALES, params.get("ui_locales"));
     return page("consent", model, Map.of("scopes", items), HttpStatus.OK, request, client, new HttpHeaders());
   }
 
@@ -1081,7 +1084,7 @@ public class OidcEndpoints {
 
   public ResponseEntity<String> logout(@RequestParam MultiValueMap<String, String> form, HttpServletRequest request) {
     if (!isCsrfTokenValid(form, request)) {
-      return errorPage(HttpStatus.FORBIDDEN, "This request has expired. Try again.");
+      return errorPage(HttpStatus.FORBIDDEN, OidcPageMessages.REQUEST_EXPIRED);
     }
     sessionService.end(cookieValue(request, sessionCookieName()));
     var headers = new HttpHeaders();
@@ -1133,7 +1136,7 @@ public class OidcEndpoints {
     }
     loginAttemptService.recordFailure(attemptKey);
     if (email == null || !email.contains("@") || email.chars().anyMatch(Character::isWhitespace)) {
-      return renderForgotPassword(context, request, HttpStatus.BAD_REQUEST, email, "Enter your email address.");
+      return renderForgotPassword(context, request, HttpStatus.BAD_REQUEST, email, OidcPageMessages.ENTER_EMAIL);
     }
 
     var linkParams = new LinkedHashMap<String, String>();
@@ -1166,7 +1169,10 @@ public class OidcEndpoints {
 
     var model = new HashMap<String, String>();
     model.put("email", email);
-    model.put("validity", duration(mtacProperties.getJwt().getResetPasswordExpirationSec()));
+    var locales = context != null ? context.params().get("ui_locales") : null;
+    model.put("validity", pageRenderer.messages().duration(mtacProperties.getJwt().getResetPasswordExpirationSec(),
+        pageRenderer.messages().choose(request, locales).locale()));
+    model.put(AUTHORIZE_LOCALES, locales);
     model.put("backUrl", context != null ? loginUrl(context.token(), email) : consoleUrl());
     var headers = new HttpHeaders();
     headers.add(HttpHeaders.SET_COOKIE, cookie(CSRF_COOKIE, "", 0, "Strict"));
@@ -1181,6 +1187,7 @@ public class OidcEndpoints {
     model.put("email", email);
     model.put("error", error);
     model.put("backUrl", context != null ? loginUrl(context.token(), email) : consoleUrl());
+    model.put(AUTHORIZE_LOCALES, context != null ? context.params().get("ui_locales") : null);
     return page("forgot-password", model, status, request, null, new HttpHeaders());
   }
 
@@ -1219,7 +1226,7 @@ public class OidcEndpoints {
     var password = form.getFirst("password");
     var error = ResetPasswordService.passwordRuleError(password);
     if (error == null && !password.equals(form.getFirst("confirmation"))) {
-      error = "The two passwords do not match.";
+      error = OidcPageMessages.PASSWORDS_DIFFER;
     }
     if (error != null) {
       return renderResetPassword(user, resetToken, returnContext, request, HttpStatus.BAD_REQUEST, error);
@@ -1234,7 +1241,7 @@ public class OidcEndpoints {
         return renderInvalidReset(resetToken, returnContext);
       }
       return renderResetPassword(user, resetToken, returnContext, request, HttpStatus.INTERNAL_SERVER_ERROR,
-          "Your password could not be changed. Try again.");
+          OidcPageMessages.PASSWORD_NOT_CHANGED);
     }
     var invitation = resetPasswordService.isInvitationLink(resetToken);
     log.info("Password of identity {} {} with a {} link", user.getId(), invitation ? "set" : "changed",
@@ -1480,6 +1487,7 @@ public class OidcEndpoints {
     }
     model.put("username", username);
     model.put("error", error);
+    model.put(AUTHORIZE_LOCALES, context.params().get("ui_locales"));
     return page("login", model, status, request, context.client(), headers);
   }
 
@@ -1494,6 +1502,7 @@ public class OidcEndpoints {
     }
     model.put("username", user.getLabel());
     model.put("error", error);
+    model.put(AUTHORIZE_LOCALES, context.params().get("ui_locales"));
     // a user who never validated a code has to enrol the secret first
     if (!Boolean.TRUE.equals(user.getMfaActive()) && user.getTotpSecret() != null) {
       var issuerName = mtacProperties.getOpenId().getServer().getTotpIssuerName();
@@ -1549,6 +1558,16 @@ public class OidcEndpoints {
         formAction.append(' ').append(origin);
       }
     }
+    // language of the page (parameter, authorization request, cookie, browser), its known messages translated
+    var messages = pageRenderer.messages();
+    var choice = messages.choose(request, model.remove(AUTHORIZE_LOCALES));
+    var locale = choice.locale();
+    if (choice.remember()) {
+      headers.add(HttpHeaders.SET_COOKIE, messages.cookie(locale));
+    }
+    model.put("lang", locale.toLanguageTag());
+    model.computeIfPresent("error", (name, text) -> messages.translateKnown(text, locale));
+    model.computeIfPresent("message", (name, text) -> messages.translateKnown(text, locale));
     headers.setContentType(new MediaType("text", "html", StandardCharsets.UTF_8));
     headers.add(HttpHeaders.CACHE_CONTROL, "no-store");
     headers.add("Content-Security-Policy", "default-src 'none'; style-src 'nonce-" + nonce
@@ -1556,7 +1575,7 @@ public class OidcEndpoints {
     headers.add("X-Frame-Options", "DENY");
     headers.add("X-Content-Type-Options", "nosniff");
     headers.add("Referrer-Policy", "no-referrer");
-    return ResponseEntity.status(status).headers(headers).body(pageRenderer.render(template, model, lists));
+    return ResponseEntity.status(status).headers(headers).body(pageRenderer.render(template, model, lists, locale));
   }
 
   private static Set<String> origins(MtacOidcClient client) {

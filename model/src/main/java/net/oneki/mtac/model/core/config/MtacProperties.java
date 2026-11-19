@@ -65,6 +65,9 @@ public class MtacProperties {
     private int consentStepUpSec = 900;
     private String tenantsScope = "tenants"; // scope that adds the tenant / role claims
     private String templatesPath = "mtac/templates/oidc"; // classpath folder of the hosted pages (login, mfa, logout, error)
+    // languages of the hosted pages (BCP-47 language codes), the first one by default; texts from the Spring
+    // MessageSource ({{@key}} in the templates), see OidcPageMessages
+    private List<String> locales = new ArrayList<>(List.of("en"));
     private String totpIssuerName = "MTAC"; // name shown by the authenticator application
     private MtacOidcSession session = new MtacOidcSession();
     private Map<String, MtacOidcClient> clients = new LinkedHashMap<>(); // key = client_id
