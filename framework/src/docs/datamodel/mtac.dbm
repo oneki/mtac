@@ -3874,10 +3874,10 @@ END;]]> </definition>
 		</idxelement>
 </index>
 
-<table name="assistant_usage_daily" layers="0" collapse-mode="1" max-obj-count="18" z-value="0">
+<table name="assistant_usage_daily" layers="0" collapse-mode="1" max-obj-count="20" z-value="0">
 	<schema name="public"/>
 	<role name="postgres"/>
-	<comment> <![CDATA[Daily usage statistics of the Console assistant, one row per day (Belgian time), user, company and model. Upserted in the transaction that stores each answer, never purged, so it outlives the conversations.]]> </comment>
+	<comment> <![CDATA[Daily usage statistics of the assistant, one row per day (Belgian time), user, company, model and channel (console: the Fuzz Console, mobile: the Fuzz app). Upserted in the transaction that stores each answer, never purged, so it outlives the conversations.]]> </comment>
 	<position x="1660" y="3320"/>
 	<column name="day" not-null="true">
 		<type name="date"/>
@@ -3890,6 +3890,9 @@ END;]]> </definition>
 	</column>
 	<column name="model" not-null="true">
 		<type name="varchar" length="128"/>
+	</column>
+	<column name="channel" not-null="true" default-value="'console'">
+		<type name="varchar" length="16"/>
 	</column>
 	<column name="questions" not-null="true" default-value="0">
 		<type name="integer"/>
@@ -3937,7 +3940,7 @@ END;]]> </definition>
 		<type name="timestamp with time zone" length="0" with-timezone="true"/>
 	</column>
 	<constraint name="assistant_usage_daily_pk" type="pk-constr" table="public.assistant_usage_daily">
-		<columns names="day,user_uid,company_uid,model" ref-type="src-columns"/>
+		<columns names="day,user_uid,company_uid,model,channel" ref-type="src-columns"/>
 	</constraint>
 </table>
 
