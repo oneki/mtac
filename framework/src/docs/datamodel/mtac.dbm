@@ -3944,6 +3944,90 @@ END;]]> </definition>
 	</constraint>
 </table>
 
+<table name="assistant_consent" layers="0" collapse-mode="1" max-obj-count="3" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<comment> <![CDATA[Consent of the Fuzz app before its first question to the assistant (D-102, Apple 5.1.2(i)): one row per user, the last version of the consent accepted (assistant.consent.version). A higher version asks again; a withdrawal deletes the row. The Console does not ask for it.]]> </comment>
+	<position x="2180" y="3320"/>
+	<column name="user_uid" not-null="true">
+		<type name="varchar" length="255"/>
+	</column>
+	<column name="version" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="accepted_at" not-null="true" default-value="now()">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<constraint name="assistant_consent_pkey" type="pk-constr" table="public.assistant_consent">
+		<columns names="user_uid" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<table name="assistant_report" layers="0" collapse-mode="1" max-obj-count="12" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<comment> <![CDATA[Answers of the assistant reported from the Fuzz app (D-103, Google Play AI-generated content policy): reason, comment and a snapshot of the question and the answer copied from the conversation at report time, so no foreign key (the report outlives the conversation). One report per user and answer; purged after assistant.report-retention-days (365). Read by the super admins only.]]> </comment>
+	<position x="2180" y="3500"/>
+	<column name="id" not-null="true">
+		<type name="bigserial" length="0"/>
+	</column>
+	<column name="created_at" not-null="true" default-value="now()">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="user_uid" not-null="true">
+		<type name="varchar" length="255"/>
+	</column>
+	<column name="company_uid">
+		<type name="varchar" length="255"/>
+	</column>
+	<column name="channel" not-null="true" default-value="'mobile'">
+		<type name="varchar" length="16"/>
+	</column>
+	<column name="conversation_id" not-null="true">
+		<type name="varchar" length="64"/>
+	</column>
+	<column name="message_id" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="reason" not-null="true">
+		<type name="varchar" length="16"/>
+	</column>
+	<column name="comment">
+		<type name="text" length="0"/>
+	</column>
+	<column name="question">
+		<type name="text" length="0"/>
+	</column>
+	<column name="answer" not-null="true" default-value="''">
+		<type name="text" length="0"/>
+	</column>
+	<constraint name="assistant_report_pkey" type="pk-constr" table="public.assistant_report">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+	<constraint name="assistant_report_reason_ck" type="ck-constr" table="public.assistant_report">
+			<expression> <![CDATA[reason IN ('offensive', 'wrong', 'other')]]> </expression>
+	</constraint>
+</table>
+
+<index name="assistant_report_user_message_uq" table="public.assistant_report"
+	 concurrent="false" unique="true" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="user_uid"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="message_id"/>
+		</idxelement>
+</index>
+
+<index name="assistant_report_created_idx" table="public.assistant_report"
+	 concurrent="false" unique="false" fast-update="false" buffering="false" nulls-not-distinct="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="created_at"/>
+		</idxelement>
+</index>
+
 <table name="charge_request" layers="0" collapse-mode="1" max-obj-count="16" z-value="0">
 	<schema name="public"/>
 	<role name="postgres"/>
