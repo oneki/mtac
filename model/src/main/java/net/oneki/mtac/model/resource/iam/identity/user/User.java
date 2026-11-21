@@ -2,6 +2,8 @@ package net.oneki.mtac.model.resource.iam.identity.user;
 
 import java.time.Instant;
 
+import com.fasterxml.jackson.annotation.JsonView;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -10,6 +12,7 @@ import lombok.experimental.SuperBuilder;
 import net.oneki.mtac.model.core.util.introspect.annotation.Entity;
 import net.oneki.mtac.model.core.util.introspect.annotation.Secret;
 import net.oneki.mtac.model.core.util.introspect.annotation.Secret.SecretType;
+import net.oneki.mtac.model.core.util.json.view.Internal;
 import net.oneki.mtac.model.resource.iam.identity.Identity;
 import net.oneki.mtac.model.resource.iam.identity.OauthIdentity;
 import net.oneki.mtac.model.resource.iam.identity.hasMfa;
@@ -27,8 +30,13 @@ public class User extends Identity implements OauthIdentity, hasResetPassword, h
     @Secret(type = SecretType.ENCRYPTION)
     protected String totpSecret;
     protected Integer tokenExpiresIn; // accessToken in seconds. If null, the default value is used (usually 900 seconds)
+    // Internal view: stored, never in an API answer (the API mapper, DtoModule, drops it). Whoever reads them could
+    // reuse the session or choose the password of the user.
+    @JsonView(Internal.class)
     protected String refreshToken;
+    @JsonView(Internal.class)
     protected String resetPasswordToken;
+    @JsonView(Internal.class)
     protected Instant resetPasswordTokenIssuedAt; // to avoid spam, user can only request reset password once every X minutes, X is defined in mtac properties
     protected Boolean mfa;
     protected Boolean mfaActive;
