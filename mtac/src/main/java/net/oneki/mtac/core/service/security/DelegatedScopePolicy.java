@@ -13,6 +13,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.core.user.OAuth2User;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import net.oneki.mtac.model.core.openid.oidc.TokenAudience;
 
@@ -328,7 +330,7 @@ public final class DelegatedScopePolicy {
    * lifted for the current thread during the call only, and restored after it,
    * also when it throws. The user's own RBAC is still checked by
    * {@link PermissionService}, and {@link #MOBILE_FORBIDDEN_ACTIONS} stay
-   * forbidden. Each use is logged with its reason.
+   * forbidden. Each use is logged with its reason (at debug for a read request).
    *
    * <p>
    * Only the app services that need IAM call it (the employees and badges of a
@@ -346,7 +348,7 @@ public final class DelegatedScopePolicy {
     if (!policy.isFirstPartyMobile()) {
       return action.get();
     }
-    log.info("IAM elevation of a first-party mobile token: {} (client_id={}, sub={})", reason, policy.clientId,
+    logElevation("IAM elevation of a first-party mobile token: {} (client_id={}, sub={})", reason, policy.clientId,
         policy.subject);
     return runWith(IAM_ELEVATION, reason, action);
   }
@@ -374,7 +376,7 @@ public final class DelegatedScopePolicy {
    * only). The power is only opened for a token whose sign-in used the second
    * factor ({@link #isMfaAuthenticated()}): without it the action runs
    * without the power (logged), whatever the caller checked. Each use is
-   * logged with its reason. For any other token it only runs the action (a
+   * logged with its reason (at debug for a read request). For any other token it only runs the action (a
    * Console token already has the power, a third-party one never gets it).
    *
    * @param reason why the power is opened, for the logs (required)
@@ -406,7 +408,7 @@ public final class DelegatedScopePolicy {
           reason, policy.clientId, policy.subject);
       return action.get();
     }
-    log.info("Super admin powers opened for a first-party mobile token: {} (client_id={}, sub={})", reason,
+    logElevation("Super admin powers opened for a first-party mobile token: {} (client_id={}, sub={})", reason,
         policy.clientId, policy.subject);
     return runWith(SUPER_ADMIN_POWERS, reason, action);
   }
@@ -445,6 +447,28 @@ public final class DelegatedScopePolicy {
       return probe.get();
     }
     return runWith(IAM_ELEVATION, "super admin role check", probe);
+  }
+
+  /**
+   * True when the current thread serves an HTTP request that only reads (GET,
+   * HEAD, OPTIONS). False for a write and for a thread without request (a job,
+   * a stream of the assistant).
+   */
+  public static boolean isReadRequest() {
+    if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
+      var method = attributes.getRequest().getMethod();
+      return "GET".equals(method) || "HEAD".equals(method) || "OPTIONS".equals(method);
+    }
+    return false;
+  }
+
+  /** An elevation is logged at info for a write, at debug for a read (they would flood the log). */
+  private static void logElevation(String format, Object... arguments) {
+    if (isReadRequest()) {
+      log.debug(format, arguments);
+    } else {
+      log.info(format, arguments);
+    }
   }
 
   private static <T> T runWith(ThreadLocal<String> flag, String reason, Supplier<T> action) {
