@@ -4269,6 +4269,67 @@ END;]]> </definition>
 		<predicate><![CDATA[status IN ('PENDING', 'SENDING')]]></predicate>
 </index>
 
+<table name="platform_notice_delivery" layers="0" collapse-mode="1" max-obj-count="19" z-value="0">
+	<schema name="public"/>
+	<role name="postgres"/>
+	<comment> <![CDATA[Who was told about a planned maintenance of the platform, by push or by mail: one row per notice, start, kind (planned, moved, cancelled), channel and user. The notices themselves are in the public status file (repository fuzz-status).]]> </comment>
+	<position x="2700" y="3300"/>
+	<column name="id" not-null="true">
+		<type name="bigserial" length="0"/>
+	</column>
+	<column name="notice_id" not-null="true">
+		<type name="varchar" length="64"/>
+	</column>
+	<column name="starts_at" not-null="true">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="kind" not-null="true">
+		<type name="varchar" length="16"/>
+	</column>
+	<column name="channel" not-null="true">
+		<type name="varchar" length="8"/>
+	</column>
+	<column name="user_id" not-null="true">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="status" not-null="true" default-value="'PENDING'">
+		<type name="varchar" length="16"/>
+	</column>
+	<column name="attempts" not-null="true" default-value="0">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="next_attempt_at" not-null="true" default-value="now()">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="last_error">
+		<type name="text" length="0"/>
+	</column>
+	<column name="created_at" not-null="true" default-value="now()">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<column name="sent_at">
+		<type name="timestamp with time zone" length="0" with-timezone="true"/>
+	</column>
+	<constraint name="platform_notice_delivery_pk" type="pk-constr" table="public.platform_notice_delivery">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+	<constraint name="platform_notice_delivery_uq" type="uq-constr" table="public.platform_notice_delivery">
+		<columns names="notice_id,starts_at,kind,channel,user_id" ref-type="src-columns"/>
+	</constraint>
+	<constraint name="platform_notice_delivery_kind_ck" type="ck-constr" table="public.platform_notice_delivery">
+			<expression> <![CDATA[kind IN ('planned', 'moved', 'cancelled')]]> </expression>
+	</constraint>
+	<constraint name="platform_notice_delivery_channel_ck" type="ck-constr" table="public.platform_notice_delivery">
+			<expression> <![CDATA[channel IN ('push', 'mail')]]> </expression>
+	</constraint>
+	<constraint name="platform_notice_delivery_status_ck" type="ck-constr" table="public.platform_notice_delivery">
+			<expression> <![CDATA[status IN ('PENDING', 'SENDING', 'SENT', 'FAILED', 'SKIPPED', 'EXPIRED')]]> </expression>
+	</constraint>
+	<constraint name="platform_notice_delivery_attempts_ck" type="ck-constr" table="public.platform_notice_delivery">
+			<expression> <![CDATA[attempts >= 0]]> </expression>
+	</constraint>
+</table>
+
 <constraint name="role_schema_role_fk" type="fk-constr" comparison-type="MATCH FULL"
 	 upd-action="CASCADE" del-action="CASCADE" ref-table="public.resource" table="public.role_schema">
 	<columns names="role_id" ref-type="src-columns"/>
@@ -4545,6 +4606,12 @@ END;]]> </definition>
 	<columns names="id" ref-type="dst-columns"/>
 </constraint>
 
+<constraint name="platform_notice_delivery_user_fk" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="NO ACTION" del-action="CASCADE" ref-table="public.resource" table="public.platform_notice_delivery">
+	<columns names="user_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
 <relationship name="rel_role_schema_resource" type="relfk" layers="0"
 	 src-table="public.role_schema"
 	 dst-table="public.resource" reference-fk="role_schema_role_fk"
@@ -4803,6 +4870,11 @@ END;]]> </definition>
 <relationship name="rel_push_delivery_user_resource" type="relfk" layers="0"
 	 src-table="public.push_delivery"
 	 dst-table="public.resource" reference-fk="push_delivery_user_fk"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_platform_notice_delivery_user_resource" type="relfk" layers="0"
+	 src-table="public.platform_notice_delivery"
+	 dst-table="public.resource" reference-fk="platform_notice_delivery_user_fk"
 	 src-required="false" dst-required="true"/>
 
 </dbmodel>
